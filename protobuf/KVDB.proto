@@ -1,0 +1,43 @@
+option optimize_for = LITE_RUNTIME;
+option cc_generic_services = false;
+
+message ErrorResponse {
+	
+}
+
+//
+// Simple Key-Value structure
+//
+
+message KeyValue {
+	required string key = 2;
+	required string value = 3;
+}
+
+message UpdateRequest {
+	required uint32 tableId = 1 [default = 0];
+	repeated KeyValue write_requests = 2; //The KV pairs to be updated
+	repeated string delete_requests = 3; //The keys to be deleted
+}
+
+message ReadRequest {
+	required uint32 tableId = 1 [default = 0];
+	repeated string key = 2;
+}
+
+message ReadResponse {
+	repeated string values = 1; //In the same order as the keys that have been requested
+}
+
+//
+//Utility requests
+//
+message CountRequest {
+	optional string start_key = 1;
+	optional string end_key = 2;
+}
+
+message CountResponse {
+	required uint64 count = 1;
+}
+
