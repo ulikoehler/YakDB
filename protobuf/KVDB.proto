@@ -10,31 +10,32 @@ message ErrorResponse {
 //
 
 message KeyValue {
-	required string key = 2;
-	required string value = 3;
+	required bytes key = 2;
+	required bytes value = 3;
 }
 
 message UpdateRequest {
 	required uint32 tableId = 1 [default = 0];
 	repeated KeyValue write_requests = 2; //The KV pairs to be updated
-	repeated string delete_requests = 3; //The keys to be deleted
+	repeated bytes delete_requests = 3; //The keys to be deleted (executed after the writes)
+	optional bool sync = 4; //Set this to true if writes shall be synchronous (--> immediately written to HDD)
 }
 
 message ReadRequest {
 	required uint32 tableId = 1 [default = 0];
-	repeated string key = 2;
+	repeated bytes keys = 2;
 }
 
 message ReadResponse {
-	repeated string values = 1; //In the same order as the keys that have been requested
+	repeated bytes values = 1; //In the same order as the keys that have been requested, empty if not found
 }
 
 //
 //Utility requests
 //
 message CountRequest {
-	optional string start_key = 1;
-	optional string end_key = 2;
+	optional bytes start_key = 1;
+	optional bytes end_key = 2;
 }
 
 message CountResponse {
