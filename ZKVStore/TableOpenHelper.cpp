@@ -7,6 +7,7 @@
 
 #include "TableOpenHelper.hpp"
 #include <thread>
+#include <cassert>
 
 /**
  * Main function for table open worker thread
@@ -19,7 +20,10 @@ static void tableOpenWorkerThread(zctx_t* context, TableOpenHelper::LevelDBArray
     while(true) {
         zmsg_t* msg = zmsg_recv(repSocket);
         //Msg only contains one frame
-        zframe_t* frame = zmsg_first(msg);
+        zframe_t* frame = zmsg_pop(msg);
+        assert(zframe_size(frame) == 4);
+        uint32_t index = *((uint32_t*)zframe_data(frame));
+        //Only open the 
     }
 }
 
