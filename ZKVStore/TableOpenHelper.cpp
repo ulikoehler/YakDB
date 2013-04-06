@@ -14,7 +14,7 @@
  * @param pointerToDatabases A pointer to an array of leveldb::DB* instances that is managed by this method.
  * The array is automatically initialized and resized on demand
  */
-static void tableOpenWorkerThread(zctx_t* context, TableOpenHelper::LevelDBArray* pointerToDatabases) {
+static void tableOpenWorkerThread(zctx_t* context, TableOpenHelper::LevelDBArray* pointerToDatabases, TableOpenHelper::IndexType* databasesSize) {
     void* repSocket = zsocket_new(context, ZMQ_REQ);
     zsocket_connect(repSocket, "inproc://tableOpenWorker");
     while(true) {
@@ -24,7 +24,12 @@ static void tableOpenWorkerThread(zctx_t* context, TableOpenHelper::LevelDBArray
         assert(zframe_size(frame) == 4);
         uint32_t index = *((uint32_t*)zframe_data(frame));
         zframe_destroy(frame);
-        //Only open the 
+        //Create the table (only if it hasn't been created)
+        if((*pointerToDatabases)[i] == NULL) {
+            
+        }
+        //Send the (empty) msg as rely
+        zmsg_send(repSocket);
     }
 }
 
