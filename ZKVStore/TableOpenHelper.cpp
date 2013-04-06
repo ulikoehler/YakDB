@@ -23,6 +23,7 @@ static void tableOpenWorkerThread(zctx_t* context, TableOpenHelper::LevelDBArray
         zframe_t* frame = zmsg_pop(msg);
         assert(zframe_size(frame) == 4);
         uint32_t index = *((uint32_t*)zframe_data(frame));
+        zframe_destroy(frame);
         //Only open the 
     }
 }
