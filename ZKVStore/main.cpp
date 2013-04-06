@@ -8,9 +8,10 @@
 #include <sys/stat.h>
 #include "../protobuf/KVDB.pb.h"
 
-//Update requests are 
+//Feature toggle
 #define BATCH_UPDATES
 #define DEBUG_UPDATES
+#define DEBUG_READ
 
 const char* updateWorkerThreadAddr = "inproc://updateWorkerThread";
 
@@ -108,7 +109,11 @@ struct KVServer {
         }
     }
     KeyValueMultiTable tables;
-    void* reqRepSocket; //ROUTER socket that receives remote req/rep
+    //External sockets
+    void* reqRepSocket; //ROUTER socket that receives remote req/rep. READ requests can only use this socket
+    void* subSocket; //SUB socket that subscribes to UPDATE requests (For mirroring etc)
+    void* pullSocket; //PULL socket for UPDATE load balancing
+    //Internal sockets
     void* updateWorkerThreadSocket; //PUSH socket that distributes update requests among worker threads
     //Thread info
     uint16_t numUpdateThreads;
@@ -123,8 +128,9 @@ void handleReadRequest(KeyValueMultiTable& tables, ReadRequest& request, ReadRes
     leveldb::Status status;
     //Read each read request
     for (int i = 0; i < request.keys_size(); i++) {
+#ifdef DEBUG_READ
         printf("Reading\n", request.keys(i).c_str());
-        fflush(stdout);
+#endif
         status = db->Get(readOptions, request.keys(i), &value);
         if (status.IsNotFound()) {
             response.add_values("");
@@ -152,7 +158,7 @@ void handleUpdateRequest(KeyValueMultiTable& tables, UpdateRequest& request) {
     }
     for (int i = 0; i < request.delete_requests_size(); i++) {
 #ifdef DEBUG_UPDATES
-        printf("Delete '%s' = '%s'\n", request.delete_requests(i).c_str());
+        printf("Delete '%s'\n", request.delete_requests(i).c_str());
 #endif
         batch.Delete(request.delete_requests(i));
     }
@@ -186,30 +192,29 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     //Initialize a scoped lock
     zmsg_t *msg = zmsg_recv(server->reqRepSocket);
     if (msg) {
-        //The message consists of three frames: Client addr, empty delimiter and data frame
-        //Check which message has been sent by the client (in the data frame)
+        //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
+        assert(zmsg_size(msg) == 4); //return addr + empty delimiter + msg type + data frame
         zframe_t* dataFrame = zmsg_last(msg);
+        zmsg_remove(msg, dataFrame); //--> We can reuse the data frame plus we can use zmsg_last to get the msg type frame
+        zframe_t* msgTypeFrame = zmsg_last(msg);
+        assert(zframe_size(msgTypeFrame) == 1);
+        uint8_t msgType = zframe_data(msgTypeFrame)[0];
+        char* data = (char*)zframe_data(dataFrame);
         size_t dataSize = zframe_size(dataFrame);
-        assert(dataSize > 0);
-        unsigned char* data = zframe_data(dataFrame);
-        uint8_t msgType = data[0];
-        data++; //Now data is a pointer
-        dataSize--; //msg type is the first character
-        std::string response;
         //        fprintf(stderr, "Got message of type %d from client\n", (int) msgType);
         if (msgType == 1) {
             fprintf(stderr, "Client requested new work chunk\n");
-
             ReadRequest request;
             request.ParseFromArray(data, dataSize);
-            uint32_t tableId = request.tableid();
             //Create the response
             ReadResponse readResponse;
             //Do the work
             handleReadRequest(server->tables, request, readResponse);
-            response = readResponse.SerializeAsString();
-            //Re-use the existing message (for req-rep adressing)
-            zframe_reset(zmsg_last(msg), "\x00", 1);
+            string readResponseString = readResponse.SerializeAsString();
+            //Re-use the msg type frame
+            zframe_reset(msgTypeFrame, "\x00", 1);
+            //Re-use the data frame. It has been removed from the msg before, so we need to re-add it
+            zframe_reset(dataFrame, readResponseString.c_str(), readResponseString.length());            
         } else if (msgType == 2) { //Process update requests
             //This forwards the data (=serialized update request) to a update worker thread
             zmsg_t *msgToUpdateWorker = zmsg_new();
@@ -217,7 +222,7 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
             zmsg_push(msgToUpdateWorker, dataFrame);
             zmsg_send(&msgToUpdateWorker, server->updateWorkerThreadSocket);
             //Send acknowledge message (update is processed asynchronously)
-            zframe_reset(zmsg_last(msg), "\x00", 1);
+            zframe_reset(msgTypeFrame, "\x00", 1);
         } else {
             fprintf(stderr, "Unknown message type %d from client\n", (int) msgType);
         }
@@ -296,19 +301,18 @@ void initializeUpdateWorkers(zctx_t* ctx, KVServer* serverInfo) {
  */
 int main() {
     const char* reqRepUrl = "tcp://*:7100";
-    //    const char* writeSubscriptionUrl = "tcp://*:7101";
-    //    const char* errorPubUrl = "tcp://*:7102";
+    const char* writeSubscriptionUrl = "tcp://*:7101";
+    const char* errorPubUrl = "tcp://*:7102";
     //Ensure the tables directory exists
     initializeDirectoryStructure();
     //Create the object that will be shared between the threadsloop
     KVServer server;
-    fflush(stdout);
     //Create the ZMQ context
     zctx_t *ctx = zctx_new();
     //Initialize all worker threads
-    initializeUpdateWorkers(ctx, &server),
-            //Initialize the request receiver (runs on the main thread)
-            server.reqRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
+    initializeUpdateWorkers(ctx, &server);
+    //Initialize the sockets that run on the main thread
+    server.reqRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
     zsocket_bind(server.reqRepSocket, reqRepUrl);
     //Start the loop
     printf("Starting server...\n");

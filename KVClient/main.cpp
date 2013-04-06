@@ -1,11 +1,19 @@
 #include <leveldb/db.h>
 #include <czmq.h>
 #include <string>
+#include <iostream>
 #include <cstdio>
 #include <cstdlib>
 #include "../protobuf/KVDB.pb.h"
 
 using namespace std;
+
+/**
+ * ZMQ zero-copy free function that uses standard C free
+ */
+void standardFree(void *data, void *hint) {
+    free(data);
+}
 
 /**
  * Build a ZeroMQ ZKV message
@@ -14,13 +22,19 @@ using namespace std;
  * @return 
  */
 template<typename PayloadType>
-inline char* buildMessage(PayloadType& readRequest, uint8_t requestType) {
-    int size = readRequest.ByteSize() + 2;
-    char* data = new char[size];
-    data[0] = 1; //Read request
-    data[size - 1] = 0; //NUL-terminator
-    readRequest.SerializeWithCachedSizesToArray(data+1);
-    return data;
+inline zmsg_t* buildMessage(PayloadType& requestPayload, uint8_t requestType) {
+    zmsg_t* msg = zmsg_new();
+    //Create & add the msg type frame
+    zframe_t* msgTypeFrame = zframe_new((const char*) &requestType, 1);
+    zmsg_add(msg, msgTypeFrame);
+    //Create and add the data frame (zero-copy)
+    int size = requestPayload.ByteSize();
+    uint8_t* data = (uint8_t*)malloc(sizeof (uint8_t)* size); //Protobuf uses uint8_t instead of char
+    requestPayload.SerializeWithCachedSizesToArray(data);
+    zframe_t* payloadFrame = zframe_new_zero_copy((char*)data, size, standardFree, nullptr);
+    zmsg_add(msg, payloadFrame);
+    //Create the zero copy frame
+    return msg;
 }
 
 /**
@@ -29,8 +43,8 @@ inline char* buildMessage(PayloadType& readRequest, uint8_t requestType) {
  */
 int main() {
     const char* reqRepUrl = "tcp://localhost:7100";
-//    const char* writeSubscriptionUrl = "tcp://*:7101";
-//    const char* errorPubUrl = "tcp://*:7102";
+    //    const char* writeSubscriptionUrl = "tcp://*:7101";
+    //    const char* errorPubUrl = "tcp://*:7102";
     printf("Starting client...\n");
     fflush(stdout);
     //Create the sockets
@@ -42,10 +56,26 @@ int main() {
     KeyValue* val = request.add_write_requests();
     val->set_key("testkey");
     val->set_value("testvalue");
-    //Send the frame
-    zstr_send(reqRepSocket, (string("\x02") + request.SerializeAsString()).c_str());
-    char *reply = zstr_recv(reqRepSocket);
-    printf("Reply: %d", (int)reply[0]);
+    //Send the data
+    zmsg_t* msg = buildMessage(request, 2); //2 = Update request 
+    zmsg_send(&msg, reqRepSocket);
+    char* reply = zstr_recv(reqRepSocket);
+    printf("Reply: %d", (int) reply[0]);
+    free(reply);
+    //
+    //Read
+    //
+    ReadRequest readRequest;
+    readRequest.add_keys("testkey");
+    msg = buildMessage(readRequest, 1); //1 = Read request
+    zmsg_send(&msg, reqRepSocket);
+    //Receive the reply
+    msg = zmsg_recv(reqRepSocket);
+    zframe_t* readResponseFrame = zmsg_last(msg);
+    ReadResponse response;
+    response.ParseFromString(string((const char*)zframe_data(readResponseFrame), zframe_size(readResponseFrame)));
+    cout << "RR " << response.values(0) << endl;
+    zmsg_destroy(&msg);
     zctx_destroy(&ctx);
     //All tables are closed at scope exit.
 }
