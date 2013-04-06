@@ -6,6 +6,7 @@
 #include <thread>
 #include <iostream>
 #include <sys/stat.h>
+#include <mutex>
 #include "../protobuf/KVDB.pb.h"
 
 //Feature toggle
@@ -25,7 +26,7 @@ class KeyValueMultiTable {
 public:
     typedef uint32_t IndexType;
 
-    KeyValueMultiTable(IndexType defaultTablespaceSize = 16, bool dbCompression = true) : dbCompression(dbCompression) {
+    KeyValueMultiTable(IndexType defaultTablespaceSize = 16, bool dbCompression = true) : dbCompression(dbCompression), tableOpenMutex() {
         //Initialize the table array with 16 tables.
         //This avoids early re-allocation
         databasesSize = 16;
@@ -48,6 +49,8 @@ public:
     }
 
     void resizeTablespace(IndexType minimumValidIndex) {
+        //Prevent other threads opening tables or resizing the table space
+        tableOpenMutex.lock();
         assert(minimumValidIndex > databasesSize);
         IndexType newDatabaseSize = (minimumValidIndex + 1) * 2; //Avoid frequent re-allocations
         databases = (leveldb::DB**) realloc(databases, sizeof (leveldb::DB*) * newDatabaseSize);
@@ -57,6 +60,34 @@ public:
         }
         //Flush the changes
         databasesSize = newDatabaseSize;
+        tableOpenMutex.unlock();
+    }
+
+    void openDB(IndexType index) {
+        cout << "STO " << index << endl;
+        //Prevent concurrent opening of tables
+        //If the mutex has been acquired from somewhere else, enter spinlock and check
+        // if the DB has been opened after lock release
+        while (!tableOpenMutex.try_lock()) {
+            usleep(5000); //Wait 5 ms
+        }
+        //If another thread already opened the table, simply return
+        if (databases[index] != nullptr) {
+            return;
+        }
+        //If the table is still not open, we can open it
+        tableOpenMutex.lock();
+        cout << "TO " << index << endl;
+        leveldb::Options options;
+        options.create_if_missing = true;
+        options.compression = (dbCompression ? leveldb::kSnappyCompression : leveldb::kNoCompression);
+        std::string tableName = "tables/" + std::to_string(index);
+        leveldb::Status status = leveldb::DB::Open(options, tableName.c_str(), &databases[index]);
+        if (!status.ok()) {
+            fprintf(stderr, "Error while trying to open database in %s: %s", tableName.c_str(), status.ToString().c_str());
+        }
+        cout << "FTO " << databases[index] << endl;
+        tableOpenMutex.unlock();
     }
 
     leveldb::DB* getTable(IndexType index) {
@@ -66,14 +97,7 @@ public:
         }
         //Check if the database has already been opened
         if (databases[index] == NULL) {
-            leveldb::Options options;
-            options.create_if_missing = true;
-            options.compression = (dbCompression ? leveldb::kSnappyCompression : leveldb::kNoCompression);
-            std::string tableName = "tables/" + std::to_string(index);
-            leveldb::Status status = leveldb::DB::Open(options, tableName.c_str(), &databases[index]);
-            if (!status.ok()) {
-                fprintf(stderr, "Error while trying to open database in %s: %s", tableName.c_str(), status.ToString().c_str());
-            }
+            openDB(index);
         }
         return databases[index];
     }
@@ -92,6 +116,7 @@ private:
     leveldb::DB** databases; //Array indexed by table num
     uint32_t databasesSize;
     bool dbCompression;
+    std::mutex tableOpenMutex;
 };
 
 /**
@@ -199,11 +224,10 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         zframe_t* msgTypeFrame = zmsg_last(msg);
         assert(zframe_size(msgTypeFrame) == 1);
         uint8_t msgType = zframe_data(msgTypeFrame)[0];
-        char* data = (char*)zframe_data(dataFrame);
+        char* data = (char*) zframe_data(dataFrame);
         size_t dataSize = zframe_size(dataFrame);
         //        fprintf(stderr, "Got message of type %d from client\n", (int) msgType);
         if (msgType == 1) {
-            fprintf(stderr, "Client requested new work chunk\n");
             ReadRequest request;
             request.ParseFromArray(data, dataSize);
             //Create the response
@@ -214,7 +238,7 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
             //Re-use the msg type frame
             zframe_reset(msgTypeFrame, "\x00", 1);
             //Re-use the data frame. It has been removed from the msg before, so we need to re-add it
-            zframe_reset(dataFrame, readResponseString.c_str(), readResponseString.length());            
+            zframe_reset(dataFrame, readResponseString.c_str(), readResponseString.length());
         } else if (msgType == 2) { //Process update requests
             //This forwards the data (=serialized update request) to a update worker thread
             zmsg_t *msgToUpdateWorker = zmsg_new();
