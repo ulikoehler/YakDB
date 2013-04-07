@@ -5,9 +5,11 @@
 #include <cstdio>
 #include <thread>
 #include <iostream>
+#include <vector>
 #include <sys/stat.h>
 #include <mutex>
 #include "../protobuf/KVDB.pb.h"
+#include "TableOpenHelper.hpp"
 
 //Feature toggle
 #define BATCH_UPDATES
@@ -26,14 +28,15 @@ class KeyValueMultiTable {
 public:
     typedef uint32_t IndexType;
 
-    KeyValueMultiTable(IndexType defaultTablespaceSize = 16, bool dbCompression = true) : dbCompression(dbCompression), tableOpenMutex() {
+    KeyValueMultiTable(IndexType defaultTablespaceSize = 16) : tableOpenMutex(), databases(32) {
         //Initialize the table array with 16 tables.
         //This avoids early re-allocation
         databasesSize = 16;
         //Use malloc here to allow usage of realloc
-        databases = (leveldb::DB**) malloc(sizeof (leveldb::DB*) * databasesSize);
         //Initialize all pointers to zero
-        memset(databases, 0, sizeof (leveldb::DB*) * databasesSize);
+        for (int i = 0; i < databases.size(); i++) {
+            databases[i] = NULL;
+        }
     }
 
     ~KeyValueMultiTable() {
@@ -44,60 +47,12 @@ public:
                 delete databases[i];
             }
         }
-        //Delete the database array
-        free(databases);
     }
 
-    void resizeTablespace(IndexType minimumValidIndex) {
-        //Prevent other threads opening tables or resizing the table space
-        tableOpenMutex.lock();
-        assert(minimumValidIndex > databasesSize);
-        IndexType newDatabaseSize = (minimumValidIndex + 1) * 2; //Avoid frequent re-allocations
-        databases = (leveldb::DB**) realloc(databases, sizeof (leveldb::DB*) * newDatabaseSize);
-        //Fill the newly-allocated memory with zeroes (indicates that DB has not been opened)
-        for (IndexType i = databasesSize; i < newDatabaseSize; i++) {
-            databases[i] = NULL;
-        }
-        //Flush the changes
-        databasesSize = newDatabaseSize;
-        tableOpenMutex.unlock();
-    }
-
-    void openDB(IndexType index) {
-        cout << "STO " << index << endl;
-        //Prevent concurrent opening of tables
-        //If the mutex has been acquired from somewhere else, enter spinlock and check
-        // if the DB has been opened after lock release
-        while (!tableOpenMutex.try_lock()) {
-            usleep(5000); //Wait 5 ms
-        }
-        //If another thread already opened the table, simply return
-        if (databases[index] != nullptr) {
-            return;
-        }
-        //If the table is still not open, we can open it
-        tableOpenMutex.lock();
-        cout << "TO " << index << endl;
-        leveldb::Options options;
-        options.create_if_missing = true;
-        options.compression = (dbCompression ? leveldb::kSnappyCompression : leveldb::kNoCompression);
-        std::string tableName = "tables/" + std::to_string(index);
-        leveldb::Status status = leveldb::DB::Open(options, tableName.c_str(), &databases[index]);
-        if (!status.ok()) {
-            fprintf(stderr, "Error while trying to open database in %s: %s", tableName.c_str(), status.ToString().c_str());
-        }
-        cout << "FTO " << databases[index] << endl;
-        tableOpenMutex.unlock();
-    }
-
-    leveldb::DB* getTable(IndexType index) {
-        //Check if the tablespace is large enough
-        if (index >= databasesSize) {
-            resizeTablespace(index);
-        }
+    leveldb::DB* getTable(IndexType index, TableOpenHelper& openHelper) {
         //Check if the database has already been opened
-        if (databases[index] == NULL) {
-            openDB(index);
+        if (databases[index] == NULL || index >= databases.size()) {
+            openHelper.openTable(index);
         }
         return databases[index];
     }
@@ -112,10 +67,21 @@ public:
     leveldb::DB* getExistingTable(IndexType index) {
         return databases[index];
     }
+
+    vector<leveldb::DB*>& getDatabases() {
+        return databases;
+    }
 private:
-    leveldb::DB** databases; //Array indexed by table num
+    /**
+     * The databases vector.
+     * Any method in this class has read-only access (tables may be closed by this class however)
+     * 
+     * Write acess is serialized using the TableOpenHelper class.
+     * 
+     * Therefore locks and double initialization are avoided.
+     */
+    std::vector<leveldb::DB*> databases; //Indexed by table num
     uint32_t databasesSize;
-    bool dbCompression;
     std::mutex tableOpenMutex;
 };
 
@@ -124,7 +90,7 @@ private:
  */
 struct KVServer {
 
-    KVServer() : tables(), numUpdateThreads(0) {
+    KVServer(zctx_t* ctx) : tables(), numUpdateThreads(0), tableOpenHelper(ctx) {
 
     }
 
@@ -140,13 +106,14 @@ struct KVServer {
     void* pullSocket; //PULL socket for UPDATE load balancing
     //Internal sockets
     void* updateWorkerThreadSocket; //PUSH socket that distributes update requests among worker threads
+    TableOpenHelper tableOpenHelper; //Only for use in the main thread
     //Thread info
     uint16_t numUpdateThreads;
     std::thread** updateWorkerThreads;
 };
 
-void handleReadRequest(KeyValueMultiTable& tables, ReadRequest& request, ReadResponse& response) {
-    leveldb::DB* db = tables.getTable(request.tableid());
+void handleReadRequest(KeyValueMultiTable& tables, ReadRequest& request, ReadResponse& response, TableOpenHelper& openHelper) {
+    leveldb::DB* db = tables.getTable(request.tableid(), openHelper);
     //Create the response object
     leveldb::ReadOptions readOptions;
     string value; //Where the value will be placed
@@ -165,10 +132,10 @@ void handleReadRequest(KeyValueMultiTable& tables, ReadRequest& request, ReadRes
     }
 }
 
-void handleUpdateRequest(KeyValueMultiTable& tables, UpdateRequest& request) {
+void handleUpdateRequest(KeyValueMultiTable& tables, UpdateRequest& request, TableOpenHelper& helper) {
     leveldb::Status status;
     leveldb::WriteOptions writeOptions;
-    leveldb::DB* db = tables.getTable(request.tableid());
+    leveldb::DB* db = tables.getTable(request.tableid(), helper);
     //The entire update is processed in one batch
 #ifdef BATCH_UPDATES
     leveldb::WriteBatch batch;
@@ -233,7 +200,7 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
             //Create the response
             ReadResponse readResponse;
             //Do the work
-            handleReadRequest(server->tables, request, readResponse);
+            handleReadRequest(server->tables, request, readResponse, server->tableOpenHelper);
             string readResponseString = readResponse.SerializeAsString();
             //Re-use the msg type frame
             zframe_reset(msgTypeFrame, "\x00", 1);
@@ -269,40 +236,28 @@ struct UpdateWorkerInfo {
 };
 
 /**
- * This function is called from the zloop reactor inside the update worker thread
- */
-int updatePollHandler(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
-    UpdateWorkerInfo* info = (UpdateWorkerInfo*) arg;
-    zmsg_t* msg = zmsg_recv(info->pullSocket);
-    assert(msg);
-    zframe_t* firstFrame = zmsg_first(msg);
-    assert(firstFrame);
-    //Deserialize the update request
-    UpdateRequest req;
-    req.ParseFromArray(zframe_data(firstFrame), zframe_size(firstFrame));
-    //Process the frame
-    handleUpdateRequest(info->server->tables, req);
-    //Cleanup
-    zmsg_destroy(&msg);
-}
-
-/**
  * The main function for the update worker thread
  */
 void updateWorkerThreadFunction(zctx_t* ctx, KVServer* serverInfo) {
     void* workPullSocket = zsocket_new(ctx, ZMQ_PULL);
     zsocket_connect(workPullSocket, updateWorkerThreadAddr);
+    //Create the table open helper (creates a socket that sends table open requests)
+    TableOpenHelper tableOpenHelper(ctx);
     //Create the data structure with all info for the poll handler
-    UpdateWorkerInfo pollInfo;
-    pollInfo.server = serverInfo;
-    pollInfo.pullSocket = workPullSocket;
-    //Start the receiver loop
-    zloop_t *reactor = zloop_new();
-    zmq_pollitem_t poller = {workPullSocket, 0, ZMQ_POLLIN};
-    zloop_poller(reactor, &poller, updatePollHandler, &pollInfo);
-    zloop_start(reactor);
+    while (true) {
+        zmsg_t* msg = zmsg_recv(workPullSocket);
+        assert(msg);
+        zframe_t* firstFrame = zmsg_first(msg);
+        assert(firstFrame);
+        //Deserialize the update request
+        UpdateRequest req;
+        req.ParseFromArray(zframe_data(firstFrame), zframe_size(firstFrame));
+        //Process the frame
+        handleUpdateRequest(serverInfo->tables, req, tableOpenHelper);
+        //Cleanup
+        zmsg_destroy(&msg);
+    }
     printf("Stopping update processor\n");
-    zloop_destroy(&reactor);
     zsocket_destroy(ctx, workPullSocket);
 }
 
@@ -329,10 +284,13 @@ int main() {
     const char* errorPubUrl = "tcp://*:7102";
     //Ensure the tables directory exists
     initializeDirectoryStructure();
-    //Create the object that will be shared between the threadsloop
-    KVServer server;
     //Create the ZMQ context
     zctx_t *ctx = zctx_new();
+    //Create the object that will be shared between the threadsloop
+    KVServer server(ctx);
+    //Start the table opener thread (constructor returns after thread has been started. Cleanup on scope exit.)
+    bool dbCompressionEnabled = true;
+    TableOpenServer tableOpenServer(ctx, server.tables.getDatabases(), dbCompressionEnabled);
     //Initialize all worker threads
     initializeUpdateWorkers(ctx, &server);
     //Initialize the sockets that run on the main thread
