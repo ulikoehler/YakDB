@@ -68,6 +68,7 @@ int main() {
     ReadRequest readRequest;
     readRequest.add_keys("testkey");
     msg = buildMessage(readRequest, 1); //1 = Read request
+    cout << "RR size " << zmsg_size(msg) << endl;
     zmsg_send(&msg, reqRepSocket);
     //Receive the reply
     msg = zmsg_recv(reqRepSocket);

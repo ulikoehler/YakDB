@@ -22,21 +22,23 @@ using namespace std;
  *      - STOP THREAD msg: One empty frame
  *      - CREATE TABLE IF NOT OPENED YET msg: A 4-byte frame containing the binary ID
  */
-static void tableOpenWorkerThread(zctx_t* context, vector<leveldb::DB*>& databases, bool dbCompressionEnabled) {
-    void* repSocket = zsocket_new(context, ZMQ_REQ);
+static void tableOpenWorkerThread(zctx_t* context, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) {
+    cout << "OTR" << endl;
+    void* repSocket = zsocket_new(context, ZMQ_REP);
     zsocket_bind(repSocket, TABLE_OPEN_ENDPOINT);
     while (true) {
         zmsg_t* msg = zmsg_recv(repSocket);
+        cout << "RECV" << endl;
         //Msg only contains one frame
-        zframe_t* frame = zmsg_pop(msg);
+        zframe_t* frame = zmsg_first(msg);
         size_t frameSize = zframe_size(frame);
         //Check for a STOP msg
         if (frameSize == 0) {
             break;
         }
-        assert(zframe_size(frame) == sizeof (TableOpenHelper::IndexType));
+        //If it's not null, it must have the appropriate size
+        assert(frameSize == sizeof (TableOpenHelper::IndexType));
         TableOpenHelper::IndexType index = *((TableOpenHelper::IndexType*)zframe_data(frame));
-        zframe_destroy(&frame);
         //Resize if neccessary
         if (databases.size() <= index) {
             databases.reserve(index + 16); //Avoid large vectors
@@ -53,7 +55,8 @@ static void tableOpenWorkerThread(zctx_t* context, vector<leveldb::DB*>& databas
                 fprintf(stderr, "Error while trying to open database in %s: %s", tableName.c_str(), status.ToString().c_str());
             }
         }
-        //Send the (empty) msg as reply
+        cout << "Finished  " << endl;
+        //Send back the original msg (inproc --> --> no overhead)
         zmsg_send(&msg, repSocket);
     }
     //Reply to the exit msg
@@ -63,7 +66,7 @@ static void tableOpenWorkerThread(zctx_t* context, vector<leveldb::DB*>& databas
 }
 
 TableOpenServer::TableOpenServer(zctx_t* context, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) : context(context) {
-    workerThread = new std::thread(tableOpenWorkerThread, context, databases, dbCompressionEnabled);
+    workerThread = new std::thread(tableOpenWorkerThread, context, std::ref(databases), dbCompressionEnabled);
 }
 
 TableOpenServer::~TableOpenServer() {
@@ -84,17 +87,15 @@ TableOpenServer::~TableOpenServer() {
     delete workerThread;
 }
 
-TableOpenHelper::~TableOpenHelper() {
-    zsocket_destroy(context, &reqSocket);
-}
-
 TableOpenHelper::TableOpenHelper(zctx_t* context) {
+    cout << "Create TOH" << endl;
     this->context = context;
     reqSocket = zsocket_new(context, ZMQ_REQ);
     zsocket_connect(reqSocket, TABLE_OPEN_ENDPOINT);
 }
 
 void TableOpenHelper::openTable(TableOpenHelper::IndexType index) {
+    cout << "TOH Send index: " << index << endl;
     //Just send a message containing the table index to the opener thread
     zmsg_t* msg = zmsg_new();
     zframe_t* frame = zframe_new(&index, sizeof (TableOpenHelper::IndexType));
@@ -103,4 +104,10 @@ void TableOpenHelper::openTable(TableOpenHelper::IndexType index) {
     //Wait for the reply (it's empty but that does not matter)
     msg = zmsg_recv(reqSocket); //Blocks until reply received
     zmsg_destroy(&msg);
+    cout << "ENDTOH" << endl;
+}
+
+TableOpenHelper::~TableOpenHelper() {
+    cout << "Destruct TOH" << endl;
+    zsocket_destroy(context, &reqSocket);
 }

@@ -28,7 +28,7 @@ class KeyValueMultiTable {
 public:
     typedef uint32_t IndexType;
 
-    KeyValueMultiTable(IndexType defaultTablespaceSize = 16) : tableOpenMutex(), databases(32) {
+    KeyValueMultiTable(IndexType defaultTablespaceSize = 16) : databases(32) {
         //Initialize the table array with 16 tables.
         //This avoids early re-allocation
         databasesSize = 16;
@@ -82,7 +82,6 @@ private:
      */
     std::vector<leveldb::DB*> databases; //Indexed by table num
     uint32_t databasesSize;
-    std::mutex tableOpenMutex;
 };
 
 /**
@@ -114,19 +113,24 @@ struct KVServer {
 
 void handleReadRequest(KeyValueMultiTable& tables, ReadRequest& request, ReadResponse& response, TableOpenHelper& openHelper) {
     leveldb::DB* db = tables.getTable(request.tableid(), openHelper);
+    cout << "Got RR table " << endl;
     //Create the response object
     leveldb::ReadOptions readOptions;
     string value; //Where the value will be placed
     leveldb::Status status;
     //Read each read request
     for (int i = 0; i < request.keys_size(); i++) {
+        const std::string& key = request.keys(i);
 #ifdef DEBUG_READ
-        printf("Reading\n", request.keys(i).c_str());
+        printf("Reading\n", key.c_str());
 #endif
-        status = db->Get(readOptions, request.keys(i), &value);
+        status = db->Get(readOptions, key, &value);
         if (status.IsNotFound()) {
             response.add_values("");
         } else {
+#ifdef DEBUG_READ
+            cout << "Read " << value << " (key = " << key << ")" << endl;
+#endif
             response.add_values(value);
         }
     }
@@ -195,13 +199,16 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         size_t dataSize = zframe_size(dataFrame);
         //        fprintf(stderr, "Got message of type %d from client\n", (int) msgType);
         if (msgType == 1) {
+            cout << "Received read request" << endl;
             ReadRequest request;
             request.ParseFromArray(data, dataSize);
             //Create the response
             ReadResponse readResponse;
             //Do the work
+            cout << "Parsed read request (size " << request.keys_size() << ")" << endl;
             handleReadRequest(server->tables, request, readResponse, server->tableOpenHelper);
             string readResponseString = readResponse.SerializeAsString();
+            cout << "Finished handling read request" << endl;
             //Re-use the msg type frame
             zframe_reset(msgTypeFrame, "\x00", 1);
             //Re-use the data frame. It has been removed from the msg before, so we need to re-add it
@@ -217,6 +224,7 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         } else {
             fprintf(stderr, "Unknown message type %d from client\n", (int) msgType);
         }
+        cout << "Sending reply (raw)" << endl;
         zmsg_send(&msg, server->reqRepSocket);
     }
     return 0;
