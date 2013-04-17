@@ -10,6 +10,7 @@
 #include <mutex>
 #include "../protobuf/KVDB.pb.h"
 #include "TableOpenHelper.hpp"
+#include "protocol.hpp"
 
 //Feature toggle
 #define BATCH_UPDATES
@@ -189,14 +190,13 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     zmsg_t *msg = zmsg_recv(server->reqRepSocket);
     if (msg) {
         //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
-        assert(zmsg_size(msg) == 4); //return addr + empty delimiter + msg type + data frame
-        zframe_t* dataFrame = zmsg_last(msg);
-        zmsg_remove(msg, dataFrame); //--> We can reuse the data frame plus we can use zmsg_last to get the msg type frame
-        zframe_t* msgTypeFrame = zmsg_last(msg);
-        assert(zframe_size(msgTypeFrame) == 1);
-        uint8_t msgType = zframe_data(msgTypeFrame)[0];
-        char* data = (char*) zframe_data(dataFrame);
-        size_t dataSize = zframe_size(dataFrame);
+        assert(zmsg_size(msg) >= 4); //return addr + empty delimiter + msg type [+ data frames]
+        //Check the header -- send error message if invalid
+        zframe_t *headerFrame;
+        string errorString;
+        
+        checkProtocolVersion(zframe_data(headerFrame), zframe_size(headerFrame), errorString);
+        
         //        fprintf(stderr, "Got message of type %d from client\n", (int) msgType);
         if (msgType == 1) {
             cout << "Received read request" << endl;

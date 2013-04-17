@@ -105,7 +105,7 @@ Frame 3: End key (inclusive. If this has zero length, the count ends at the firs
 --------------
 Count response:
 
-Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x10 Response type (count response)][1-byte response code]
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x11 Response type (count response)][1-byte response code]
 Frame 1 (if response code indicates an error): NUL-terminated string describing the error
 Frame 1 (if response code indicates success): A variable-length little-endian integer
 
