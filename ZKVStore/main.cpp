@@ -1,3 +1,6 @@
+
+#include <zmq.h>
+
 #include <leveldb/db.h>
 #include <leveldb/write_batch.h>
 #include <czmq.h>
@@ -90,11 +93,16 @@ private:
  */
 struct KVServer {
 
-    KVServer(zctx_t* ctx) : tables(), numUpdateThreads(0), tableOpenHelper(ctx) {
+    KVServer(zctx_t* ctx) : ctx(ctx), tables(), numUpdateThreads(0) {
 
+    }
+    
+    void initializeTableOpenHelper() {
+        tableOpenHelper = new TableOpenHelper(ctx);
     }
 
     ~KVServer() {
+        delete tableOpenHelper;
         if (numUpdateThreads > 0) {
             delete[] updateWorkerThreads;
         }
@@ -106,13 +114,16 @@ struct KVServer {
     void* pullSocket; //PULL socket for UPDATE load balancing
     //Internal sockets
     void* updateWorkerThreadSocket; //PUSH socket that distributes update requests among worker threads
-    TableOpenHelper tableOpenHelper; //Only for use in the main thread
+    TableOpenHelper* tableOpenHelper; //Only for use in the main thread
     //Thread info
     uint16_t numUpdateThreads;
     std::thread** updateWorkerThreads;
+    //Other stuff
+    zctx_t* ctx;
 };
 
 void handleReadRequest(KeyValueMultiTable& tables, ReadRequest& request, ReadResponse& response, TableOpenHelper& openHelper) {
+    cout << "Starting to get RR table" << endl;
     leveldb::DB* db = tables.getTable(request.tableid(), openHelper);
     cout << "Got RR table " << endl;
     //Create the response object
@@ -206,7 +217,7 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
             ReadResponse readResponse;
             //Do the work
             cout << "Parsed read request (size " << request.keys_size() << ")" << endl;
-            handleReadRequest(server->tables, request, readResponse, server->tableOpenHelper);
+            handleReadRequest(server->tables, request, readResponse, *(server->tableOpenHelper));
             string readResponseString = readResponse.SerializeAsString();
             cout << "Finished handling read request" << endl;
             //Re-use the msg type frame
@@ -299,6 +310,7 @@ int main() {
     //Start the table opener thread (constructor returns after thread has been started. Cleanup on scope exit.)
     bool dbCompressionEnabled = true;
     TableOpenServer tableOpenServer(ctx, server.tables.getDatabases(), dbCompressionEnabled);
+    server.initializeTableOpenHelper();
     //Initialize all worker threads
     initializeUpdateWorkers(ctx, &server);
     //Initialize the sockets that run on the main thread
