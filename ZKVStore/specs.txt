@@ -1,0 +1,114 @@
+DKV Store server:
+
+--------------------------------------------
+------Initialization/utility requests-------
+--------------------------------------------
+
+---------------
+Server info request: You can use this to test if a server is online and if it's compatible.
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x00 Request type (info request)]
+
+---------------
+Server info response:
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x00 Response type (info response)][8 bytes Supported Features]
+Frame 1: NUL-Terminated server software info
+
+[Supported Features]: 64-bit field, Little-Endian, with bitwise-OR-concatenated flags:
+    0x01: Server supports on-the-fly table open
+Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
+
+---------------
+Open request: Opens a specified table. Creates the table if not already present.
+Tables can also be opened on-the-fly (optional feature), but you can't specify compression etc. in this case.
+Additionally, opening tables takes a considerable amount of time, therefore
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x01 Request type (table open requst)][1 byte Table open flags]
+Frame 1: Table number encoded as little-endian variable-length integer (max. 64 bits)
+Frame 2 (optional, if not present, default values are assumed): [4 bytes table blocksize]
+
+[Table open flags]: 8-bit-field, with bitwise-OR-concatenated flags.
+    0x01: If this flag is set the table shall be created/opened with compression enabled
+    
+--------------
+Open response (sent after table has been opened):
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x01 Response type (open table response)] [1-byte response code]
+Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
+
+Response codes:
+    0x00 Table opened successfully
+    0x10 Error while opening table (implies frame 1 being existent and non-empty)
+    
+    
+-------------
+Close table request: Close a table (e.g. to save memory) - includes flushing the unwritten table data to disk
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x02 Request type (table close request)]
+Frame 1: Table number encoded as little-endian variable-length integer (max. 64 bits)
+
+-------------
+Close table response:
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x01 Response type (open table response)] [1-byte response code]
+Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
+
+Response codes:
+    0x00 Table closed successfully
+    0x10 Error while close table (implies frame 1 being existent and non-empty)
+ 
+    
+-------------------------------
+------Read-only requests-------
+-------------------------------
+
+---------------
+Read request: Read multiple keys (random-access) at once.
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x10 Request type (read request)]
+Frame 1: Table number encoded as little-endian variable-length integer (max. 64 bits)
+Frame 2-n: Each frame contains an arbitrary byte sequence containing the key to be read
+
+--------------
+Read response:with
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x10 Response type (read response)]
+Frame 1-n: Read results (values only) in the same order as the requests, zero-sized if not found
+
+-------------------------------
+--------Write requests---------
+-------------------------------
+
+--------------
+Write flags: These flags can optionally be supplied with write requests (bitwise-OR different flags to get the flag bytes
+
+0x01 PARTSYNC: Hand request to database backend before acknowledging
+0x02 FULLSYNC: Write data to disk synchronously before acknowledging (implies PARTSYNC)
+
+--------------
+Put request:
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 Request type (Put request)] [Optional: Write flags, defaults to 0x00]
+Frame 1-n (odd frame numbers): Key to write to. The next frame specifies the value to write
+Frame 2-n (even frame numbers): Value to write. The previous frame specifies the corresponding key.
+
+--------------
+Delete request:
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x21 Request type (Put request)] [Optional: Write flags, defaults to 0x00]
+Frame 1-n (odd frame numbers): Key to write to. The next frame specifies the value to write
+Frame 2-n (even frame numbers): Value to write. The previous frame specifies the corresponding key.
+
+--------------
+Put/Delete response: The response format is identical for put and delete requests
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 Response type (Put/delete reponse)] [1 byte Response code]
+Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
+
+Response codes:
+    0x00 Acknowledge (Only acknowledges that the request has been received)
+    0x01 Acknowledge, write request issued (Anckowledges that the request has been handed to the database backend)
+    0x02 Acknowledge, fully synchronous (Acknowledges that the data has been written to disk)
+    0x10 Error while processing request (implies Frame 1 being existing)
+
+Note: If not using PARTSYNC or FULLSYNC flags, the server will send a non-error acknowledge code
