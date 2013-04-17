@@ -96,7 +96,7 @@ struct KVServer {
     KVServer(zctx_t* ctx) : ctx(ctx), tables(), numUpdateThreads(0) {
 
     }
-    
+
     void initializeTableOpenHelper() {
         tableOpenHelper = new TableOpenHelper(ctx);
     }
@@ -122,36 +122,53 @@ struct KVServer {
     zctx_t* ctx;
 };
 
-void handleReadRequest(KeyValueMultiTable& tables, ReadRequest& request, ReadResponse& response, TableOpenHelper& openHelper) {
+void handleReadRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
+    //Parse the table id
+    zframe_t tableIdFrame = zmsg_next(msg);
+    uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
+    zmsg_remove(msg, tableIdFrame);
+    //The response has doesn't have the table frame, so
+    //Get the table to read from
     cout << "Starting to get RR table" << endl;
-    leveldb::DB* db = tables.getTable(request.tableid(), openHelper);
+    leveldb::DB* db = tables.getTable(tableId, openHelper);
     cout << "Got RR table " << endl;
     //Create the response object
     leveldb::ReadOptions readOptions;
     string value; //Where the value will be placed
     leveldb::Status status;
     //Read each read request
-    for (int i = 0; i < request.keys_size(); i++) {
-        const std::string& key = request.keys(i);
+    zframe_t* keyFrame = NULL;
+    while((keyFrame = zmsg_next(msg)) != NULL) {
+        //Build a slice of the key (zero-copy)
+        const leveldb::Slice key(zframe_data(keyFrame), zframe_size(keyFrame));
 #ifdef DEBUG_READ
-        printf("Reading\n", key.c_str());
+        printf("Reading %s\n", key.ToString().c_str());
 #endif
         status = db->Get(readOptions, key, &value);
         if (status.IsNotFound()) {
-            response.add_values("");
+            //Empty value
+            zframe_reset(keyFrame, "", 0);
         } else {
 #ifdef DEBUG_READ
-            cout << "Read " << value << " (key = " << key << ")" << endl;
+            cout << "Read " << value << " (key = " << key.ToString() << ")" << endl;
 #endif
-            response.add_values(value);
+            zframe_reset(keyFrame, value.c_str(), value.length());
         }
     }
 }
 
-void handleUpdateRequest(KeyValueMultiTable& tables, UpdateRequest& request, TableOpenHelper& helper) {
+void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelper& helper) {
     leveldb::Status status;
     leveldb::WriteOptions writeOptions;
+    //Parse the table id
+    zframe_t tableIdFrame = zmsg_next(msg);
+    uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
+    zmsg_remove(msg, tableIdFrame);
+    //Get the table
     leveldb::DB* db = tables.getTable(request.tableid(), helper);
+    //Parse the table id
+    zframe_t tableIdFrame = zmsg_next(msg);
+    uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
     //The entire update is processed in one batch
 #ifdef BATCH_UPDATES
     leveldb::WriteBatch batch;
@@ -201,30 +218,26 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     zmsg_t *msg = zmsg_recv(server->reqRepSocket);
     if (msg) {
         //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
-        assert(zmsg_size(msg) >= 4); //return addr + empty delimiter + msg type [+ data frames]
+        assert(zmsg_size(msg) >= 3); //return addr + empty delimiter + protocol header [+ data frames]
+        //Extract the frames
+        zframe_t* addrFrame = zmsg_first(msg);
+        zframe_t* delimiterFrame = zmsg_next(msg);
+        zframe_t* headerFrame = zmsg_next(msg);
         //Check the header -- send error message if invalid
-        zframe_t *headerFrame;
         string errorString;
-        
-        checkProtocolVersion(zframe_data(headerFrame), zframe_size(headerFrame), errorString);
-        
+        char* headerData = zframe_data(headerFrame);
+        if (!checkProtocolVersion(, zframe_size(headerFrame), errorString)) {
+            fprintf(stderr, "Got illegal message from client\n");
+            return;
+        }
+        RequestType requestType = headerData[2];
+
         //        fprintf(stderr, "Got message of type %d from client\n", (int) msgType);
-        if (msgType == 1) {
-            cout << "Received read request" << endl;
-            ReadRequest request;
-            request.ParseFromArray(data, dataSize);
-            //Create the response
-            ReadResponse readResponse;
-            //Do the work
-            cout << "Parsed read request (size " << request.keys_size() << ")" << endl;
+        if (requestType == RequestType.Read) {
             handleReadRequest(server->tables, request, readResponse, *(server->tableOpenHelper));
-            string readResponseString = readResponse.SerializeAsString();
-            cout << "Finished handling read request" << endl;
-            //Re-use the msg type frame
-            zframe_reset(msgTypeFrame, "\x00", 1);
             //Re-use the data frame. It has been removed from the msg before, so we need to re-add it
             zframe_reset(dataFrame, readResponseString.c_str(), readResponseString.length());
-        } else if (msgType == 2) { //Process update requests
+        } else if (requestType == RequestType.Put) { //Process update requests
             //This forwards the data (=serialized update request) to a update worker thread
             zmsg_t *msgToUpdateWorker = zmsg_new();
             zframe_t* dataFrame = zframe_new(data, dataSize);

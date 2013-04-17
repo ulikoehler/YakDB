@@ -24,7 +24,7 @@ Tables can also be opened on-the-fly (optional feature), but you can't specify c
 Additionally, opening tables takes a considerable amount of time, therefore
 
 Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x01 Request type (table open requst)][1 byte Table open flags]
-Frame 1: Table number encoded as little-endian variable-length integer (max. 64 bits)
+Frame 1: 4-byte little-endian unsigned integer table number
 Frame 2 (optional, if not present, default values are assumed): [4 bytes table blocksize]
 
 [Table open flags]: 8-bit-field, with bitwise-OR-concatenated flags.
@@ -45,7 +45,7 @@ Response codes:
 Close table request: Close a table (e.g. to save memory) - includes flushing the unwritten table data to disk
 
 Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x02 Request type (table close request)]
-Frame 1: Table number encoded as little-endian variable-length integer (max. 64 bits)
+Frame 1: 4-byte little-endian unsigned integer table number
 
 -------------
 Close table response:
@@ -85,7 +85,7 @@ Response codes:
 Read request: Read multiple keys (random-access) at once.
 
 Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x10 Request type (read request)]
-Frame 1: Table number encoded as little-endian variable-length integer (max. 64 bits)
+Frame 1: 4-byte little-endian unsigned integer table number
 Frame 2-n: Each frame contains an arbitrary byte sequence containing the key to be read
 
 --------------
@@ -98,7 +98,7 @@ Frame 1-n: Read results (values only) in the same order as the requests, zero-si
 Count request: Count the number of keys in a given range
 
 Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x11 Request type (count request)]
-Frame 1: Table number encoded as little-endian variable-length integer (max. 64 bits)
+Frame 1: 4-byte little-endian unsigned table number
 Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
 Frame 3: End key (inclusive. If this has zero length, the count ends at the first key
 
@@ -107,10 +107,10 @@ Count response:
 
 Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x11 Response type (count response)][1-byte response code]
 Frame 1 (if response code indicates an error): NUL-terminated string describing the error
-Frame 1 (if response code indicates success): A variable-length little-endian integer
+Frame 1 (if response code indicates success): A 64-bit little-endian unsigned integer representing the number of values found
 
 Response codes:
-    0x00 Success (--> frame 1 contains variable-length-encoded count)
+    0x00 Success (--> frame 1 contains count)
     0x10 Error (--> frame 1 contains error description cstring)
     
 -------------------------------

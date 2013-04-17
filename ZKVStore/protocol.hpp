@@ -14,6 +14,7 @@
 #define	PROTOCOL_HPP
 #include <cassert>
 #include <string>
+#include <czmq.h>
 
 /**
  * Checks if the magic byte and protocol version match.
