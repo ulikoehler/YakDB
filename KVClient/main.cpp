@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "../protobuf/KVDB.pb.h"
+#include "../ZKVStore/client.h"
 
 using namespace std;
 
@@ -51,13 +52,8 @@ int main() {
     zctx_t *ctx = zctx_new();
     void* reqRepSocket = zsocket_new(ctx, ZMQ_REQ);
     zsocket_connect(reqRepSocket, reqRepUrl);
-    //Build a request
-    UpdateRequest request;
-    KeyValue* val = request.add_write_requests();
-    val->set_key("testkey");
-    val->set_value("testvalue");
     //Send the data
-    zmsg_t* msg = buildMessage(request, 2); //2 = Update request 
+    zmsg_t* msg = buildSinglePutRequest(0, "testkey", "testvalue");
     zmsg_send(&msg, reqRepSocket);
     char* reply = zstr_recv(reqRepSocket);
     printf("Reply: %d", (int) reply[0]);
@@ -65,18 +61,18 @@ int main() {
     //
     //Read
     //
-    ReadRequest readRequest;
-    readRequest.add_keys("testkey");
-    msg = buildMessage(readRequest, 1); //1 = Read request
-    cout << "RR size " << zmsg_size(msg) << endl;
-    zmsg_send(&msg, reqRepSocket);
-    //Receive the reply
-    msg = zmsg_recv(reqRepSocket);
-    zframe_t* readResponseFrame = zmsg_last(msg);
-    ReadResponse response;
-    response.ParseFromString(string((const char*)zframe_data(readResponseFrame), zframe_size(readResponseFrame)));
-    cout << "RR " << response.values(0) << endl;
-    zmsg_destroy(&msg);
+//    ReadRequest readRequest;
+//    readRequest.add_keys("testkey");
+//    msg = buildMessage(readRequest, 1); //1 = Read request
+//    cout << "RR size " << zmsg_size(msg) << endl;
+//    zmsg_send(&msg, reqRepSocket);
+//    //Receive the reply
+//    msg = zmsg_recv(reqRepSocket);
+//    zframe_t* readResponseFrame = zmsg_last(msg);
+//    ReadResponse response;
+//    response.ParseFromString(string((const char*)zframe_data(readResponseFrame), zframe_size(readResponseFrame)));
+//    cout << "RR " << response.values(0) << endl;
+//    zmsg_destroy(&msg);
     zctx_destroy(&ctx);
     //All tables are closed at scope exit.
 }

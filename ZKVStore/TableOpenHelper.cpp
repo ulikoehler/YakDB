@@ -14,7 +14,7 @@
 
 using namespace std;
 
-#define TABLE_OPEN_ENDPOINT "inproc://tableOpenWorker"
+static const char* tableOpenEndpoint = "inproc://tableOpenWorker";
 
 /**
  * Main function for table open worker thread.
@@ -24,10 +24,18 @@ using namespace std;
  *      - CREATE TABLE IF NOT OPENED YET msg: A 4-byte frame containing the binary ID
  */
 static void tableOpenWorkerThread(zctx_t* context, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) {
-    cout << "OTR" << endl;
+    assert(context);
+    //assert(zctx_underlying(context));
+    //cout << "OTR " << context->iothreads << endl;
+    errno = 0;
     void* repSocket = zsocket_new(context, ZMQ_REP);
     debugZMQError("Create table opener reply socket", errno);
-    zsocket_bind(repSocket, TABLE_OPEN_ENDPOINT);
+    assert(repSocket);
+    errno = 0;
+    zmq_bind(repSocket,  "inproc://tableOpenWorker");
+    if(errno == ENOTSOCK) {
+        cerr << "OH DUDE" << endl;
+    }
     debugZMQError("Bind table opener reply socket", errno);
     while (true) {
         cout << "TOS Waiting for msg" << endl;
@@ -82,7 +90,7 @@ TableOpenServer::TableOpenServer(zctx_t* context, std::vector<leveldb::DB*>& dat
 TableOpenServer::~TableOpenServer() {
     //Create a temporary socket
     void* tempSocket = zsocket_new(context, ZMQ_REQ);
-    zsocket_connect(tempSocket, TABLE_OPEN_ENDPOINT);
+    zsocket_connect(tempSocket, tableOpenEndpoint);
     //Send an empty msg, don't wait for a reply
     zstr_send(tempSocket, ""); //--> single zero byte frame
     //Receive the (empty) reply
@@ -104,7 +112,7 @@ TableOpenHelper::TableOpenHelper(zctx_t* context) {
     reqSocket = zsocket_new(context, ZMQ_REQ);
     debugZMQError("Create table opener request socket", errno);
     assert(reqSocket);
-    int rc = zsocket_connect(reqSocket, TABLE_OPEN_ENDPOINT);
+    int rc = zsocket_connect(reqSocket, tableOpenEndpoint);
     debugZMQError("Connect table opener request socket", errno);
     if(rc) {
         fprintf(stderr, "TOH cfail\n");

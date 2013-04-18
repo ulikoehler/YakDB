@@ -124,7 +124,8 @@ struct KVServer {
 
 void handleReadRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
     //Parse the table id
-    zframe_t tableIdFrame = zmsg_next(msg);
+    zframe_t* tableIdFrame = zmsg_next(msg);
+    assert(zframe_size(tableIdFrame) == sizeof(uint32_t));
     uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
     zmsg_remove(msg, tableIdFrame);
     //The response has doesn't have the table frame, so
@@ -140,7 +141,7 @@ void handleReadRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelper&
     zframe_t* keyFrame = NULL;
     while((keyFrame = zmsg_next(msg)) != NULL) {
         //Build a slice of the key (zero-copy)
-        const leveldb::Slice key(zframe_data(keyFrame), zframe_size(keyFrame));
+        leveldb::Slice key((char*)zframe_data(keyFrame), zframe_size(keyFrame));
 #ifdef DEBUG_READ
         printf("Reading %s\n", key.ToString().c_str());
 #endif
@@ -161,31 +162,35 @@ void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelpe
     leveldb::Status status;
     leveldb::WriteOptions writeOptions;
     //Parse the table id
-    zframe_t tableIdFrame = zmsg_next(msg);
+    //This function requires that the given message has the table id in its first frame
+    zframe_t* tableIdFrame = zmsg_first(msg);
+    assert(zframe_size(tableIdFrame) == sizeof(uint32_t));
     uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
     zmsg_remove(msg, tableIdFrame);
     //Get the table
-    leveldb::DB* db = tables.getTable(request.tableid(), helper);
-    //Parse the table id
-    zframe_t tableIdFrame = zmsg_next(msg);
-    uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
+    leveldb::DB* db = tables.getTable(tableId, helper);
     //The entire update is processed in one batch
 #ifdef BATCH_UPDATES
     leveldb::WriteBatch batch;
-
-    for (int i = 0; i < request.write_requests_size(); i++) {
-        const KeyValue& kv = request.write_requests(i);
+    while(true) {
+        //The next two frames contain 
+        zframe_t* keyFrame = zmsg_next(msg);
+        if(!keyFrame) {
+            break;
+        }
+        zframe_t* valueFrame = zmsg_next(msg);
+        assert(valueFrame); //if this fails there is an odd number of data frames --> illegal (see protocol spec)
+        
+        
+        leveldb::Slice keySlice((char*)zframe_data(keyFrame), zframe_size(keyFrame));
+        leveldb::Slice valueSlice((char*)zframe_data(valueFrame), zframe_size(valueFrame));
+        
 #ifdef DEBUG_UPDATES
-        printf("Insert '%s' = '%s'\n", kv.key().c_str(), kv.value().c_str());
-#endif
+        printf("Insert '%s' = '%s'\n", keySlice.ToString().c_str(), valueSlice.ToString().c_str());
         fflush(stdout);
-        batch.Put(kv.key(), kv.value());
-    }
-    for (int i = 0; i < request.delete_requests_size(); i++) {
-#ifdef DEBUG_UPDATES
-        printf("Delete '%s'\n", request.delete_requests(i).c_str());
 #endif
-        batch.Delete(request.delete_requests(i));
+        
+        batch.Put(keySlice, valueSlice);
     }
     //Commit the batch
 #ifdef DEBUG_UPDATES
@@ -201,7 +206,8 @@ void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelpe
         status = db->Delete(writeOptions, request.delete_requests(i));
     }
 #endif
-
+    //Free the memory occupied by the message
+    zmsg_destroy(&msg);
 }
 
 /*
@@ -225,28 +231,33 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         zframe_t* headerFrame = zmsg_next(msg);
         //Check the header -- send error message if invalid
         string errorString;
-        char* headerData = zframe_data(headerFrame);
-        if (!checkProtocolVersion(, zframe_size(headerFrame), errorString)) {
+        char* headerData = (char*)zframe_data(headerFrame);
+        if (!checkProtocolVersion(headerData, zframe_size(headerFrame), errorString)) {
             fprintf(stderr, "Got illegal message from client\n");
-            return;
+            return 1;
         }
-        RequestType requestType = headerData[2];
-
+        RequestType requestType = (RequestType)(uint8_t)headerData[2];
         //        fprintf(stderr, "Got message of type %d from client\n", (int) msgType);
-        if (requestType == RequestType.Read) {
-            handleReadRequest(server->tables, request, readResponse, *(server->tableOpenHelper));
-            //Re-use the data frame. It has been removed from the msg before, so we need to re-add it
-            zframe_reset(dataFrame, readResponseString.c_str(), readResponseString.length());
-        } else if (requestType == RequestType.Put) { //Process update requests
-            //This forwards the data (=serialized update request) to a update worker thread
-            zmsg_t *msgToUpdateWorker = zmsg_new();
-            zframe_t* dataFrame = zframe_new(data, dataSize);
-            zmsg_push(msgToUpdateWorker, dataFrame);
-            zmsg_send(&msgToUpdateWorker, server->updateWorkerThreadSocket);
-            //Send acknowledge message (update is processed asynchronously)
-            zframe_reset(msgTypeFrame, "\x00", 1);
+        if (requestType == RequestType::ReadRequest) {
+            handleReadRequest(server->tables, msg, *(server->tableOpenHelper));
+            //The handler function rewrites the message
+            zmsg_send(&msg, server->reqRepSocket);
+        } else if (requestType == RequestType::PutRequest) {
+            //We reuse the header frame and the routing information to send the acknowledge message
+            //The rest of the msg (the table id + data) is directly forwarded to one of the handler threads
+            //Remove the routing information
+            zframe_t* routingFrame = zmsg_unwrap(msg);
+            //Remove the header frame
+            headerFrame = zmsg_pop(msg);
+            zframe_destroy(&headerFrame);
+            //Send the message to the update worker (--> processed async)
+            zmsg_send(&msg, server->updateWorkerThreadSocket);
+            //Send acknowledge message
+            msg = zmsg_new();
+            zmsg_wrap(msg, routingFrame);
+            zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
         } else {
-            fprintf(stderr, "Unknown message type %d from client\n", (int) msgType);
+            fprintf(stderr, "Unknown message type %d from client\n", (int) requestType);
         }
         cout << "Sending reply (raw)" << endl;
         zmsg_send(&msg, server->reqRepSocket);
@@ -278,14 +289,9 @@ void updateWorkerThreadFunction(zctx_t* ctx, KVServer* serverInfo) {
     //Create the data structure with all info for the poll handler
     while (true) {
         zmsg_t* msg = zmsg_recv(workPullSocket);
-        assert(msg);
-        zframe_t* firstFrame = zmsg_first(msg);
-        assert(firstFrame);
-        //Deserialize the update request
-        UpdateRequest req;
-        req.ParseFromArray(zframe_data(firstFrame), zframe_size(firstFrame));
+        assert(zmsg_size(msg) >= 1);
         //Process the frame
-        handleUpdateRequest(serverInfo->tables, req, tableOpenHelper);
+        handleUpdateRequest(serverInfo->tables, msg, tableOpenHelper);
         //Cleanup
         zmsg_destroy(&msg);
     }
@@ -317,7 +323,7 @@ int main() {
     //Ensure the tables directory exists
     initializeDirectoryStructure();
     //Create the ZMQ context
-    zctx_t *ctx = zctx_new();
+    zctx_t* ctx = zctx_new();
     //Create the object that will be shared between the threadsloop
     KVServer server(ctx);
     //Start the table opener thread (constructor returns after thread has been started. Cleanup on scope exit.)

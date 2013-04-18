@@ -41,25 +41,25 @@ inline static bool checkProtocolVersion(const char* data, size_t size, std::stri
     return true;
 }
 
-enum RequestType {
-    ServerInfo = 0x00,
-    OpenTable = 0x01,
-    CloseTable = 0x02,
-    CompactTable = 0x03,
-    Read = 0x10,
-    Count = 0x11,
-    Put = 0x20,
-    Delete = 0x21
+enum RequestType : uint8_t{
+    ServerInfoRequest = 0x00,
+    OpenTableRequest = 0x01,
+    CloseTableRequest = 0x02,
+    CompactTableRequest = 0x03,
+    ReadRequest = 0x10,
+    CountRequest = 0x11,
+    PutRequest = 0x20,
+    DeleteRequest = 0x21
 };
 
-enum ResponseType {
-    ServerInfo = 0x00,
-    OpenTable = 0x01,
-    CloseTable = 0x02,
-    CompactTable = 0x03,
-    Read = 0x10,
-    Count = 0x11,
-    PutDelete = 0x20
+enum ResponseType : uint8_t {
+    ServerInfoResponse = 0x00,
+    OpenTableResponse = 0x01,
+    CloseTableResponse = 0x02,
+    CompactTableResponse = 0x03,
+    ReadResponse = 0x10,
+    CountResponse = 0x11,
+    PutDeleteResponse = 0x20
 };
 
 #endif	/* PROTOCOL_HPP */
