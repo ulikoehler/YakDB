@@ -11,7 +11,6 @@
 #include <vector>
 #include <sys/stat.h>
 #include <mutex>
-#include "../protobuf/KVDB.pb.h"
 #include "TableOpenHelper.hpp"
 #include "protocol.hpp"
 
@@ -206,8 +205,7 @@ void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelpe
         status = db->Delete(writeOptions, request.delete_requests(i));
     }
 #endif
-    //Free the memory occupied by the message
-    zmsg_destroy(&msg);
+    //The memory occupied by the message is free'd in the thread loop
 }
 
 /*

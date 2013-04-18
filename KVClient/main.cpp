@@ -4,7 +4,6 @@
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
-#include "../protobuf/KVDB.pb.h"
 #include "../ZKVStore/client.h"
 
 using namespace std;
@@ -14,28 +13,6 @@ using namespace std;
  */
 void standardFree(void *data, void *hint) {
     free(data);
-}
-
-/**
- * Build a ZeroMQ ZKV message
- * @param readRequest A Protobuf message
- * @param requestValue
- * @return 
- */
-template<typename PayloadType>
-inline zmsg_t* buildMessage(PayloadType& requestPayload, uint8_t requestType) {
-    zmsg_t* msg = zmsg_new();
-    //Create & add the msg type frame
-    zframe_t* msgTypeFrame = zframe_new((const char*) &requestType, 1);
-    zmsg_add(msg, msgTypeFrame);
-    //Create and add the data frame (zero-copy)
-    int size = requestPayload.ByteSize();
-    uint8_t* data = (uint8_t*)malloc(sizeof (uint8_t)* size); //Protobuf uses uint8_t instead of char
-    requestPayload.SerializeWithCachedSizesToArray(data);
-    zframe_t* payloadFrame = zframe_new_zero_copy((char*)data, size, standardFree, nullptr);
-    zmsg_add(msg, payloadFrame);
-    //Create the zero copy frame
-    return msg;
 }
 
 /**
@@ -56,7 +33,7 @@ int main() {
     zmsg_t* msg = buildSinglePutRequest(0, "testkey", "testvalue");
     zmsg_send(&msg, reqRepSocket);
     char* reply = zstr_recv(reqRepSocket);
-    printf("Reply: %d", (int) reply[0]);
+    printf("Update reply (0 = acknowledge): %d", (int) reply[3]);
     free(reply);
     //
     //Read

@@ -10,6 +10,7 @@
 #include <cassert>
 #include <iostream>
 #include <leveldb/db.h>
+#include <exception>
 #include "zutil.hpp"
 
 using namespace std;
@@ -29,14 +30,11 @@ static void tableOpenWorkerThread(zctx_t* context, std::vector<leveldb::DB*>& da
     //cout << "OTR " << context->iothreads << endl;
     errno = 0;
     void* repSocket = zsocket_new(context, ZMQ_REP);
-    debugZMQError("Create table opener reply socket", errno);
     assert(repSocket);
     errno = 0;
-    zmq_bind(repSocket,  "inproc://tableOpenWorker");
-    if(errno == ENOTSOCK) {
-        cerr << "OH DUDE" << endl;
+    if (!zsocket_bind(repSocket, "inproc://tableOpenWorker")) {
+        debugZMQError("Binding table open worker socket", errno);
     }
-    debugZMQError("Bind table opener reply socket", errno);
     while (true) {
         cout << "TOS Waiting for msg" << endl;
         zmsg_t* msg = zmsg_recv(repSocket);
@@ -110,12 +108,11 @@ TableOpenHelper::TableOpenHelper(zctx_t* context) {
     cout << "Create TOH " << id << endl;
     this->context = context;
     reqSocket = zsocket_new(context, ZMQ_REQ);
-    debugZMQError("Create table opener request socket", errno);
-    assert(reqSocket);
-    int rc = zsocket_connect(reqSocket, tableOpenEndpoint);
-    debugZMQError("Connect table opener request socket", errno);
-    if(rc) {
-        fprintf(stderr, "TOH cfail\n");
+    if (!reqSocket) {
+        debugZMQError("Create table opener request socket", errno);
+    }
+    if (!zsocket_connect(reqSocket, tableOpenEndpoint)) {
+        debugZMQError("Connect table opener request socket", errno);
     }
 }
 
