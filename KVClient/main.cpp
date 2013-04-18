@@ -38,6 +38,11 @@ int main() {
     //
     //Read
     //
+    zmsg_t* msg = buildSingleReadRequest(0, "testkey");
+    zmsg_send(&msg, reqRepSocket);
+    //Receive the reply
+    msg = zmsg_recv(reqRepSocket);
+    
 //    ReadRequest readRequest;
 //    readRequest.add_keys("testkey");
 //    msg = buildMessage(readRequest, 1); //1 = Read request
