@@ -49,7 +49,6 @@ public:
 private:
     void* reqSocket; //This ZMQ socket is used to send requests
     zctx_t* context;
-    uint32_t id;
 };
 
 #endif	/* TABLEOPENHELPER_HPP */

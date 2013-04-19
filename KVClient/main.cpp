@@ -34,28 +34,23 @@ int main() {
     zmsg_send(&msg, reqRepSocket);
     msg = zmsg_recv(reqRepSocket);
     zframe_t* replyHeader = zmsg_first(msg);
-    printf("Update reply (0 = acknowledge): %d", (int) zframe_data(replyHeader)[0]);
+    printf("Update reply (0 = acknowledge): %d\n", (int) zframe_data(replyHeader)[0]);
     zmsg_destroy(&msg);
     //
     //Read
     //
+    printf("Sending read request...\n");
+    fflush(stdout);
     msg = buildSingleReadRequest(0, "testkey");
+    cout << "Read request size: " << zmsg_size(msg) << endl;
     zmsg_send(&msg, reqRepSocket);
     //Receive the reply
     msg = zmsg_recv(reqRepSocket);
-    
-//    ReadRequest readRequest;
-//    readRequest.add_keys("testkey");
-//    msg = buildMessage(readRequest, 1); //1 = Read request
-//    cout << "RR size " << zmsg_size(msg) << endl;
-//    zmsg_send(&msg, reqRepSocket);
-//    //Receive the reply
-//    msg = zmsg_recv(reqRepSocket);
-//    zframe_t* readResponseFrame = zmsg_last(msg);
-//    ReadResponse response;
-//    response.ParseFromString(string((const char*)zframe_data(readResponseFrame), zframe_size(readResponseFrame)));
-//    cout << "RR " << response.values(0) << endl;
-//    zmsg_destroy(&msg);
+    vector<string> result;
+    parseReadRequestResult(msg, result);
+    cout << "Got read result: " << result[0] << endl;
+    fflush(stdout);
+    zmsg_destroy(&msg);
     zctx_destroy(&ctx);
     //All tables are closed at scope exit.
 }

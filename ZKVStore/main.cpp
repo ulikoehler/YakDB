@@ -122,39 +122,51 @@ struct KVServer {
 };
 
 void handleReadRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
+#ifdef DEBUG_READ
+    printf("Starting to handle read request of size %d\n", (uint32_t) zmsg_size(msg) - 1);
+    fflush(stdout);
+#endif
     //Parse the table id
     zframe_t* tableIdFrame = zmsg_next(msg);
-    assert(zframe_size(tableIdFrame) == sizeof(uint32_t));
+    assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
     uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
-    zmsg_remove(msg, tableIdFrame);
+    cout << "RM Resized to size " << zmsg_size(msg) << endl;
     //The response has doesn't have the table frame, so
     //Get the table to read from
-    cout << "Starting to get RR table" << endl;
     leveldb::DB* db = tables.getTable(tableId, openHelper);
-    cout << "Got RR table " << endl;
     //Create the response object
     leveldb::ReadOptions readOptions;
     string value; //Where the value will be placed
     leveldb::Status status;
     //Read each read request
     zframe_t* keyFrame = NULL;
-    while((keyFrame = zmsg_next(msg)) != NULL) {
+    while ((keyFrame = zmsg_next(msg)) != NULL) {
         //Build a slice of the key (zero-copy)
-        leveldb::Slice key((char*)zframe_data(keyFrame), zframe_size(keyFrame));
+        string keystr((char*) zframe_data(keyFrame), zframe_size(keyFrame));
+        leveldb::Slice key((char*) zframe_data(keyFrame), zframe_size(keyFrame));
 #ifdef DEBUG_READ
-        printf("Reading %s\n", key.ToString().c_str());
+        printf("Reading key %s from table %d\n", key.ToString().c_str(), tableId);
 #endif
         status = db->Get(readOptions, key, &value);
         if (status.IsNotFound()) {
+#ifdef DEBUG_READ
+            cout << "Could not find value for key " << key.ToString() << "in table " << tableId << endl;
+#endif
             //Empty value
             zframe_reset(keyFrame, "", 0);
         } else {
 #ifdef DEBUG_READ
-            cout << "Read " << value << " (key = " << key.ToString() << ")" << endl;
+            cout << "Read " << value << " (key = " << key.ToString() << ") --> " << value << endl;
 #endif
             zframe_reset(keyFrame, value.c_str(), value.length());
         }
     }
+    //Now we can remove the table ID frame from the message (doing so before would confuse zmsg_next())
+    zmsg_remove(msg, tableIdFrame);
+    zframe_destroy(&tableIdFrame);
+#ifdef DEBUG_READ
+    cout << "Final reply msg size: " << zmsg_size(msg) << endl;
+#endif
 }
 
 void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelper& helper) {
@@ -163,7 +175,7 @@ void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelpe
     //Parse the table id
     //This function requires that the given message has the table id in its first frame
     zframe_t* tableIdFrame = zmsg_first(msg);
-    assert(zframe_size(tableIdFrame) == sizeof(uint32_t));
+    assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
     uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
     zmsg_remove(msg, tableIdFrame);
     //Get the table
@@ -171,29 +183,29 @@ void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelpe
     //The entire update is processed in one batch
 #ifdef BATCH_UPDATES
     leveldb::WriteBatch batch;
-    while(true) {
+    while (true) {
         //The next two frames contain 
         zframe_t* keyFrame = zmsg_next(msg);
-        if(!keyFrame) {
+        if (!keyFrame) {
             break;
         }
         zframe_t* valueFrame = zmsg_next(msg);
         assert(valueFrame); //if this fails there is an odd number of data frames --> illegal (see protocol spec)
-        
-        
-        leveldb::Slice keySlice((char*)zframe_data(keyFrame), zframe_size(keyFrame));
-        leveldb::Slice valueSlice((char*)zframe_data(valueFrame), zframe_size(valueFrame));
-        
+
+
+        leveldb::Slice keySlice((char*) zframe_data(keyFrame), zframe_size(keyFrame));
+        leveldb::Slice valueSlice((char*) zframe_data(valueFrame), zframe_size(valueFrame));
+
 #ifdef DEBUG_UPDATES
         printf("Insert '%s' = '%s'\n", keySlice.ToString().c_str(), valueSlice.ToString().c_str());
         fflush(stdout);
 #endif
-        
+
         batch.Put(keySlice, valueSlice);
     }
     //Commit the batch
 #ifdef DEBUG_UPDATES
-    printf("Commit batch");
+    printf("Commit update batch\n");
 #endif
     db->Write(writeOptions, &batch);
 #else //No batch updates
@@ -229,17 +241,17 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         zframe_t* headerFrame = zmsg_next(msg);
         //Check the header -- send error message if invalid
         string errorString;
-        char* headerData = (char*)zframe_data(headerFrame);
+        char* headerData = (char*) zframe_data(headerFrame);
         if (!checkProtocolVersion(headerData, zframe_size(headerFrame), errorString)) {
             fprintf(stderr, "Got illegal message from client\n");
             return 1;
         }
-        RequestType requestType = (RequestType)(uint8_t)headerData[2];
+        RequestType requestType = (RequestType) (uint8_t) headerData[2];
         //        fprintf(stderr, "Got message of type %d from client\n", (int) msgType);
         if (requestType == RequestType::ReadRequest) {
             handleReadRequest(server->tables, msg, *(server->tableOpenHelper));
             //The handler function rewrites the message
-            zmsg_send(&msg, server->reqRepSocket);
+            cout << "RRRRRRR " << zmsg_size(msg) << endl;
         } else if (requestType == RequestType::PutRequest) {
             //We reuse the header frame and the routing information to send the acknowledge message
             //The rest of the msg (the table id + data) is directly forwarded to one of the handler threads
@@ -257,7 +269,7 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         } else {
             fprintf(stderr, "Unknown message type %d from client\n", (int) requestType);
         }
-        cout << "Sending reply (raw)" << endl;
+        cout << "Sending reply to" << (requestType == RequestType::PutRequest ? " put request " : " read request ") << endl;
         zmsg_send(&msg, server->reqRepSocket);
     }
     return 0;

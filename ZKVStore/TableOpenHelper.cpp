@@ -28,7 +28,9 @@ static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<
     while (true) {
         cout << "TOS Waiting for msg" << endl;
         zmsg_t* msg = zmsg_recv(repSocket);
-        debugZMQError("Receive TableOpenServer message", errno);
+        if (msg == NULL) {
+            debugZMQError("Receive TableOpenServer message", errno);
+        }
         assert(msg);
         cout << "RECV" << endl;
         //Msg only contains one frame
@@ -60,9 +62,9 @@ static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<
             }
         }
         //Send back 0 (acknowledge)
-        zstr_send(repSocket, "\x00");
-        debugZMQError("Send reply in TOS", errno);
-        cout << "TOS action finished" << endl;
+        if (zstr_send(repSocket, "\x00") == -1) {
+            debugZMQError("Send reply in TOS", errno);
+        }
     }
     cout << "TOS ... Stopping TOS Thread" << endl;
     //Reply to the exit msg
@@ -102,8 +104,6 @@ TableOpenServer::~TableOpenServer() {
 }
 
 TableOpenHelper::TableOpenHelper(zctx_t* context) {
-    id = rand();
-    cout << "Create TOH " << id << endl;
     this->context = context;
     reqSocket = zsocket_new(context, ZMQ_REQ);
     if (!reqSocket) {
@@ -115,7 +115,6 @@ TableOpenHelper::TableOpenHelper(zctx_t* context) {
 }
 
 void TableOpenHelper::openTable(TableOpenHelper::IndexType index) {
-    cout << "TOH Send index: " << index << " " << id << endl;
     //Just send a message containing the table index to the opener thread
     zmsg_t* msg = zmsg_new();
     assert(msg);
@@ -123,17 +122,17 @@ void TableOpenHelper::openTable(TableOpenHelper::IndexType index) {
     assert(frame);
     assert(zframe_size(frame) == 4);
     zmsg_add(msg, frame);
-    zmsg_send(&msg, reqSocket);
-    debugZMQError("Sending TOH msg", errno);
+    if (zmsg_send(&msg, reqSocket) == -1) {
+        debugZMQError("Sending TOH msg", errno);
+    }
     //Wait for the reply (it's empty but that does not matter)
-    cout << "TOH: Finish send, waiting" << " " << id << endl;
     msg = zmsg_recv(reqSocket); //Blocks until reply received
-    debugZMQError("Receive reply from table opener", errno);
+    if (msg == NULL) {
+        debugZMQError("Receive reply from table opener", errno);
+    }
     zmsg_destroy(&msg);
-    cout << "TOH: Completed" << " " << id << endl;
 }
 
 TableOpenHelper::~TableOpenHelper() {
-    cout << "Destruct TOH" << " " << id << endl;
     zsocket_destroy(context, &reqSocket);
 }
