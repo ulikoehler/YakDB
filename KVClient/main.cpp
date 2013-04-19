@@ -32,13 +32,14 @@ int main() {
     //Send the data
     zmsg_t* msg = buildSinglePutRequest(0, "testkey", "testvalue");
     zmsg_send(&msg, reqRepSocket);
-    char* reply = zstr_recv(reqRepSocket);
-    printf("Update reply (0 = acknowledge): %d", (int) reply[3]);
-    free(reply);
+    msg = zmsg_recv(reqRepSocket);
+    zframe_t* replyHeader = zmsg_first(msg);
+    printf("Update reply (0 = acknowledge): %d", (int) zframe_data(replyHeader)[0]);
+    zmsg_destroy(&msg);
     //
     //Read
     //
-    zmsg_t* msg = buildSingleReadRequest(0, "testkey");
+    msg = buildSingleReadRequest(0, "testkey");
     zmsg_send(&msg, reqRepSocket);
     //Receive the reply
     msg = zmsg_recv(reqRepSocket);

@@ -15,26 +15,16 @@
 
 using namespace std;
 
-static const char* tableOpenEndpoint = "inproc://tableOpenWorker";
+static const char* tableOpenEndpoint = "inproc://tableopenWorker";
 
 /**
  * Main function for table open worker thread.
  * 
- * Msg format:
+ * Msg format:c
  *      - STOP THREAD msg: One empty frame
  *      - CREATE TABLE IF NOT OPENED YET msg: A 4-byte frame containing the binary ID
  */
-static void tableOpenWorkerThread(zctx_t* context, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) {
-    assert(context);
-    //assert(zctx_underlying(context));
-    //cout << "OTR " << context->iothreads << endl;
-    errno = 0;
-    void* repSocket = zsocket_new(context, ZMQ_REP);
-    assert(repSocket);
-    errno = 0;
-    if (!zsocket_bind(repSocket, "inproc://tableOpenWorker")) {
-        debugZMQError("Binding table open worker socket", errno);
-    }
+static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) {
     while (true) {
         cout << "TOS Waiting for msg" << endl;
         zmsg_t* msg = zmsg_recv(repSocket);
@@ -82,7 +72,15 @@ static void tableOpenWorkerThread(zctx_t* context, std::vector<leveldb::DB*>& da
 }
 
 TableOpenServer::TableOpenServer(zctx_t* context, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) : context(context) {
-    workerThread = new std::thread(tableOpenWorkerThread, context, std::ref(databases), dbCompressionEnabled);
+    //We need to bind the inproc transport synchronously in the main thread because zmq_connect required that the endpoint has already been bound
+    assert(context);
+    void* repSocket = zsocket_new(context, ZMQ_REP);
+    assert(repSocket);
+    if (zmq_bind(repSocket, tableOpenEndpoint)) {
+        debugZMQError("Binding table open worker socket", errno);
+    }
+    cout << "Initializing table opener" << endl;
+    workerThread = new std::thread(tableOpenWorkerThread, context, repSocket, std::ref(databases), dbCompressionEnabled);
 }
 
 TableOpenServer::~TableOpenServer() {
@@ -111,7 +109,7 @@ TableOpenHelper::TableOpenHelper(zctx_t* context) {
     if (!reqSocket) {
         debugZMQError("Create table opener request socket", errno);
     }
-    if (!zsocket_connect(reqSocket, tableOpenEndpoint)) {
+    if (zmq_connect(reqSocket, tableOpenEndpoint)) {
         debugZMQError("Connect table opener request socket", errno);
     }
 }

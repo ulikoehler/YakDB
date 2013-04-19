@@ -35,11 +35,10 @@ zmsg_t* buildSinglePutRequest(uint32_t tableNum, const char* key, const char* va
 }
 
 
-void parseReadRequestResult(zmsg_t* readRequest, std::vector<std::string>& dataRef) {
+void parseReadRequestResult(zmsg_t* readRequest, std::vector<std::string>& dataVector) {
     zframe_t* header = zmsg_first(readRequest);
     zframe_t* dataFrame = NULL;
     while((dataFrame = zmsg_next(readRequest)) != NULL) {
-        
+        dataVector.push_back(std::string((char*)zframe_data(dataFrame), zframe_size(dataFrame)));
     }
-    
 }
