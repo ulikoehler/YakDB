@@ -15,6 +15,11 @@
 
 using namespace std;
 
+static void doNothingFree(void *data, void *arg) {
+}
+
+
+
 static const char* tableOpenEndpoint = "inproc://tableopenWorker";
 
 /**
@@ -26,19 +31,18 @@ static const char* tableOpenEndpoint = "inproc://tableopenWorker";
  */
 static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) {
     while (true) {
-        cout << "TOS Waiting for msg" << endl;
         zmsg_t* msg = zmsg_recv(repSocket);
         if (msg == NULL) {
             debugZMQError("Receive TableOpenServer message", errno);
         }
         assert(msg);
-        cout << "RECV" << endl;
         //Msg only contains one frame
         zframe_t* frame = zmsg_first(msg);
         size_t frameSize = zframe_size(frame);
         //Check for a STOP msg
         if (frameSize == 0) {
-            cout << "RECV STOP" << endl;
+            //Send back the message and exit the loop
+            zmsg_send(&msg, repSocket);
             break;
         }
         //If it's not null, it must have the appropriate size
@@ -61,15 +65,14 @@ static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<
                 fprintf(stderr, "Error while trying to open database in %s: %s", tableName.c_str(), status.ToString().c_str());
             }
         }
-        //Send back 0 (acknowledge)
-        if (zstr_send(repSocket, "\x00") == -1) {
-            debugZMQError("Send reply in TOS", errno);
+        //In order to improve performance, we reuse the existing frame, we only modify the first byte (additional bytes shall be ignored)
+        zframe_data(frame)[0] = 0x00; //0x00 == acknowledge, no error
+        if (zmsg_send(&msg, repSocket) == -1) {
+            debugZMQError("Send table open reply", errno);
         }
     }
-    cout << "TOS ... Stopping TOS Thread" << endl;
-    //Reply to the exit msg
-    zstr_send(repSocket, "");
-    //Stop msg received, cleanup
+    cout << "Stopping table open server" << endl;
+    //We received an exit msg, cleanup
     zsocket_destroy(context, &repSocket);
 }
 
@@ -89,12 +92,15 @@ TableOpenServer::~TableOpenServer() {
     //Create a temporary socket
     void* tempSocket = zsocket_new(context, ZMQ_REQ);
     zsocket_connect(tempSocket, tableOpenEndpoint);
-    //Send an empty msg, don't wait for a reply
-    zstr_send(tempSocket, ""); //--> single zero byte frame
-    //Receive the (empty) reply
-    char* reply = zstr_recv(tempSocket);
+    //Send an empty msg (signals the table open thread to stop)
+    zmsg_t* stopMsg = zmsg_new();
+    zframe_t* stopFrame = zframe_new_zero_copy(NULL, 0, doNothingFree, NULL);
+    zmsg_add(stopMsg, stopFrame);
+    zmsg_send(&stopMsg, tempSocket); //--> single zero byte frame
+    //Receive the reply, ignore the data (--> thread has cleaned up & exited)
+    zmsg_t* msg = zmsg_recv(tempSocket);
     //Cleanup
-    free(reply);
+    zmsg_destroy(&msg);
     zsocket_destroy(context, &tempSocket);
     //The thread might take some time to exit, but we want to delete the thread ptr immediately
     //So, let it finish on his 

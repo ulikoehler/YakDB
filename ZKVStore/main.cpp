@@ -42,7 +42,13 @@ public:
         }
     }
 
-    ~KeyValueMultiTable() {
+    /**
+     * Close all tables and stop the table open server.
+     * 
+     * This can't be done in the destructor because it needs to be done before
+     * the context is deallocated
+     */
+    void cleanup() {
         fprintf(stderr, "Flushing and closing tables...\n");
         //Flush & delete all databases
         for (int i = 0; i < databasesSize; i++) {
@@ -99,12 +105,20 @@ struct KVServer {
     void initializeTableOpenHelper() {
         tableOpenHelper = new TableOpenHelper(ctx);
     }
+    
+    /**
+     * Cleanup. This must be called before the ZMQ context is destroyed
+     */
+    void cleanup() {
+        delete tableOpenHelper;
+        tables.cleanup();
+    }
 
     ~KVServer() {
-        delete tableOpenHelper;
         if (numUpdateThreads > 0) {
             delete[] updateWorkerThreads;
         }
+        printf("Gracefully closed tables, exiting...\n");
     }
     KeyValueMultiTable tables;
     //External sockets
@@ -353,6 +367,7 @@ int main() {
     zloop_start(reactor);
     //Cleanup (called when finished)
     zloop_destroy(&reactor);
+    server.cleanup(); //Before the context is destroyed
     zctx_destroy(&ctx);
     //All tables are closed at scope exit.
 }
