@@ -35,7 +35,6 @@ static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<
         if (msg == NULL) {
             debugZMQError("Receive TableOpenServer message", errno);
         }
-        assert(msg);
         //Msg only contains one frame
         zframe_t* frame = zmsg_first(msg);
         size_t frameSize = zframe_size(frame);
