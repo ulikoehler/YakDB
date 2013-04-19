@@ -29,8 +29,11 @@ int main() {
     zctx_t *ctx = zctx_new();
     void* reqRepSocket = zsocket_new(ctx, ZMQ_REQ);
     zsocket_connect(reqRepSocket, reqRepUrl);
-    //Send the data
+    //Send a lot of data (10001 put requests in one message)
     zmsg_t* msg = buildSinglePutRequest(0, "testkey", "testvalue");
+    for(int i = 0; i < 1000000;  i++) {
+        addKeyValueToPutRequest(msg, std::to_string(rand()).c_str(), std::to_string(rand()).c_str());
+    }
     zmsg_send(&msg, reqRepSocket);
     msg = zmsg_recv(reqRepSocket);
     zframe_t* replyHeader = zmsg_first(msg);
@@ -42,7 +45,6 @@ int main() {
     printf("Sending read request...\n");
     fflush(stdout);
     msg = buildSingleReadRequest(0, "testkey");
-    cout << "Read request size: " << zmsg_size(msg) << endl;
     zmsg_send(&msg, reqRepSocket);
     //Receive the reply
     msg = zmsg_recv(reqRepSocket);

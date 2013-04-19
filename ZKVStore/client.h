@@ -20,7 +20,10 @@ zmsg_t* buildSinglePutRequest(uint32_t tableNum, const char* key, size_t keyLeng
 zmsg_t* buildSingleReadRequest(uint32_t tableNum, const char* key) ;
 zmsg_t* buildSinglePutRequest(uint32_t tableNum, const char* key, const char* value);
 //Incremental functions
-
+void addKeyValueToPutRequest(zmsg_t* msg, const char* key, size_t keyLength, const char* value, size_t valueLength);
+void addKeyValueToPutRequest(zmsg_t* msg, const char* key, const char* value);
+void addKeyValueToReadRequest(zmsg_t* msg, const char* key, size_t keyLength);
+void addKeyValueToReadRequest(zmsg_t* msg, const char* key);
 //
 //Other/unsorted
 //

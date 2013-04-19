@@ -35,6 +35,23 @@ zmsg_t* buildSinglePutRequest(uint32_t tableNum, const char* key, const char* va
 }
 
 
+void addKeyValueToPutRequest(zmsg_t* msg, const char* key, size_t keyLength, const char* value, size_t valueLength) {
+    zmsg_addmem(msg, key, keyLength);
+    zmsg_addmem(msg, value, valueLength);
+}
+
+void addKeyValueToPutRequest(zmsg_t* msg, const char* key, const char* value) {
+    zmsg_addmem(msg, key, strlen(key));
+    zmsg_addmem(msg, value, strlen(value));
+}
+
+void addKeyValueToReadRequest(zmsg_t* msg, const char* key, size_t keyLength) {
+    zmsg_addmem(msg, key, keyLength);
+}
+void addKeyValueToReadRequest(zmsg_t* msg, const char* key) {
+    zmsg_addmem(msg, key, strlen(key));
+}
+
 void parseReadRequestResult(zmsg_t* readRequest, std::vector<std::string>& dataVector) {
     zframe_t* header = zmsg_first(readRequest);
     zframe_t* dataFrame = NULL;
