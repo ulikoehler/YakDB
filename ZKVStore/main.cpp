@@ -264,8 +264,7 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         //        fprintf(stderr, "Got message of type %d from client\n", (int) msgType);
         if (requestType == RequestType::ReadRequest) {
             handleReadRequest(server->tables, msg, *(server->tableOpenHelper));
-            //The handler function rewrites the message
-            cout << "RRRRRRR " << zmsg_size(msg) << endl;
+            zmsg_send(&msg, server->reqRepSocket);
         } else if (requestType == RequestType::PutRequest) {
             //We reuse the header frame and the routing information to send the acknowledge message
             //The rest of the msg (the table id + data) is directly forwarded to one of the handler threads
@@ -280,11 +279,11 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
             msg = zmsg_new();
             zmsg_wrap(msg, routingFrame);
             zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
+            zmsg_send(&msg, server->reqRepSocket);
         } else {
             fprintf(stderr, "Unknown message type %d from client\n", (int) requestType);
         }
         cout << "Sending reply to" << (requestType == RequestType::PutRequest ? " put request " : " read request ") << endl;
-        zmsg_send(&msg, server->reqRepSocket);
     }
     return 0;
 }

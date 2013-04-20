@@ -62,5 +62,11 @@ enum ResponseType : uint8_t {
     PutDeleteResponse = 0x20
 };
 
+enum ServerFeatureFlag : uint64_t {
+    SupportOnTheFlyTableOpen = 0x01,
+    SupportPARTSYNC = 0x02,
+    SupportFULLSYNC = 0x04
+};
+
 #endif	/* PROTOCOL_HPP */
 

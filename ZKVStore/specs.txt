@@ -16,6 +16,8 @@ Frame 1: NUL-Terminated server software info
 
 [Supported Features]: 64-bit field, Little-Endian, with bitwise-OR-concatenated flags:
     0x01: Server supports on-the-fly table open
+    0x02: Server supports (does not ignore) PARTSYNC
+    0x04: Server supports (does not ignore) FULLSYNC
 Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
 
 ---------------
