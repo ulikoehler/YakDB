@@ -124,7 +124,8 @@ struct KVServer {
     //External sockets
     void* reqRepSocket; //ROUTER socket that receives remote req/rep. READ requests can only use this socket
     void* subSocket; //SUB socket that subscribes to UPDATE requests (For mirroring etc)
-    void* pullSocket; //PULL socket for UPDATE load balancing
+    void* pullSocket; //PULL socket for UPDATE load balancinge
+    void* responseProxySocket; //Worker threads connect to this PULL socket -- messages need to contain envelopes and area automatically proxied to the main router socket
     //Internal sockets
     void* updateWorkerThreadSocket; //PUSH socket that distributes update requests among worker threads
     TableOpenHelper* tableOpenHelper; //Only for use in the main thread
@@ -357,11 +358,14 @@ int main() {
     initializeUpdateWorkers(ctx, &server);
     //Initialize the sockets that run on the main thread
     server.reqRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
+    server.responseProxySocket = zsocket_new(ctx, ZMQ_PULL);
+    zsocket_bind(server.responseProxySocket, "inproc://mainRequestProxy");
     zsocket_bind(server.reqRepSocket, reqRepUrl);
     //Start the loop
     printf("Starting server...\n");
     zloop_t *reactor = zloop_new();
     zmq_pollitem_t poller = {server.reqRepSocket, 0, ZMQ_POLLIN};
+    zmq_pollitem_t poller = {server.repP, 0, ZMQ_POLLIN};
     zloop_poller(reactor, &poller, handleRequestResponse, &server);
     zloop_start(reactor);
     //Cleanup (called when finished)
