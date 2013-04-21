@@ -281,6 +281,9 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
             zmsg_wrap(msg, routingFrame);
             zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
             zmsg_send(&msg, server->reqRepSocket);
+        } else if(requestType == RequestType::ServerInfoRequest) {
+            const uint64_t serverFlags = SupportOnTheFlyTableOpen | SupportPARTSYNC | SupportFULLSYNC;
+            zframe_t* frame = zframe_new(3/*Metadata*/+8/*Flags*/);
         } else {
             fprintf(stderr, "Unknown message type %d from client\n", (int) requestType);
         }
