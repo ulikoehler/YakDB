@@ -13,6 +13,7 @@
 #include <mutex>
 #include "TableOpenHelper.hpp"
 #include "protocol.hpp"
+#include "zutil.hpp"
 
 //Feature toggle
 #define BATCH_UPDATES
@@ -105,7 +106,7 @@ struct KVServer {
     void initializeTableOpenHelper() {
         tableOpenHelper = new TableOpenHelper(ctx);
     }
-    
+
     /**
      * Cleanup. This must be called before the ZMQ context is destroyed
      */
@@ -184,12 +185,13 @@ void handleReadRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelper&
 #endif
 }
 
-void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelper& helper) {
+void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite) {
     leveldb::Status status;
     leveldb::WriteOptions writeOptions;
+    writeOptions.sync = synchronousWrite;
     //Parse the table id
     //This function requires that the given message has the table id in its first frame
-    zframe_t* tableIdFrame = zmsg_first(msg);
+    zframe_t* tableIdFrame = zmsg_next(msg);
     assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
     uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
     zmsg_remove(msg, tableIdFrame);
@@ -206,7 +208,6 @@ void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelpe
         }
         zframe_t* valueFrame = zmsg_next(msg);
         assert(valueFrame); //if this fails there is an odd number of data frames --> illegal (see protocol spec)
-
 
         leveldb::Slice keySlice((char*) zframe_data(keyFrame), zframe_size(keyFrame));
         leveldb::Slice valueSlice((char*) zframe_data(valueFrame), zframe_size(valueFrame));
@@ -281,9 +282,18 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
             zmsg_wrap(msg, routingFrame);
             zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
             zmsg_send(&msg, server->reqRepSocket);
-        } else if(requestType == RequestType::ServerInfoRequest) {
+        } else if (requestType == RequestType::ServerInfoRequest) {
+            //Server info requests are answered in the main thread
             const uint64_t serverFlags = SupportOnTheFlyTableOpen | SupportPARTSYNC | SupportFULLSYNC;
-            zframe_t* frame = zframe_new(3/*Metadata*/+8/*Flags*/);
+            const size_t responseSize = 3/*Metadata*/ + sizeof (uint64_t)/*Flags*/;
+            char serverInfoData[responseSize]; //Allocate on stack
+            serverInfoData[0] = magicByte;
+            serverInfoData[1] = protocolVersion;
+            serverInfoData[2] = ServerInfoResponse;
+            memcpy(serverInfoData + 3, &serverFlags, sizeof (uint64_t));
+            //Re-use the header frame and the original message and send the response
+            zframe_reset(headerFrame, serverInfoData, responseSize);
+            zmsg_send(&msg, server->reqRepSocket);
         } else {
             fprintf(stderr, "Unknown message type %d from client\n", (int) requestType);
         }
@@ -297,6 +307,33 @@ void initializeDirectoryStructure() {
 }
 
 /**
+ * This function is called by the reactor loop to process responses being sent from the worker threads.
+ * 
+ * The worker threads can't directly use the main ROUTER socket because sockets may
+ * only be used by one thread.
+ * 
+ * By proxying the responses (non-PARTSYNC responses are sent directly by the main
+ * thread before the request has been processed by the worker thread) the main ROUTER
+ * socket is only be used by the main thread,
+ * @param loop
+ * @param poller
+ * @param arg A pointer to the current KVServer instance
+ * @return 
+ */
+int proxyWorkerThreadResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
+    KVServer* server = (KVServer*) arg;
+    zmsg_t* msg = zmsg_recv(server->reqRepSocket);
+    //We assume the message contains a valid envelope.
+    //Just proxy it. Nothing special here.
+    //zmq_proxy is a loop and therefore can't be used here.
+    int rc = zmsg_send(&msg, server->reqRepSocket);
+    if (rc == -1) {
+        debugZMQError("Proxy worker thread response", errno);
+    }
+    return 0;
+}
+
+/**
  * This data structure is used in the update worker thread to share info with
  * the update poll handler
  */
@@ -306,7 +343,10 @@ struct UpdateWorkerInfo {
 };
 
 /**
- * The main function for the update worker thread
+ * The main function for the update worker thread.
+ * 
+ * This function parses the header, calls the appropriate handler function
+ * and sends the response for PARTSYNC requests
  */
 void updateWorkerThreadFunction(zctx_t* ctx, KVServer* serverInfo) {
     void* workPullSocket = zsocket_new(ctx, ZMQ_PULL);
@@ -317,10 +357,53 @@ void updateWorkerThreadFunction(zctx_t* ctx, KVServer* serverInfo) {
     while (true) {
         zmsg_t* msg = zmsg_recv(workPullSocket);
         assert(zmsg_size(msg) >= 1);
-        //Process the frame
-        handleUpdateRequest(serverInfo->tables, msg, tableOpenHelper);
+        //Parse the header
+        //At this point it is unknown if
+        // 1) the msg contains an envelope (--> received from the main ROUTER) or
+        // 2) the msg does not contain an envelope (--> received from PULL, SUB etc.
+        //As the frame after the header may not be empty under any circumstances for
+        // request types processed by the update worker threads, we can distiguish these cases
+        zframe_t* firstFrame = zmsg_first(msg);
+        zframe_t* secondFrame = zmsg_next(msg);
+        zframe_t* headerFrame;
+        zframe_t* routingFrame = NULL; //Set to non-null if there is an envelope
+        if (zframe_size(secondFrame) == 0) { //Msg contains envelope
+            headerFrame = zmsg_next(msg);
+            routingFrame = zmsg_unwrap(msg);
+        } else {
+            //We need to reset the current frame ptr
+            // (because the handlers may call zmsg_next()),
+            // so we can't just use firstFrame as header
+            headerFrame = zmsg_first(msg);
+        }
+        assert(isHeaderFrame(headerFrame));
+        //Get the request type
+        RequestType requestType = getRequestType(headerFrame);
+        //Process the flags
+        uint8_t flags = getWriteFlags(headerFrame);
+        bool partsync = isPartsync(flags); //= Send reply after written to backend
+        bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
+        //Process the rest of the frame
+        if (requestType == PutRequest) {
+            handleUpdateRequest(serverInfo->tables, msg, tableOpenHelper, fullsync);
+        } else if (requestType == DeleteRequest) {
+            cerr << "Delete request TBD - WIP!" << endl;
+        } else {
+            cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;
+        }
         //Cleanup
         zmsg_destroy(&msg);
+        //If partsync is disabled, the main thread already sent the response.
+        //Else, we need to create & send the response now.
+        //Routing 
+        if (partsync) {
+            assert(routingFrame); //If this fails, someone disobeyed the protocol specs and sent PARTSYNC over a non-REQ-REP-cominbation.
+            //Send acknowledge message
+            msg = zmsg_new();
+            zmsg_wrap(msg, routingFrame);
+            zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
+            zmsg_send(&msg, serverInfo->reqRepSocket);
+        }
     }
     printf("Stopping update processor\n");
     zsocket_destroy(ctx, workPullSocket);
@@ -367,9 +450,12 @@ int main() {
     //Start the loop
     printf("Starting server...\n");
     zloop_t *reactor = zloop_new();
-    zmq_pollitem_t poller = {server.reqRepSocket, 0, ZMQ_POLLIN};
-    zmq_pollitem_t poller = {server.repP, 0, ZMQ_POLLIN};
-    zloop_poller(reactor, &poller, handleRequestResponse, &server);
+    //The main thread listens to the external sockets and proxies responses from the worker thread
+    zmq_pollitem_t externalPoller = {server.reqRepSocket, 0, ZMQ_POLLIN};
+    zloop_poller(reactor, &externalPoller, handleRequestResponse, &server);
+    zmq_pollitem_t responsePoller = {server.responseProxySocket, 0, ZMQ_POLLIN};
+    zloop_poller(reactor, &responsePoller, proxyWorkerThreadResponse, &server);
+    //Start the reactor loop
     zloop_start(reactor);
     //Cleanup (called when finished)
     zloop_destroy(&reactor);

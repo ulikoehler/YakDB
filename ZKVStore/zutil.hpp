@@ -23,5 +23,12 @@ inline void debugZMQError(const char* action, int error) {
     }
 }
 
+/**
+ * ZMQ zero-copy free function that uses standard C free
+ */
+void standardFree(void *data, void *hint) {
+    free(data);
+}
+
 #endif	/* ZUTIL_HPP */
 
