@@ -20,7 +20,8 @@
 #define DEBUG_UPDATES
 #define DEBUG_READ
 
-const char* updateWorkerThreadAddr = "inproc://updateWorkerThread";
+const char* updateWorkerThreadAddr = "inproc://updateWorkerThreads";
+const char* readWorkerThreadAddr = "inproc://readWorkerThreads";
 
 using namespace std;
 
@@ -123,16 +124,19 @@ struct KVServer {
     }
     KeyValueMultiTable tables;
     //External sockets
-    void* reqRepSocket; //ROUTER socket that receives remote req/rep. READ requests can only use this socket
-    void* subSocket; //SUB socket that subscribes to UPDATE requests (For mirroring etc)
-    void* pullSocket; //PULL socket for UPDATE load balancinge
+    void* externalRepSocket; //ROUTER socket that receives remote req/rep READ requests can only use this socket
+    void* externalSubSocket; //SUB socket that subscribes to UPDATE requests (For mirroring etc)
+    void* externalPullSocket; //PULL socket for UPDATE load balancinge
     void* responseProxySocket; //Worker threads connect to this PULL socket -- messages need to contain envelopes and area automatically proxied to the main router socket
     //Internal sockets
-    void* updateWorkerThreadSocket; //PUSH socket that distributes update requests among worker threads
+    void* updateWorkerThreadSocket; //PUSH socket that distributes update requests among update worker threads
+    void* readWorkerThreadSocket; //PUSH socket that distributes update requests among read worker threads
     TableOpenHelper* tableOpenHelper; //Only for use in the main thread
     //Thread info
     uint16_t numUpdateThreads;
+    uint16_t numReadThreads;
     std::thread** updateWorkerThreads;
+    std::thread** readWorkerThreads;
     //Other stuff
     zctx_t* ctx;
 };
@@ -247,7 +251,7 @@ void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelpe
 int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     KVServer* server = (KVServer*) arg;
     //Initialize a scoped lock
-    zmsg_t *msg = zmsg_recv(server->reqRepSocket);
+    zmsg_t *msg = zmsg_recv(server->externalRepSocket);
     if (msg) {
         //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
         assert(zmsg_size(msg) >= 3); //return addr + empty delimiter + protocol header [+ data frames]
@@ -266,8 +270,8 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         //        fprintf(stderr, "Got message of type %d from client\n", (int) msgType);
         if (requestType == RequestType::ReadRequest) {
             handleReadRequest(server->tables, msg, *(server->tableOpenHelper));
-            zmsg_send(&msg, server->reqRepSocket);
-        } else if (requestType == RequestType::PutRequest) {
+            zmsg_send(&msg, server->externalRepSocket);
+        } else if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
             //We reuse the header frame and the routing information to send the acknowledge message
             //The rest of the msg (the table id + data) is directly forwarded to one of the handler threads
             //Remove the routing information
@@ -278,12 +282,12 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
             zframe_destroy(&headerFrame);
             //Send the message to the update worker (--> processed async)
             zmsg_send(&msg, server->updateWorkerThreadSocket);
-            //Send acknowledge message unless PARTSYNC is set (in which case it is sent
+            //Send acknowledge message unless PARTSYNC is set (in which case it is sent in the update worker thread)
             if (!isPartsync(writeFlags)) {
                 msg = zmsg_new();
-                zmsg_wrap(msg, routingFrame);
-                zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
-                zmsg_send(&msg, server->reqRepSocket);
+                zmsg_wrap(msg, routingFrame); //Send response code 0x00 (ack)
+                zmsg_addmem(msg, "\x31\x01\x20\x00", 4);
+                zmsg_send(&msg, server->externalRepSocket);
             }
         } else if (requestType == RequestType::ServerInfoRequest) {
             //Server info requests are answered in the main thread
@@ -296,7 +300,7 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
             memcpy(serverInfoData + 3, &serverFlags, sizeof (uint64_t));
             //Re-use the header frame and the original message and send the response
             zframe_reset(headerFrame, serverInfoData, responseSize);
-            zmsg_send(&msg, server->reqRepSocket);
+            zmsg_send(&msg, server->externalRepSocket);
         } else {
             fprintf(stderr, "Unknown message type %d from client\n", (int) requestType);
         }
@@ -325,11 +329,11 @@ void initializeDirectoryStructure() {
  */
 int proxyWorkerThreadResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     KVServer* server = (KVServer*) arg;
-    zmsg_t* msg = zmsg_recv(server->reqRepSocket);
+    zmsg_t* msg = zmsg_recv(server->externalRepSocket);
     //We assume the message contains a valid envelope.
     //Just proxy it. Nothing special here.
     //zmq_proxy is a loop and therefore can't be used here.
-    int rc = zmsg_send(&msg, server->reqRepSocket);
+    int rc = zmsg_send(&msg, server->externalRepSocket);
     if (rc == -1) {
         debugZMQError("Proxy worker thread response", errno);
     }
@@ -405,7 +409,7 @@ void updateWorkerThreadFunction(zctx_t* ctx, KVServer* serverInfo) {
             msg = zmsg_new();
             zmsg_wrap(msg, routingFrame);
             zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
-            zmsg_send(&msg, serverInfo->reqRepSocket);
+            zmsg_send(&msg, serverInfo->externalRepSocket);
         }
     }
     printf("Stopping update processor\n");
@@ -420,6 +424,20 @@ void initializeUpdateWorkers(zctx_t* ctx, KVServer* serverInfo) {
     const int numThreads = 3;
     serverInfo->numUpdateThreads = numThreads;
     serverInfo->updateWorkerThreads = new std::thread*[numThreads];
+    for (int i = 0; i < numThreads; i++) {
+        serverInfo->updateWorkerThreads[i] = new std::thread(updateWorkerThreadFunction, ctx, serverInfo);
+    }
+}
+
+
+void initializeReadWorkers(zctx_t* ctx, KVServer* serverInfo) {
+    //Initialize the push socket
+    serverInfo->readWorkerThreadSocket = zsocket_new(ctx, ZMQ_PUSH);
+    zsocket_bind(serverInfo->updateWorkerThreadSocket, updateWorkerThreadAddr);
+    //Start the threads
+    const int numThreads = 3;
+    serverInfo->numReadThreads = numThreads;
+    serverInfo->readWorkerThreads = new std::thread*[numThreads];
     for (int i = 0; i < numThreads; i++) {
         serverInfo->updateWorkerThreads[i] = new std::thread(updateWorkerThreadFunction, ctx, serverInfo);
     }
@@ -446,15 +464,15 @@ int main() {
     //Initialize all worker threads
     initializeUpdateWorkers(ctx, &server);
     //Initialize the sockets that run on the main thread
-    server.reqRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
+    server.externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
     server.responseProxySocket = zsocket_new(ctx, ZMQ_PULL);
     zsocket_bind(server.responseProxySocket, "inproc://mainRequestProxy");
-    zsocket_bind(server.reqRepSocket, reqRepUrl);
+    zsocket_bind(server.externalRepSocket, reqRepUrl);
     //Start the loop
     printf("Starting server...\n");
     zloop_t *reactor = zloop_new();
     //The main thread listens to the external sockets and proxies responses from the worker thread
-    zmq_pollitem_t externalPoller = {server.reqRepSocket, 0, ZMQ_POLLIN};
+    zmq_pollitem_t externalPoller = {server.externalRepSocket, 0, ZMQ_POLLIN};
     zloop_poller(reactor, &externalPoller, handleRequestResponse, &server);
     zmq_pollitem_t responsePoller = {server.responseProxySocket, 0, ZMQ_POLLIN};
     zloop_poller(reactor, &responsePoller, proxyWorkerThreadResponse, &server);
