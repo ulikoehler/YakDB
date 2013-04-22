@@ -274,14 +274,17 @@ int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
             zframe_t* routingFrame = zmsg_unwrap(msg);
             //Remove the header frame
             headerFrame = zmsg_pop(msg);
+            uint8_t writeFlags = getWriteFlags(headerFrame);
             zframe_destroy(&headerFrame);
             //Send the message to the update worker (--> processed async)
             zmsg_send(&msg, server->updateWorkerThreadSocket);
-            //Send acknowledge message
-            msg = zmsg_new();
-            zmsg_wrap(msg, routingFrame);
-            zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
-            zmsg_send(&msg, server->reqRepSocket);
+            //Send acknowledge message unless PARTSYNC is set (in which case it is sent
+            if (!isPartsync(writeFlags)) {
+                msg = zmsg_new();
+                zmsg_wrap(msg, routingFrame);
+                zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
+                zmsg_send(&msg, server->reqRepSocket);
+            }
         } else if (requestType == RequestType::ServerInfoRequest) {
             //Server info requests are answered in the main thread
             const uint64_t serverFlags = SupportOnTheFlyTableOpen | SupportPARTSYNC | SupportFULLSYNC;

@@ -114,10 +114,14 @@ Response codes:
 --------------
 Write flags: These flags can optionally be supplied with write requests (bitwise-OR different flags to get the flag bytes
 
-0x01 PARTSYNC: Hand request to database backend before acknowledging
-0x02 FULLSYNC: Write data to disk synchronously before acknowledging (implies PARTSYNC)
+0x01 PARTSYNC: Hand request to database backend before acknowledging. Does not imply synchronous disk writes.
+0x02 FULLSYNC: Force synchronous write to database
 
-PARTSYNC may not be sent for non-REQ-REP sockets. Sending PARTSYNC over other sockets leads to undefined behaviour.
+Requests that are not flagged PARTSYNC are called ASYNC.
+The server shall acknowledge as soon as feasible after receiving the message.
+ASYNC replies do not require that the request has been checked for errors before acknowledging.
+
+PARTSYNC may not be sent for non-REQ-REP sockets. Sending PARTSYNC over other sockets may lead to undefined behaviour.
 
 --------------
 Put request:
