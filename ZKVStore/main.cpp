@@ -25,101 +25,25 @@ const char* readWorkerThreadAddr = "inproc://readWorkerThreads";
 using namespace std;
 
 /**
- * Encapsulates multiple key-value tables in one interface.
- * The tables are addressed by number and 
- */
-class KeyValueMultiTable {
-public:
-    typedef uint32_t IndexType;
-
-    KeyValueMultiTable(IndexType defaultTablespaceSize = 16) : databases(32) {
-        //Initialize the table array with 16 tables.
-        //This avoids early re-allocation
-        databasesSize = 16;
-        //Use malloc here to allow usage of realloc
-        //Initialize all pointers to zero
-        for (int i = 0; i < databases.size(); i++) {
-            databases[i] = NULL;
-        }
-    }
-
-    /**
-     * Close all tables and stop the table open server.
-     * 
-     * This can't be done in the destructor because it needs to be done before
-     * the context is deallocated
-     */
-    void cleanup() {
-        fprintf(stderr, "Flushing and closing tables...\n");
-        //Flush & delete all databases
-        for (int i = 0; i < databasesSize; i++) {
-            if (databases[i] != NULL) {
-                delete databases[i];
-            }
-        }
-    }
-
-    leveldb::DB* getTable(IndexType index, TableOpenHelper& openHelper) {
-        //Check if the database has already been opened
-        if (databases[index] == NULL || index >= databases.size()) {
-            openHelper.openTable(index);
-        }
-        return databases[index];
-    }
-
-    void closeTable(IndexType index) {
-        if (databases[index] != NULL) {
-            delete databases[index];
-            databases[index] = NULL;
-        }
-    }
-
-    leveldb::DB* getExistingTable(IndexType index) {
-        return databases[index];
-    }
-
-    vector<leveldb::DB*>& getDatabases() {
-        return databases;
-    }
-private:
-    /**
-     * The databases vector.
-     * Any method in this class has read-only access (tables may be closed by this class however)
-     * 
-     * Write acess is serialized using the TableOpenHelper class.
-     * 
-     * Therefore locks and double initialization are avoided.
-     */
-    std::vector<leveldb::DB*> databases; //Indexed by table num
-    uint32_t databasesSize;
-};
-
-/**
- * This struct is used to shared common variables across a server thread
  */
 struct KVServer {
 
-    KVServer(zctx_t* ctx) : ctx(ctx), tables() {
-
-    }
-
-    void initializeTableOpenHelper() {
-        tableOpenHelper = new TableOpenHelper(ctx);
+    KVServer(zctx_t* ctx, bool dbCompressionEnabled) : ctx(ctx), tables(), tableOpenServer(ctx, tables.getDatabases(), dbCompressionEnabled) {
     }
 
     /**
      * Cleanup. This must be called before the ZMQ context is destroyed
      */
     void cleanup() {
-        delete tableOpenHelper;
         tables.cleanup();
+        //Destroy the sockets
     }
 
     ~KVServer() {
-        
+
         printf("Gracefully closed tables, exiting...\n");
     }
-    KeyValueMultiTable tables;
+    Tablespace tables;
     //External sockets
     void* externalRepSocket; //ROUTER socket that receives remote req/rep READ requests can only use this socket
     void* externalSubSocket; //SUB socket that subscribes to UPDATE requests (For mirroring etc)
@@ -127,12 +51,10 @@ struct KVServer {
     void* responseProxySocket; //Worker threads connect to this PULL socket -- messages need to contain envelopes and area automatically proxied to the main router socket
     //Internal sockets
     void* readWorkerThreadSocket; //PUSH socket that distributes update requests among read worker threads
-    TableOpenHelper* tableOpenHelper; //Only for use in the main thread
+    TableOpenServer tableOpenServer;
     //Other stuff
     zctx_t* ctx;
 };
-
-
 
 /*
  * Request/response codes are determined by the first byte
@@ -271,9 +193,6 @@ int main() {
     //Create the object that will be shared between the threadsloop
     KVServer server(ctx);
     //Start the table opener thread (constructor returns after thread has been started. Cleanup on scope exit.)
-    bool dbCompressionEnabled = true;
-    TableOpenServer tableOpenServer(ctx, server.tables.getDatabases(), dbCompressionEnabled);
-    server.initializeTableOpenHelper();
     //Initialize all worker threads
     initializeUpdateWorkers(ctx, &server);
     //Initialize the sockets that run on the main thread

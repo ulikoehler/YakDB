@@ -1,4 +1,8 @@
 env = Environment()   # Create an environmnet
 
-zkvSource =  ["zutil.cpp", "main.cpp", "TableOpenHelper.cpp", "UpdateWorker.cpp"]
+zkvSource =  ["zutil.cpp",
+    "main.cpp",
+    "TableOpenHelper.cpp",
+    "Tablespace.cpp",
+    "UpdateWorker.cpp"]
 hello = env.Program(target="zkv", source=zkvSource)
