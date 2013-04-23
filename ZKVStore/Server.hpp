@@ -12,19 +12,12 @@
 
 class KeyValueServer {
 public:
-    KeyValueServer(zctx_t* ctx, bool dbCompressionEnabled = true);
-
-    /**
-     * Cleanup. This must be called before the ZMQ context is destroyed
-     */
-    void cleanup() {
-        tables.cleanup();
-        //Destroy the sockets
-    }
+    KeyValueServer(bool dbCompressionEnabled = true);
 
     void start();
 
     ~KeyValueServer();
+    zctx_t* ctx;
     Tablespace tables;
     //External sockets
     void* externalRepSocket; //ROUTER socket that receives remote req/rep READ requests can only use this socket
@@ -34,8 +27,6 @@ public:
     TableOpenServer tableOpenServer;
     UpdateWorkerController updateWorkerController;
     ReadWorkerController readWorkerController;
-    //Other stuff
-    zctx_t* ctx;
 };
 
 

@@ -31,14 +31,9 @@ int main() {
     //Ensure the tables directory exists
     initializeDirectoryStructure();
     //Create the ZMQ context
-    zctx_t* ctx = zctx_new();
     //Create the object that will be shared between the threadsloop
-    KeyValueServer server(ctx);
-    server.start();
-    //Start the loop
     printf("Starting server...\n");
-
-    server.cleanup(); //Before the context is destroyed
-    zctx_destroy(&ctx);
-    //All tables are closed at scope exit.
+    KeyValueServer server;
+    server.start(); //Blocks until interrupt
+    //Start the loop
 }

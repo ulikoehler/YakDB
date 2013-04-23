@@ -8,7 +8,7 @@
 
 #include <czmq.h>
 #include <string>
-#include <iostream>
+#include <iostream> 
 #include "Server.hpp"
 #include "zutil.hpp"
 #include "protocol.hpp"
@@ -79,7 +79,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
             uint8_t writeFlags = getWriteFlags(headerFrame);
             zframe_destroy(&headerFrame);
             //Send the message to the update worker (--> processed async)
-            server->updateWorkerController.send(&msg);   
+            server->updateWorkerController.send(&msg);
             //Send acknowledge message unless PARTSYNC is set (in which case it is sent in the update worker thread)
             if (!isPartsync(writeFlags)) {
                 msg = zmsg_new();
@@ -107,48 +107,49 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
     return 0;
 }
 
-KeyValueServer::KeyValueServer(zctx_t* ctx, bool dbCompressionEnabled) : ctx(ctx),
+KeyValueServer::KeyValueServer(bool dbCompressionEnabled) : ctx(zctx_new()),
 tables(),
 tableOpenServer(ctx, tables.getDatabases(), dbCompressionEnabled),
 externalPullSocket(NULL),
 externalSubSocket(NULL),
 updateWorkerController(ctx, tables),
-readWorkerController(ctx, tables)
-{
-        const char* reqRepUrl = "tcp://*:7100";
-        const char* writeSubscriptionUrl = "tcp://*:7101";
-        const char* errorPubUrl = "tcp://*:7102";
-        //Initialize the sockets that run on the main thread
-        externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
-        zsocket_bind(externalRepSocket, reqRepUrl);
-        responseProxySocket = zsocket_new(ctx, ZMQ_PULL);
-        zsocket_bind(responseProxySocket, externalRequestProxyEndpoint);
-    }
+readWorkerController(ctx, tables) {
+    const char* reqRepUrl = "tcp://*:7100";
+    const char* writeSubscriptionUrl = "tcp://*:7101";
+    const char* errorPubUrl = "tcp://*:7102";
+    //Initialize the sockets that run on the main thread
+    externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
+    zsocket_bind(externalRepSocket, reqRepUrl);
+    responseProxySocket = zsocket_new(ctx, ZMQ_PULL);
+    zsocket_bind(responseProxySocket, externalRequestProxyEndpoint);
+}
 
 KeyValueServer::~KeyValueServer() {
-	        //Destroy the sockets
-	        if (externalRepSocket != nullptr) {
-	            zsocket_destroy(ctx, &externalRepSocket);
-	        }
-	        if (externalSubSocket != nullptr) {
-	            zsocket_destroy(ctx, &externalSubSocket);
-	        }
-	        if (externalPullSocket != nullptr) {
-	            zsocket_destroy(ctx, &externalPullSocket);
-	        }
-	        zsocket_destroy(ctx, &responseProxySocket);
-	        printf("Gracefully closed tables, exiting...\n");
+    tables.cleanup();
+    //Destroy the sockets
+    if (externalRepSocket != nullptr) {
+        zsocket_destroy(ctx, &externalRepSocket);
+    }
+    if (externalSubSocket != nullptr) {
+        zsocket_destroy(ctx, &externalSubSocket);
+    }
+    if (externalPullSocket != nullptr) {
+        zsocket_destroy(ctx, &externalPullSocket);
+    }
+    zsocket_destroy(ctx, &responseProxySocket);
+    printf("Gracefully closed tables, exiting...\n");
+    zctx_destroy(&ctx);
 }
 
 void KeyValueServer::start() {
-	zloop_t *reactor = zloop_new();
-	//The main thread listens to the external sockets and proxies responses from the worker thread
-	zmq_pollitem_t externalPoller = {externalRepSocket, 0, ZMQ_POLLIN};
-	zloop_poller(reactor, &externalPoller, handleRequestResponse, this);
-	zmq_pollitem_t responsePoller = {responseProxySocket, 0, ZMQ_POLLIN};
-	zloop_poller(reactor, &responsePoller, proxyWorkerThreadResponse, this);
-	//Start the reactor loop
-	zloop_start(reactor);
-	//Cleanup (called when finished, e.g. by interrupt)
-	zloop_destroy(&reactor);
+    zloop_t *reactor = zloop_new();
+    //The main thread listens to the external sockets and proxies responses from the worker thread
+    zmq_pollitem_t externalPoller = {externalRepSocket, 0, ZMQ_POLLIN};
+    zloop_poller(reactor, &externalPoller, handleRequestResponse, this);
+    zmq_pollitem_t responsePoller = {responseProxySocket, 0, ZMQ_POLLIN};
+    zloop_poller(reactor, &responsePoller, proxyWorkerThreadResponse, this);
+    //Start the reactor loop
+    zloop_start(reactor);
+    //Cleanup (called when finished, e.g. by interrupt)
+    zloop_destroy(&reactor);
 }

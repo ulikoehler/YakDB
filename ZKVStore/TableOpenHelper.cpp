@@ -13,6 +13,7 @@
 #include <exception>
 #include "zutil.hpp"
 #include "endpoints.hpp"
+#include "Tablespace.hpp"
 
 using namespace std;
 
@@ -77,7 +78,6 @@ TableOpenServer::TableOpenServer(zctx_t* context, std::vector<leveldb::DB*>& dat
     if (zmq_bind(repSocket, tableOpenEndpoint)) {
         debugZMQError("Binding table open worker socket", errno);
     }
-    cout << "Initializing table opener" << endl;
     workerThread = new std::thread(tableOpenWorkerThread, context, repSocket, std::ref(databases), dbCompressionEnabled);
 }
 

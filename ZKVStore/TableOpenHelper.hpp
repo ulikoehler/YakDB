@@ -12,7 +12,6 @@
 #include <leveldb/db.h>
 #include <vector>
 
-
 /**
  * This class starts a single thread in the background that shall receive an
  * inproc message.
