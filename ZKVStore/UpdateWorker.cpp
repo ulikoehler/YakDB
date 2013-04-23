@@ -11,6 +11,57 @@
 
 const char* updateWorkerThreadAddr = "inproc://updateWorkerThreads";
 
+static void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite) {
+    leveldb::Status status;
+    leveldb::WriteOptions writeOptions;
+    writeOptions.sync = synchronousWrite;
+    //Parse the table id
+    //This function requires that the given message has the table id in its first frame
+    zframe_t* tableIdFrame = zmsg_next(msg);
+    assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
+    uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
+    zmsg_remove(msg, tableIdFrame);
+    //Get the table
+    leveldb::DB* db = tables.getTable(tableId, helper);
+    //The entire update is processed in one batch
+#ifdef BATCH_UPDATES
+    leveldb::WriteBatch batch;
+    while (true) {
+        //The next two frames contain 
+        zframe_t* keyFrame = zmsg_next(msg);
+        if (!keyFrame) {
+            break;
+        }
+        zframe_t* valueFrame = zmsg_next(msg);
+        assert(valueFrame); //if this fails there is an odd number of data frames --> illegal (see protocol spec)
+
+        leveldb::Slice keySlice((char*) zframe_data(keyFrame), zframe_size(keyFrame));
+        leveldb::Slice valueSlice((char*) zframe_data(valueFrame), zframe_size(valueFrame));
+
+#ifdef DEBUG_UPDATES
+        printf("Insert '%s' = '%s'\n", keySlice.ToString().c_str(), valueSlice.ToString().c_str());
+        fflush(stdout);
+#endif
+
+        batch.Put(keySlice, valueSlice);
+    }
+    //Commit the batch
+#ifdef DEBUG_UPDATES
+    printf("Commit update batch\n");
+#endif
+    db->Write(writeOptions, &batch);
+#else //No batch updates
+    for (int i = 0; i < request.write_requests_size(); i++) {
+        const KeyValue& kv = request.write_requests(i);
+        status = db->Put(writeOptions, kv.key(), kv.value());
+    }
+    for (int i = 0; i < request.delete_requests_size(); i++) {
+        status = db->Delete(writeOptions, request.delete_requests(i));
+    }
+#endif
+    //The memory occupied by the message is free'd in the thread loop
+}
+
 /**
  * The main function for the update worker thread.
  * 
