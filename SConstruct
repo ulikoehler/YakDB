@@ -1,4 +1,1 @@
-env = Environment()   # Create an environmnet
-
-zkvSource =  ["zutil.cpp", "main.cpp", "TableOpenHelper.cpp", "UpdateWorker.cpp"]
-hello = env.Program(target="zkv", source=zkvSource)
+SConscript(dirs='ZKVStore', variant_dir='build', src_dir='ZKVStore', duplicate=0)
