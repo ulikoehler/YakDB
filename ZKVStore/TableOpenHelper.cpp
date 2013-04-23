@@ -15,8 +15,6 @@
 
 using namespace std;
 
-static void doNothingFree(void *data, void *arg) {
-}
 
 
 

@@ -23,12 +23,36 @@ inline void debugZMQError(const char* action, int error) {
     }
 }
 
+
+
 /**
  * ZMQ zero-copy free function that uses standard C free
  */
-void standardFree(void *data, void *hint) {
-    free(data);
-}
+void standardFree(void *data, void *hint);
+/**
+ * ZMQ zero-copy free function that does ...well... nothing     
+ * @param data
+ * @param hint
+ */
+void doNothingFree(void *data, void *arg);
+
+/**
+ * Create a new empty (zero-length) frame
+ * @return 
+ */
+zframe_t* createEmptyFrame();
+
+/**
+ * Create a new message that contains exactly one zero-length frame
+ * @return 
+ */
+zmsg_t* createEmptyFrameMessage();
+
+/**
+ * Creates a new empty-frame message using createEmptyFrameMessage()
+ * and sends it over the given socket
+ */
+void sendEmptyFrameMessage(void* socket);
 
 #endif	/* ZUTIL_HPP */
 

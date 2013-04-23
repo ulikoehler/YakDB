@@ -1,0 +1,1 @@
+SConscript(dirs='ZKVStore', variant_dir='build', src_dir='ZKVStore' duplicate=0)
