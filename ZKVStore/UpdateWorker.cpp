@@ -7,11 +7,19 @@
 
 #include "UpdateWorker.hpp"
 #include <czmq.h>
+#include <iostream>
+#include <cassert>
+#include <leveldb/write_batch.h>
+#include <functional>
+#include "Tablespace.hpp"
 #include "zutil.hpp"
+#include "protocol.hpp"
+
+using namespace std;
 
 const char* updateWorkerThreadAddr = "inproc://updateWorkerThreads";
 
-static void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite) {
+static void handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite) {
     leveldb::Status status;
     leveldb::WriteOptions writeOptions;
     writeOptions.sync = synchronousWrite;
@@ -24,7 +32,6 @@ static void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOp
     //Get the table
     leveldb::DB* db = tables.getTable(tableId, helper);
     //The entire update is processed in one batch
-#ifdef BATCH_UPDATES
     leveldb::WriteBatch batch;
     while (true) {
         //The next two frames contain 
@@ -50,15 +57,6 @@ static void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOp
     printf("Commit update batch\n");
 #endif
     db->Write(writeOptions, &batch);
-#else //No batch updates
-    for (int i = 0; i < request.write_requests_size(); i++) {
-        const KeyValue& kv = request.write_requests(i);
-        status = db->Put(writeOptions, kv.key(), kv.value());
-    }
-    for (int i = 0; i < request.delete_requests_size(); i++) {
-        status = db->Delete(writeOptions, request.delete_requests(i));
-    }
-#endif
     //The memory occupied by the message is free'd in the thread loop
 }
 
@@ -68,7 +66,9 @@ static void handleUpdateRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOp
  * This function parses the header, calls the appropriate handler function
  * and sends the response for PARTSYNC requests
  */
-static void updateWorkerThreadFunction(zctx_t* ctx, KVServer* serverInfo) {
+static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
+    //Create the socket that is used to proxy requests to the 
+    //Create the socket that is used by the send() member function
     void* workPullSocket = zsocket_new(ctx, ZMQ_PULL);
     zsocket_connect(workPullSocket, updateWorkerThreadAddr);
     //Create the table open helper (creates a socket that sends table open requests)
@@ -105,7 +105,7 @@ static void updateWorkerThreadFunction(zctx_t* ctx, KVServer* serverInfo) {
         bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
         //Process the rest of the frame
         if (requestType == PutRequest) {
-            handleUpdateRequest(serverInfo->tables, msg, tableOpenHelper, fullsync);
+            handleUpdateRequest(tablespace, msg, tableOpenHelper, fullsync);
         } else if (requestType == DeleteRequest) {
             cerr << "Delete request TBD - WIP!" << endl;
         } else {
@@ -117,19 +117,24 @@ static void updateWorkerThreadFunction(zctx_t* ctx, KVServer* serverInfo) {
         //Else, we need to create & send the response now.
         //Routing 
         if (partsync) {
-            assert(routingFrame); //If this fails, someone disobeyed the protocol specs and sent PARTSYNC over a non-REQ-REP-cominbation.
-            //Send acknowledge message
-            msg = zmsg_new();
-            zmsg_wrap(msg, routingFrame);
-            zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
-            zmsg_send(&msg, serverInfo->externalRepSocket);
+            //If no response is desired regardless of the message content,
+            // the first byte of the header message shall be set to 0x00 (instead of the magic byte 0x31)
+            byte* data = zframe_data(headerFrame);
+            if (data[0] == 0x31) {
+                assert(routingFrame); //If this fails, someone disobeyed the protocol specs and sent PARTSYNC over a non-REQ-REP-cominbation.
+                //Send acknowledge message
+                msg = zmsg_new();
+                zmsg_wrap(msg, routingFrame);
+                zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
+                zmsg_send(&msg, replyProxySocket);
+            }
         }
     }
     printf("Stopping update processor\n");
     zsocket_destroy(ctx, workPullSocket);
 }
 
-UpdateWorkerController::UpdateWorkerController(zctx_t* context, KVServer* serverInfo) : context(context) {
+UpdateWorkerController::UpdateWorkerController(zctx_t* context, void* replyProxySocket, Tablespace& tablespace) : context(context) {
     //Initialize the push socket
     workerPushSocket = zsocket_new(context, ZMQ_PUSH);
     zsocket_bind(workerPushSocket, updateWorkerThreadAddr);
@@ -137,12 +142,11 @@ UpdateWorkerController::UpdateWorkerController(zctx_t* context, KVServer* server
     numThreads = 3; //Default
     threads = new std::thread*[numThreads];
     for (int i = 0; i < numThreads; i++) {
-        threads[i] = new std::thread(updateWorkerThreadFunction, context, serverInfo);
+        threads[i] = new std::thread(updateWorkerThreadFunction, context, replyProxySocket, std::ref(tablespace));
     }
 }
 
 UpdateWorkerController::~UpdateWorkerController() {
-
     //Send an empty STOP message for each update thread (use a temporary socket)
     void* tempSocket = zsocket_new(context, ZMQ_PUSH); //Create a temporary socket
     zsocket_connect(tempSocket, updateWorkerThreadAddr);
@@ -151,7 +155,7 @@ UpdateWorkerController::~UpdateWorkerController() {
         sendEmptyFrameMessage(tempSocket);
     }
     //Cleanup
-    zsocket_destroy(tempSocket, context);
+    zsocket_destroy(context, &tempSocket);
     //Wait for each thread to exit
     for (int i = 0; i < numThreads; i++) {
         threads[i]->join();
@@ -159,8 +163,10 @@ UpdateWorkerController::~UpdateWorkerController() {
     }
     //Free the array
     if (numThreads > 0) {
-        delete[] numThreads;
+        delete[] threads;
     }
 }
 
-
+void UpdateWorkerController::send(zmsg_t** msg) {
+    zmsg_send(msg, workerPushSocket);
+}

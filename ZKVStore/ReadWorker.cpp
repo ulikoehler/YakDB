@@ -8,15 +8,25 @@
 #include "ReadWorker.hpp"
 #include <czmq.h>
 #include <string>
+#include "TableOpenHelper.hpp"
+#include "Tablespace.hpp"
+#include "protocol.hpp"
 #include "zutil.hpp"
 
 using namespace std;
 
 const char* readWorkerThreadAddr = "inproc://readWorkerThreads";
 
-static void handleReadRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
+/**
+ * Read request handler. Shall be called
+ * 
+ * The original message is modified to contain the response.
+ * 
+ * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
+ */
+static void handleReadRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
 #ifdef DEBUG_READ
-    printf("Starting to handle read request of size %d\n", (uint32_t) zmsg_size(msg) - 1);
+    printf("Starting to handle read request of size %d\n", (uint32_t) zmsg_size(msg) - 3);
     fflush(stdout);
 #endif
     //Parse the table id
@@ -67,7 +77,7 @@ static void handleReadRequest(KeyValueMultiTable& tables, zmsg_t* msg, TableOpen
  * This function parses the header, calls the appropriate handler function
  * and sends the response for PARTSYNC requests
  */
-static void readWorkerThreadFunction(zctx_t* ctx, KVServer* serverInfo) {
+static void readWorkerThreadFunction(zctx_t* ctx, void* replyProxySocket, Tablespace& tablespace) {
     void* workPullSocket = zsocket_new(ctx, ZMQ_PULL);
     zsocket_connect(workPullSocket, readWorkerThreadAddr);
     //Create the table open helper (creates a socket that sends table open requests)
@@ -77,58 +87,30 @@ static void readWorkerThreadFunction(zctx_t* ctx, KVServer* serverInfo) {
         zmsg_t* msg = zmsg_recv(workPullSocket);
         assert(zmsg_size(msg) >= 1);
         //Parse the header
-        //At this point it is unknown if
-        // 1) the msg contains an envelope (--> received from the main ROUTER) or
-        // 2) the msg does not contain an envelope (--> received from PULL, SUB etc.
-        //As the frame after the header may not be empty under any circumstances for
-        // request types processed by the update worker threads, we can distiguish these cases
-        zframe_t* firstFrame = zmsg_first(msg);
-        zframe_t* secondFrame = zmsg_next(msg);
-        zframe_t* headerFrame;
-        zframe_t* routingFrame = NULL; //Set to non-null if there is an envelope
-        if (zframe_size(secondFrame) == 0) { //Msg contains envelope
-            headerFrame = zmsg_next(msg);
-            routingFrame = zmsg_unwrap(msg);
-        } else {
-            //We need to reset the current frame ptr
-            // (because the handlers may call zmsg_next()),
-            // so we can't just use firstFrame as header
-            headerFrame = zmsg_first(msg);
-        }
-        assert(isHeaderFrame(headerFrame));
+        //Contrary to the update message handling, we assume (checked by the request router) that
+        // the message contains an envelope. Read requests without envelope (--> without return path)
+        // don't really make sense.
+        zframe_t* routingFrame = zmsg_first(msg); //Envelope ID
+        zframe_t* delimiterFrame = zmsg_next(msg); //Envelope delimiter
+        zframe_t* headerFrame = zmsg_next(msg);
         //Get the request type
         RequestType requestType = getRequestType(headerFrame);
-        //Process the flags
-        uint8_t flags = getWriteFlags(headerFrame);
-        bool partsync = isPartsync(flags); //= Send reply after written to backend
-        bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
         //Process the rest of the frame
-        if (requestType == PutRequest) {
-            handleUpdateRequest(serverInfo->tables, msg, tableOpenHelper, fullsync);
-        } else if (requestType == DeleteRequest) {
-            cerr << "Delete request TBD - WIP!" << endl;
+        if (requestType == ReadRequest) {
+            handleReadRequest(tablespace, msg, tableOpenHelper);
+        } else if (requestType == CountRequest) {
+            cerr << "Count request TBD - WIP!" << endl;
         } else {
             cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;
         }
-        //Cleanup
-        zmsg_destroy(&msg);
-        //If partsync is disabled, the main thread already sent the response.
-        //Else, we need to create & send the response now.
-        //Routing 
-        if (partsync) {
-            assert(routingFrame); //If this fails, someone disobeyed the protocol specs and sent PARTSYNC over a non-REQ-REP-cominbation.
-            //Send acknowledge message
-            msg = zmsg_new();
-            zmsg_wrap(msg, routingFrame);
-            zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
-            zmsg_send(&msg, serverInfo->externalRepSocket);
-        }
+        //Send reply (the handler function rewrote the original message to contain the reply)
+        zmsg_send(&msg, replyProxySocket);
     }
     printf("Stopping update processor\n");
     zsocket_destroy(ctx, workPullSocket);
 }
 
-ReadWorkerController::ReadWorkerController(zctx_t* context, KVServer* serverInfo) : context(context) {
+ReadWorkerController::ReadWorkerController(zctx_t* context, void* replyProxySocket, Tablespace& tablespace) : context(context) {
     //Initialize the push socket
     workerPushSocket = zsocket_new(context, ZMQ_PUSH);
     zsocket_bind(workerPushSocket, readWorkerThreadAddr);
@@ -136,7 +118,7 @@ ReadWorkerController::ReadWorkerController(zctx_t* context, KVServer* serverInfo
     numThreads = 3; //Default
     threads = new std::thread*[numThreads];
     for (int i = 0; i < numThreads; i++) {
-        threads[i] = new std::thread(readWorkerThreadFunction, context, serverInfo);
+        threads[i] = new std::thread(readWorkerThreadFunction, context, replyProxySocket, tablespace);
     }
 }
 
@@ -162,4 +144,6 @@ ReadWorkerController::~ReadWorkerController() {
     }
 }
 
-
+void UpdateWorkerController::send(zmsg_t** msg) {
+    zmsg_send(msg, workerPushSocket);
+}

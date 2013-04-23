@@ -1,8 +1,11 @@
-env = Environment()   # Create an environmnet
+env = Environment(CXXFLAGS="-std=c++0x")   # Create an environmnet
+
+libraries = ["zmq","czmq","leveldb"]
 
 zkvSource =  ["zutil.cpp",
     "main.cpp",
     "TableOpenHelper.cpp",
     "Tablespace.cpp",
-    "UpdateWorker.cpp"]
-hello = env.Program(target="zkv", source=zkvSource)
+    "UpdateWorker.cpp",
+    "Server.cpp"]
+hello = env.Program(target="zkv", source=zkvSource,LIBS=libraries)

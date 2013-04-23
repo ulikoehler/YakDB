@@ -1,4 +1,3 @@
-#include <leveldb/db.h>
 #include <czmq.h>
 #include <string>
 #include <iostream>

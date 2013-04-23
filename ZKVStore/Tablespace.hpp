@@ -9,7 +9,9 @@
 #define	TABLESPACE_HPP
 #include <vector>
 #include <cstdlib>
+#include <leveldb/db.h>
 
+#include "TableOpenHelper.hpp"
 /**
  * Encapsulates multiple key-value tables in one interface.
  * The tables are addressed by number and 
@@ -17,10 +19,11 @@
 class Tablespace {
 public:
     typedef uint32_t IndexType;
-    typedef typename leveldb::DB* TableType;
+    typedef leveldb::DB* TableType;
     typedef typename std::vector<TableType> TableCollectionType;
 
     Tablespace(IndexType defaultTablespaceSize = 16);
+    Tablespace(const Tablespace& other) = delete;
 
     /**
      * Close all tables and stop the table open server.
@@ -43,7 +46,7 @@ public:
 
     void closeTable(IndexType index);
 
-    inline leveldb::DB* getExistingTable(IndexType index) {
+    inline TableType getExistingTable(IndexType index) {
         return databases[index];
     }
 

@@ -19,5 +19,6 @@ zmsg_t* createEmptyFrameMessage() {
 }
 
 void sendEmptyFrameMessage(void* socket) {
-    zmsg_send(createEmptyFrameMessage(), socket);
+    zmsg_t* msg = createEmptyFrameMessage();
+    zmsg_send(&msg, socket);
 }

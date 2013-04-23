@@ -7,7 +7,7 @@
 
 #include "Tablespace.hpp"
 
-Tablespace::Tablespace(IndexType defaultTablespaceSize = 16) : databases(defaultTablespaceSize) {
+Tablespace::Tablespace(IndexType defaultTablespaceSize) : databases(defaultTablespaceSize) {
     //Initialize the table array with 16 tables.
     //This avoids early re-allocation
     databasesSize = defaultTablespaceSize;

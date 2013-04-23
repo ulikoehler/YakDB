@@ -86,13 +86,13 @@ inline bool isHeaderFrame(zframe_t* frame) {
     if(size < 3) {
         return false;
     }
-    char* data = zframe_data(frame);
-    return (frame[0] == magicByte && frame[1] == protocolVersion);
+    byte* data = zframe_data(frame);
+    return (data[0] == magicByte && data[1] == protocolVersion);
 }
 
 inline RequestType getRequestType(zframe_t* frame) {
     assert(zframe_size(frame) >= 3);
-    return zframe_data(frame)[2];
+    return (RequestType)zframe_data(frame)[2];
 }
 
 inline uint8_t getWriteFlags(zframe_t* frame) {

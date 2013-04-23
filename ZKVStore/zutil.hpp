@@ -7,7 +7,7 @@
 
 #ifndef ZUTIL_HPP
 #define	ZUTIL_HPP
-#include <zmq.h>
+#include <czmq.h>
 #include <cstdio>
 
 /**
