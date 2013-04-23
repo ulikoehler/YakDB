@@ -9,13 +9,14 @@
 #define	READWORKER_HPP
 #include <thread>
 #include <czmq.h>
+#include "Tablespace.hpp"
 
 class ReadWorkerController {
 public:
-    ReadWorkerController(zctx_t* context, void* replyProxySocket);
+    ReadWorkerController(zctx_t* context, Tablespace& tablespace);
     ~ReadWorkerController();
     /**
-     * Send a message to one of the update workers (load-balanced).
+     * Send a message to one of the read workers (load-balanced).
      * 
      * Asynchronous. Returns immediately.
      * @param msg
@@ -23,7 +24,6 @@ public:
     void send(zmsg_t** msg);
 private:
     void* workerPushSocket; //inproc PUSH socket to communicate over
-    void* replySocket; //inproc PUSH socket that is directly proxied to the external REQ/REP socket
     std::thread** threads;
     size_t numThreads; //size of this->threads
     zctx_t* context;

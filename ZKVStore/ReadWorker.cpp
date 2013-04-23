@@ -8,14 +8,14 @@
 #include "ReadWorker.hpp"
 #include <czmq.h>
 #include <string>
+#include <iostream>
 #include "TableOpenHelper.hpp"
 #include "Tablespace.hpp"
 #include "protocol.hpp"
 #include "zutil.hpp"
+#include "endpoints.hpp"
 
 using namespace std;
-
-const char* readWorkerThreadAddr = "inproc://readWorkerThreads";
 
 /**
  * Read request handler. Shall be called
@@ -77,7 +77,11 @@ static void handleReadRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& 
  * This function parses the header, calls the appropriate handler function
  * and sends the response for PARTSYNC requests
  */
-static void readWorkerThreadFunction(zctx_t* ctx, void* replyProxySocket, Tablespace& tablespace) {
+static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
+    //Create the socket that is used to proxy requests to the external req/rep socket
+    void* replyProxySocket = zsocket_new(ctx, ZMQ_PUSH);
+    zsocket_connect(replyProxySocket, externalRequestProxyEndpoint);
+    //Create the socket we receive requests from
     void* workPullSocket = zsocket_new(ctx, ZMQ_PULL);
     zsocket_connect(workPullSocket, readWorkerThreadAddr);
     //Create the table open helper (creates a socket that sends table open requests)
@@ -108,9 +112,10 @@ static void readWorkerThreadFunction(zctx_t* ctx, void* replyProxySocket, Tables
     }
     printf("Stopping update processor\n");
     zsocket_destroy(ctx, workPullSocket);
+    zsocket_destroy(ctx, replyProxySocket);
 }
 
-ReadWorkerController::ReadWorkerController(zctx_t* context, void* replyProxySocket, Tablespace& tablespace) : context(context) {
+ReadWorkerController::ReadWorkerController(zctx_t* context, Tablespace& tablespace) : context(context) {
     //Initialize the push socket
     workerPushSocket = zsocket_new(context, ZMQ_PUSH);
     zsocket_bind(workerPushSocket, readWorkerThreadAddr);
@@ -118,9 +123,9 @@ ReadWorkerController::ReadWorkerController(zctx_t* context, void* replyProxySock
     numThreads = 3; //Default
     threads = new std::thread*[numThreads];
     for (int i = 0; i < numThreads; i++) {
-        threads[i] = new std::thread(readWorkerThreadFunction, context, replyProxySocket, tablespace);
+        threads[i] = new std::thread(readWorkerThreadFunction, context, std::ref(tablespace));
     }
-}
+}       
 
 ReadWorkerController::~ReadWorkerController() {
 
@@ -132,7 +137,7 @@ ReadWorkerController::~ReadWorkerController() {
         sendEmptyFrameMessage(tempSocket);
     }
     //Cleanup
-    zsocket_destroy(tempSocket, context);
+    zsocket_destroy(context, &tempSocket);
     //Wait for each thread to exit
     for (int i = 0; i < numThreads; i++) {
         threads[i]->join();
@@ -140,10 +145,10 @@ ReadWorkerController::~ReadWorkerController() {
     }
     //Free the array
     if (numThreads > 0) {
-        delete[] numThreads;
+        delete[] threads;
     }
 }
 
-void UpdateWorkerController::send(zmsg_t** msg) {
+void ReadWorkerController::send(zmsg_t** msg) {
     zmsg_send(msg, workerPushSocket);
 }

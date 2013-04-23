@@ -27,7 +27,6 @@ public:
     void send(zmsg_t** msg);
 private:
     void* workerPushSocket; //inproc PUSH socket to communicate over
-    void* replyProxySocket;
     std::thread** threads;
     size_t numThreads; //size of this->threads
     zctx_t* context;

@@ -12,6 +12,7 @@
 #include "Server.hpp"
 #include "zutil.hpp"
 #include "protocol.hpp"
+#include "endpoints.hpp"
 
 using namespace std;
 
@@ -111,8 +112,8 @@ tables(),
 tableOpenServer(ctx, tables.getDatabases(), dbCompressionEnabled),
 externalPullSocket(NULL),
 externalSubSocket(NULL),
-updateWorkerController(ctx),
-readWorkerController()
+updateWorkerController(ctx, tables),
+readWorkerController(ctx, tables)
 {
         const char* reqRepUrl = "tcp://*:7100";
         const char* writeSubscriptionUrl = "tcp://*:7101";
@@ -121,7 +122,7 @@ readWorkerController()
         externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
         zsocket_bind(externalRepSocket, reqRepUrl);
         responseProxySocket = zsocket_new(ctx, ZMQ_PULL);
-        zsocket_bind(responseProxySocket, mainRequestProxyEndpoint);
+        zsocket_bind(responseProxySocket, externalRequestProxyEndpoint);
     }
 
 KeyValueServer::~KeyValueServer() {

@@ -14,10 +14,9 @@
 #include "Tablespace.hpp"
 #include "zutil.hpp"
 #include "protocol.hpp"
+#include "endpoints.hpp"
 
 using namespace std;
-
-const char* updateWorkerThreadAddr = "inproc://updateWorkerThreads";
 
 static void handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite) {
     leveldb::Status status;
@@ -67,7 +66,9 @@ static void handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper
  * and sends the response for PARTSYNC requests
  */
 static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
-    //Create the socket that is used to proxy requests to the 
+    //Create the socket that is used to proxy requests to the external req/rep socket
+    void* replyProxySocket = zsocket_new(ctx, ZMQ_PUSH);
+    zsocket_connect(replyProxySocket, externalRequestProxyEndpoint);
     //Create the socket that is used by the send() member function
     void* workPullSocket = zsocket_new(ctx, ZMQ_PULL);
     zsocket_connect(workPullSocket, updateWorkerThreadAddr);
@@ -132,9 +133,10 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     }
     printf("Stopping update processor\n");
     zsocket_destroy(ctx, workPullSocket);
+    zsocket_destroy(ctx, replyProxySocket);
 }
 
-UpdateWorkerController::UpdateWorkerController(zctx_t* context, void* replyProxySocket, Tablespace& tablespace) : context(context) {
+UpdateWorkerController::UpdateWorkerController(zctx_t* context, Tablespace& tablespace) : context(context) {
     //Initialize the push socket
     workerPushSocket = zsocket_new(context, ZMQ_PUSH);
     zsocket_bind(workerPushSocket, updateWorkerThreadAddr);
@@ -142,7 +144,7 @@ UpdateWorkerController::UpdateWorkerController(zctx_t* context, void* replyProxy
     numThreads = 3; //Default
     threads = new std::thread*[numThreads];
     for (int i = 0; i < numThreads; i++) {
-        threads[i] = new std::thread(updateWorkerThreadFunction, context, replyProxySocket, std::ref(tablespace));
+        threads[i] = new std::thread(updateWorkerThreadFunction, context, std::ref(tablespace));
     }
 }
 

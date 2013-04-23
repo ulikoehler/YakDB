@@ -12,13 +12,9 @@
 #include <leveldb/db.h>
 #include <exception>
 #include "zutil.hpp"
+#include "endpoints.hpp"
 
 using namespace std;
-
-
-
-
-static const char* tableOpenEndpoint = "inproc://tableopenWorker";
 
 /**
  * Main function for table open worker thread.

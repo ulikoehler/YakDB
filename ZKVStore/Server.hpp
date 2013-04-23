@@ -10,8 +10,6 @@
 #include "UpdateWorker.hpp"
 #include "ReadWorker.hpp"
 
-const char* const mainRequestProxyEndpoint = "inproc://mainRequestProxy";
-
 class KeyValueServer {
 public:
     KeyValueServer(zctx_t* ctx, bool dbCompressionEnabled = true);
