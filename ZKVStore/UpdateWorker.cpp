@@ -112,7 +112,7 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
             cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;
         }
         //Cleanup
-        if(routingFrame) { //If there is routing info available, we can reuse the frame
+        if (routingFrame) { //If there is routing info available, we can reuse the frame
             zmsg_remove(msg, routingFrame);
         }
         zmsg_destroy(&msg);
@@ -138,12 +138,13 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     zsocket_destroy(ctx, replyProxySocket);
 }
 
-UpdateWorkerController::UpdateWorkerController(zctx_t* context, Tablespace& tablespace) : context(context) {
+UpdateWorkerController::UpdateWorkerController(zctx_t* context, Tablespace& tablespace) : context(context), numThreads(3), tablespace(tablespace) {
     //Initialize the push socket
     workerPushSocket = zsocket_new(context, ZMQ_PUSH);
     zsocket_bind(workerPushSocket, updateWorkerThreadAddr);
-    //Start the threads
-    numThreads = 3; //Default
+}
+
+void UpdateWorkerController::start() {
     threads = new std::thread*[numThreads];
     for (int i = 0; i < numThreads; i++) {
         threads[i] = new std::thread(updateWorkerThreadFunction, context, std::ref(tablespace));

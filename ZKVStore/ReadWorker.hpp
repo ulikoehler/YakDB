@@ -22,9 +22,14 @@ public:
      * @param msg
      */
     void send(zmsg_t** msg);
+    /**
+     * Start the worker threads
+     */
+    void start();
 private:
     void* workerPushSocket; //inproc PUSH socket to communicate over
     std::thread** threads;
+    Tablespace& tablespace;
     size_t numThreads; //size of this->threads
     zctx_t* context;
 };

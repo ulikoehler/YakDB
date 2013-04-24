@@ -32,9 +32,7 @@ using namespace std;
  */
 int proxyWorkerThreadResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     KeyValueServer* server = (KeyValueServer*) arg;
-    cout << "SO1" << endl;
     zmsg_t* msg = zmsg_recv(server->responseProxySocket);
-    cout << "SO2" << endl;
     //We assume the message contains a valid envelope.
     //Just proxy it. Nothing special here.
     //zmq_proxy is a loop and therefore can't be used here.
@@ -80,7 +78,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
             zframe_t* headerFrame = zmsg_next(msg);
             uint8_t writeFlags = getWriteFlags(headerFrame);
             //Duplicate the routing frame if we need it late
-            if(!isPartsync(writeFlags)) {
+            if (!isPartsync(writeFlags)) {
                 routingFrame = zframe_dup(routingFrame);
             }
             //Send the message to the update worker (--> processed async)
@@ -127,6 +125,10 @@ readWorkerController(ctx, tables) {
     zsocket_bind(externalRepSocket, reqRepUrl);
     responseProxySocket = zsocket_new(ctx, ZMQ_PULL);
     zsocket_bind(responseProxySocket, externalRequestProxyEndpoint);
+    //Now start the update and read workers
+    //(before starting the worker threads the response sockets need to be bound)
+    updateWorkerController.start();
+    readWorkerController.start();
 }
 
 KeyValueServer::~KeyValueServer() {
@@ -150,11 +152,13 @@ void KeyValueServer::start() {
     zloop_t *reactor = zloop_new();
     //The main thread listens to the external sockets and proxies responses from the worker thread
     zmq_pollitem_t externalPoller = {externalRepSocket, 0, ZMQ_POLLIN};
-    if(!zloop_poller(reactor, &externalPoller, handleRequestResponse, this)) {
-        debug
+    if (zloop_poller(reactor, &externalPoller, handleRequestResponse, this)) {
+        debugZMQError("Add external poller to reactor", errno);
     }
     zmq_pollitem_t responsePoller = {responseProxySocket, 0, ZMQ_POLLIN};
-    zloop_poller(reactor, &responsePoller, proxyWorkerThreadResponse, this);
+    if (zloop_poller(reactor, &responsePoller, proxyWorkerThreadResponse, this)) {
+        debugZMQError("Add response poller to reactor", errno);
+    }
     //Start the reactor loop
     zloop_start(reactor);
     //Cleanup (called when finished, e.g. by interrupt)

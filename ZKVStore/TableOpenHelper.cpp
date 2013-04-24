@@ -49,7 +49,7 @@ static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<
         }
         //Create the table only if it hasn't been created yet, else just ignore the request
         if (databases[index] == NULL) {
-            cout << "Creating/opening " << index << endl;
+            cout << "Creating/opening table " << index << '\n';
             leveldb::Options options;
             options.create_if_missing = true;
             options.compression = (dbCompressionEnabled ? leveldb::kSnappyCompression : leveldb::kNoCompression);
