@@ -16,6 +16,7 @@
 #include "endpoints.hpp"
 
 using namespace std;
+#define DEBUG_READ
 
 /**
  * Read request handler. Shall be called
@@ -42,6 +43,7 @@ static void handleReadRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& 
     leveldb::Status status;
     //Read each read request
     zframe_t* keyFrame = NULL;
+        cout << "RRX" << endl;
     while ((keyFrame = zmsg_next(msg)) != NULL) {
         //Build a slice of the key (zero-copy)
         string keystr((char*) zframe_data(keyFrame), zframe_size(keyFrame));
@@ -81,22 +83,28 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     //Create the socket that is used to proxy requests to the external req/rep socket
     void* replyProxySocket = zsocket_new(ctx, ZMQ_PUSH);
     zsocket_connect(replyProxySocket, externalRequestProxyEndpoint);
+    assert(replyProxySocket);
     //Create the socket we receive requests from
     void* workPullSocket = zsocket_new(ctx, ZMQ_PULL);
     zsocket_connect(workPullSocket, readWorkerThreadAddr);
+    assert(workPullSocket);
     //Create the table open helper (creates a socket that sends table open requests)
     TableOpenHelper tableOpenHelper(ctx);
     //Create the data structure with all info for the poll handler
     while (true) {
         zmsg_t* msg = zmsg_recv(workPullSocket);
+        assert(msg);
         assert(zmsg_size(msg) >= 1);
         //Parse the header
         //Contrary to the update message handling, we assume (checked by the request router) that
         // the message contains an envelope. Read requests without envelope (--> without return path)
         // don't really make sense.
         zframe_t* routingFrame = zmsg_first(msg); //Envelope ID
+        assert(routingFrame);
         zframe_t* delimiterFrame = zmsg_next(msg); //Envelope delimiter
-        zframe_t* headerFrame = zmsg_next(msg);
+        assert(delimiterFrame);
+        zframe_t* headerFrame = zmsg_next(msg); 
+        assert(headerFrame)
         //Get the request type
         RequestType requestType = getRequestType(headerFrame);
         //Process the rest of the frame
@@ -108,7 +116,11 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
             cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;
         }
         //Send reply (the handler function rewrote the original message to contain the reply)
+        cout << "R1" << endl;
+        assert(msg);
+        assert(msg.size() == 4);
         zmsg_send(&msg, replyProxySocket);
+        cout << "R2" << endl;
     }
     printf("Stopping update processor\n");
     zsocket_destroy(ctx, workPullSocket);

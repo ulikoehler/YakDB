@@ -27,7 +27,6 @@ static void handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper
     zframe_t* tableIdFrame = zmsg_next(msg);
     assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
     uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
-    zmsg_remove(msg, tableIdFrame);
     //Get the table
     leveldb::DB* db = tables.getTable(tableId, helper);
     //The entire update is processed in one batch
@@ -86,11 +85,11 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         // request types processed by the update worker threads, we can distiguish these cases
         zframe_t* firstFrame = zmsg_first(msg);
         zframe_t* secondFrame = zmsg_next(msg);
-        zframe_t* headerFrame;
+        zframe_t* headerFrame = NULL;
         zframe_t* routingFrame = NULL; //Set to non-null if there is an envelope
         if (zframe_size(secondFrame) == 0) { //Msg contains envelope
             headerFrame = zmsg_next(msg);
-            routingFrame = zmsg_unwrap(msg);
+            routingFrame = firstFrame;
         } else {
             //We need to reset the current frame ptr
             // (because the handlers may call zmsg_next()),
@@ -113,6 +112,9 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
             cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;
         }
         //Cleanup
+        if(routingFrame) { //If there is routing info available, we can reuse the frame
+            zmsg_remove(msg, routingFrame);
+        }
         zmsg_destroy(&msg);
         //If partsync is disabled, the main thread already sent the response.
         //Else, we need to create & send the response now.

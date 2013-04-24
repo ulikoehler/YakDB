@@ -32,7 +32,9 @@ using namespace std;
  */
 int proxyWorkerThreadResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     KeyValueServer* server = (KeyValueServer*) arg;
-    zmsg_t* msg = zmsg_recv(server->externalRepSocket);
+    cout << "SO1" << endl;
+    zmsg_t* msg = zmsg_recv(server->responseProxySocket);
+    cout << "SO2" << endl;
     //We assume the message contains a valid envelope.
     //Just proxy it. Nothing special here.
     //zmq_proxy is a loop and therefore can't be used here.
@@ -72,12 +74,15 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         } else if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
             //We reuse the header frame and the routing information to send the acknowledge message
             //The rest of the msg (the table id + data) is directly forwarded to one of the handler threads
-            //Remove the routing information
-            zframe_t* routingFrame = zmsg_unwrap(msg);
-            //Remove the header frame
-            headerFrame = zmsg_pop(msg);
+            //Get the routing information
+            zframe_t* routingFrame = zmsg_first(msg);
+            zframe_t* delimiterFrame = zmsg_next(msg);
+            zframe_t* headerFrame = zmsg_next(msg);
             uint8_t writeFlags = getWriteFlags(headerFrame);
-            zframe_destroy(&headerFrame);
+            //Duplicate the routing frame if we need it late
+            if(!isPartsync(writeFlags)) {
+                routingFrame = zframe_dup(routingFrame);
+            }
             //Send the message to the update worker (--> processed async)
             server->updateWorkerController.send(&msg);
             //Send acknowledge message unless PARTSYNC is set (in which case it is sent in the update worker thread)
@@ -145,7 +150,9 @@ void KeyValueServer::start() {
     zloop_t *reactor = zloop_new();
     //The main thread listens to the external sockets and proxies responses from the worker thread
     zmq_pollitem_t externalPoller = {externalRepSocket, 0, ZMQ_POLLIN};
-    zloop_poller(reactor, &externalPoller, handleRequestResponse, this);
+    if(!zloop_poller(reactor, &externalPoller, handleRequestResponse, this)) {
+        debug
+    }
     zmq_pollitem_t responsePoller = {responseProxySocket, 0, ZMQ_POLLIN};
     zloop_poller(reactor, &responsePoller, proxyWorkerThreadResponse, this);
     //Start the reactor loop

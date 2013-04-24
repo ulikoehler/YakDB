@@ -13,11 +13,13 @@
 #ifndef PROTOCOL_HPP
 #define	PROTOCOL_HPP
 #include <cassert>
+#include <iostream>
 #include <string>
 #include <czmq.h>
+using namespace std;
 
 const uint8_t magicByte = 0x31;
-const uint8_t protocolVersion = 0x31;
+const uint8_t protocolVersion = 0x01;
 
 /**
  * Checks if the magic byte and protocol version match.

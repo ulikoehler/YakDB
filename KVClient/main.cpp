@@ -30,7 +30,7 @@ int main() {
     zsocket_connect(reqRepSocket, reqRepUrl);
     //Send a lot of data (10001 put requests in one message)
     zmsg_t* msg = buildSinglePutRequest(0, "testkey", "testvalue");
-    for(int i = 0; i < 1000000;  i++) {
+    for(int i = 0; i < 10000; i++) {
         addKeyValueToPutRequest(msg, std::to_string(rand()).c_str(), std::to_string(rand()).c_str());
     }
     zmsg_send(&msg, reqRepSocket);
