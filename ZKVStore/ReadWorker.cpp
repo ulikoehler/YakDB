@@ -1,4 +1,4 @@
-/* 
+e893/* 
  * File:   UpdateWorker.cpp
  * Author: uli
  * 
@@ -15,7 +15,7 @@
 #include "zutil.hpp"
 #include "endpoints.hpp"
 
-using namespace std;
+        using namespace std;
 #define DEBUG_READ
 
 /**
@@ -34,42 +34,48 @@ static void handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper&
     zframe_t* tableIdFrame = zmsg_next(msg);
     assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
     uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
-    //The response has doesn't have the table frame, so
+    //Parse the start/end frame
+    zframe_t* rangeStartFrame = zmsg_next(msg);
+    zframe_t* rangeEndFrame = zmsg_next(msg);
+    bool haveRangeStart = !(rangeStartFrame == NULL || zframe_size(rangeStartFrame) == 0);
+    bool haveRangeEnd = !(rangeEndFrame == NULL || zframe_size(rangeEndFrame) == 0);
+    std::string rangeStart = (haveRangeStart ? string((char*) zframe_data(rangeStartFrame), zframe_size(rangeStartFrame)) : "");
+    std::string rangeEnd = (haveRangeEnd ? string((char*) zframe_data(rangeEndFrame), zframe_size(rangeEndFrame)) : "");
+    //Remove the range frames (if any), the reply is shorter 
+    if (rangeStartFrame) {
+        removeAndDestroyFrame(msg, rangeStartFrame);
+    }
+    if (rangeEndFrame) {
+        removeAndDestroyFrame(msg, rangeEndFrame);
+    }
     //Get the table to read from
     leveldb::DB* db = tables.getTable(tableId, openHelper);
     //Create the response object
     leveldb::ReadOptions readOptions;
     string value; //Where the value will be placed
     leveldb::Status status;
-    //Read each read request
-    zframe_t* keyFrame = NULL;
-    while ((keyFrame = zmsg_next(msg)) != NULL) {
-        //Build a slice of the key (zero-copy)
-        string keystr((char*) zframe_data(keyFrame), zframe_size(keyFrame));
-        leveldb::Slice key((char*) zframe_data(keyFrame), zframe_size(keyFrame));
-#ifdef DEBUG_READ
-        printf("Reading key %s from table %d\n", key.ToString().c_str(), tableId);
-#endif
-        status = db->Get(readOptions, key, &value);
-        if (status.IsNotFound()) {
-#ifdef DEBUG_READ
-            cout << "Could not find value for key " << key.ToString() << "in table " << tableId << endl;
-#endif
-            //Empty value
-            zframe_reset(keyFrame, "", 0);
-        } else {
-#ifdef DEBUG_READ
-            cout << "Read " << value << " (key = " << key.ToString() << ") --> " << value << endl;
-#endif
-            zframe_reset(keyFrame, value.c_str(), value.length());
+    //Create the iterator
+    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOwptions());
+    if (haveRangeStart) {
+        it->Sekk
+    } else {
+        it->SeekToFirst();
+    }
+    uint64_t count = 0;
+    //Iterate over all key-values in the range
+    for (; it->Valid(); it->Next()) {
+        count++;
+        string key = it->key().ToString();
+        if (haveRangeEnd && key >= rangeEnd) {
+            break;
         }
     }
-    //Now we can remove the table ID frame from the message (doing so before would confuse zmsg_next())
-    zmsg_remove(msg, tableIdFrame);
-    zframe_destroy(&tableIdFrame);
-#ifdef DEBUG_READ
-    cout << "Final reply msg size: " << zmsg_size(msg) << endl;
-#endif
+    //TODO handle error
+    assert(it->status().ok()); // Check for any errors found during the scan
+    //Delete the iterator
+    delete it;
+    //Build the response message
+    zframe_reset(tableIdFrame, &count, sizeof(uint64_t));
 }
 
 /**
@@ -88,7 +94,7 @@ static void handleReadRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& 
     zframe_t* tableIdFrame = zmsg_next(msg);
     assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
     uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
-    //The response has doesn't have the table frame, so
+    //Parse the 
     //Get the table to read from
     leveldb::DB* db = tables.getTable(tableId, openHelper);
     //Create the response object

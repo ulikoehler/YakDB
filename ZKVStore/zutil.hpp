@@ -54,5 +54,7 @@ zmsg_t* createEmptyFrameMessage();
  */
 void sendEmptyFrameMessage(void* socket);
 
+void removeAndDestroyFrame(zmsg_t* msg, zframe_t* frame);
+
 #endif	/* ZUTIL_HPP */
 

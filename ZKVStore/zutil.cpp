@@ -5,6 +5,7 @@ void doNothingFree(void *data, void *arg) {
 }
 
 void standardFree(void *data, void *hint) {
+    assert(data);
     free(data);
 }
 
@@ -19,6 +20,14 @@ zmsg_t* createEmptyFrameMessage() {
 }
 
 void sendEmptyFrameMessage(void* socket) {
+    assert(socket);
     zmsg_t* msg = createEmptyFrameMessage();
     zmsg_send(&msg, socket);
+}
+
+void removeAndDestroyFrame(zmsg_t* msg, zframe_t* frame) {
+    assert(msg);
+    assert(frame);
+    zmsg_remove(msg, frame);
+    zmsg_destroty(msg);
 }
