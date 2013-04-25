@@ -75,7 +75,7 @@ static void handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper&
     //Delete the iterator
     delete it;
     //Build the response message
-    zframe_reset(tableIdFrame, &count, sizeof(uint64_t));
+    zframe_reset(tableIdFrame, &count, sizeof (uint64_t));
 }
 
 /**
@@ -172,7 +172,7 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         if (requestType == ReadRequest) {
             handleReadRequest(tablespace, msg, tableOpenHelper);
         } else if (requestType == CountRequest) {
-            cerr << "Count request TBD - WIP!" << endl;
+            handleCountRequest(tablespace, msg, tableOpenHelper);
         } else {
             cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;
         }
