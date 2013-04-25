@@ -1,4 +1,4 @@
-e893/* 
+/* 
  * File:   UpdateWorker.cpp
  * Author: uli
  * 
@@ -55,9 +55,9 @@ static void handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper&
     string value; //Where the value will be placed
     leveldb::Status status;
     //Create the iterator
-    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOwptions());
+    leveldb::Iterator* it = db->NewIterator(readOptions);
     if (haveRangeStart) {
-        it->Sekk
+        it->Seek(rangeStart);
     } else {
         it->SeekToFirst();
     }
@@ -100,6 +100,7 @@ static void handleReadRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& 
     //Create the response object
     leveldb::ReadOptions readOptions;
     leveldb::Status status;
+    string value;
     //Read each read request
     zframe_t* keyFrame = NULL;
     while ((keyFrame = zmsg_next(msg)) != NULL) {

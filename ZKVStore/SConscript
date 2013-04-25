@@ -1,4 +1,4 @@
-env = Environment(CXXFLAGS="-std=c++0x")   # Create an environmnet
+env = Environment(CXXFLAGS=["-std=c++0x","-march=core2"])   # Create an environmnet
 
 libraries = ["zmq","czmq","leveldb"]
 

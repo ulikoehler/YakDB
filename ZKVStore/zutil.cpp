@@ -29,5 +29,5 @@ void removeAndDestroyFrame(zmsg_t* msg, zframe_t* frame) {
     assert(msg);
     assert(frame);
     zmsg_remove(msg, frame);
-    zmsg_destroty(msg);
+    zframe_destroy(&frame);
 }
