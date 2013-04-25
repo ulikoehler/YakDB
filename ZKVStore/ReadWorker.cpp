@@ -99,7 +99,6 @@ static void handleReadRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& 
     leveldb::DB* db = tables.getTable(tableId, openHelper);
     //Create the response object
     leveldb::ReadOptions readOptions;
-    string value; //Where the value will be placed
     leveldb::Status status;
     //Read each read request
     zframe_t* keyFrame = NULL;

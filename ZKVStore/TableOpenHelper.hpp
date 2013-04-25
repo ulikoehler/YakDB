@@ -43,8 +43,8 @@ public:
     //Constructor
     TableOpenHelper(zctx_t* context);
     ~TableOpenHelper();
-    //This opens a  table
     void openTable(IndexType index);
+    void closeTable(IndexType index);
 private:
     void* reqSocket; //This ZMQ socket is used to send requests
     zctx_t* context;

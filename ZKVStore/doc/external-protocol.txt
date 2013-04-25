@@ -94,7 +94,9 @@ Count request: Count the number of keys in a given range
 Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x11 Request type (count request)]
 Frame 1: 4-byte little-endian unsigned table number
 Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
-Frame 3: End key (inclusive. If this has zero length, the count ends at the first key
+Frame 3: End key (inclusive). If this has zero length, the count ends at the first key
+
+Note that the start key frame and the end key frame are not optional.
 
 --------------
 Count response:
