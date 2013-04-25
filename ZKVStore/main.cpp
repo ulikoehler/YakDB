@@ -35,5 +35,4 @@ int main() {
     printf("Starting server...\n");
     KeyValueServer server;
     server.start(); //Blocks until interrupt
-    //Start the loop
 }

@@ -25,6 +25,60 @@ using namespace std;
  * 
  * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
  */
+static void handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
+#ifdef DEBUG_READ
+    printf("Starting to handle count request of size %d\n", (uint32_t) zmsg_size(msg) - 3);
+    fflush(stdout);
+#endif
+    //Parse the table id
+    zframe_t* tableIdFrame = zmsg_next(msg);
+    assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
+    uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
+    //The response has doesn't have the table frame, so
+    //Get the table to read from
+    leveldb::DB* db = tables.getTable(tableId, openHelper);
+    //Create the response object
+    leveldb::ReadOptions readOptions;
+    string value; //Where the value will be placed
+    leveldb::Status status;
+    //Read each read request
+    zframe_t* keyFrame = NULL;
+    while ((keyFrame = zmsg_next(msg)) != NULL) {
+        //Build a slice of the key (zero-copy)
+        string keystr((char*) zframe_data(keyFrame), zframe_size(keyFrame));
+        leveldb::Slice key((char*) zframe_data(keyFrame), zframe_size(keyFrame));
+#ifdef DEBUG_READ
+        printf("Reading key %s from table %d\n", key.ToString().c_str(), tableId);
+#endif
+        status = db->Get(readOptions, key, &value);
+        if (status.IsNotFound()) {
+#ifdef DEBUG_READ
+            cout << "Could not find value for key " << key.ToString() << "in table " << tableId << endl;
+#endif
+            //Empty value
+            zframe_reset(keyFrame, "", 0);
+        } else {
+#ifdef DEBUG_READ
+            cout << "Read " << value << " (key = " << key.ToString() << ") --> " << value << endl;
+#endif
+            zframe_reset(keyFrame, value.c_str(), value.length());
+        }
+    }
+    //Now we can remove the table ID frame from the message (doing so before would confuse zmsg_next())
+    zmsg_remove(msg, tableIdFrame);
+    zframe_destroy(&tableIdFrame);
+#ifdef DEBUG_READ
+    cout << "Final reply msg size: " << zmsg_size(msg) << endl;
+#endif
+}
+
+/**
+ * Read request handler. Shall be called for Read requests only!
+ * 
+ * The original message is modified to contain the response.
+ * 
+ * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
+ */
 static void handleReadRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
 #ifdef DEBUG_READ
     printf("Starting to handle read request of size %d\n", (uint32_t) zmsg_size(msg) - 3);
