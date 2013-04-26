@@ -66,7 +66,7 @@ void parseReadRequestResult(zmsg_t* readRequest, std::vector<std::string>& dataV
 zmsg_t* createCountRequest(uint32_t tableNum) {
 }
 
-ReadRequest::ReadRequest(const char* key, size_t keySize, uint32_t tablenum) {
+ReadRequest::ReadRequest(const char* key, size_t keySize, uint32_t tablenum) : msg(zmsg_new()) {
     zmsg_addmem(msg, "\x31\x01\x11", 3);
     zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
     zmsg_addmem(msg, key, keySize);
@@ -88,7 +88,7 @@ ReadRequest::executeSingle(void* socket, std::string& value) {
     assert(msg);
     zframe_t* headerFrame = zmsg_first(msg);
     assert(headerFrame);
-    //In contrast to executeSingle, we only read one value.
+    //In contrast to executeMultiple, we only read one value.
     zframe_t* valueFrame = zmsg_next(msg);
     assert(valueFrame);
     //Set the reference to the value that has been read
@@ -97,12 +97,67 @@ ReadRequest::executeSingle(void* socket, std::string& value) {
     zmsg_destroy(&msg);
 }
 
-
-
-
-
 void ReadRequest::executeMultiple(void* socket, std::vector<std::string> values) {
-    
+    //Send the read request
+    if (zmsg_send(&msg, socket)) {
+        debugZMQError("Send count request", errno);
+    }
+    //Receive the reply (blocks until finished)
+    msg = zmsg_recv(socket);
+    assert(msg);
+    zframe_t* headerFrame = zmsg_first(msg);
+    assert(headerFrame);
+    //Iterate over the value frames
+    zframe_t * valueFrame = nullptr;
+    while ((valueFrame == zmsg_next(msg)) != nullptr) {
+        values.push_back(std::string(zframe_data(valueFrame), zmsg_data(valueFrame)));
+    }
+    //Cleanup
+    zmsg_destroy(&msg);
+}
+
+void ReadRequest::addKey(const std::string& key) {
+    addKey(key.c_str(), key.size());
+}
+
+void ReadRequest::addKey(const char* key, size_t keySize) {
+    zmsg_addmem(msg, key, keySize);
+
+}
+
+void ReadRequest::addKey(const char* key) {
+    addKey(key, strlen(key));
+}
+
+PutRequest::PutRequest(const std::string& key, const std::string& value) noexcept : msg(zmsg_new()) {
+    zmsg_addmem(msg, "\x31\x01\x20", 3);
+    zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
+    addKeyValue(key, value);
+}
+
+PutRequest::PutRequest(const char* key, size_t keyLength, const char* value, size_t valueLength) noexcept {
+
+}
+
+/**
+ * Add a new key to this put request.
+ * The key is added to the end of the request.
+ */
+void PutRequest::addKeyValue(const std::string& key, const std::string& value) {
+    addKeyValue(key.c_str(), key.size(), value.c_str(), value.size());
+}
+
+void PutRequest::addKeyValue(const char* key, size_t keySize, const char* value, size_t valueSize) {
+    zmsg_addmem(msg, key, keySize);
+    zmsg_addmem(msg, value, valueSize);
+}
+
+void PutRequest::addKeyValue(const char* key, const char* value) {
+    addKeyValue(key, strlen(key), value, strlen(value));
+}
+
+void PutRequest::execute(void* socket) {
+
 }
 
 CountRequest::CountRequest(uint32_t tableNum) : msg(zmsg_new()) {
