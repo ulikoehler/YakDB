@@ -64,7 +64,45 @@ void parseReadRequestResult(zmsg_t* readRequest, std::vector<std::string>& dataV
 }
 
 zmsg_t* createCountRequest(uint32_t tableNum) {
+}
 
+ReadRequest::ReadRequest(const char* key, size_t keySize, uint32_t tablenum) {
+    zmsg_addmem(msg, "\x31\x01\x11", 3);
+    zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
+    zmsg_addmem(msg, key, keySize);
+}
+
+ReadRequest::ReadRequest(const char* key, uint32_t tablenum) : this(key, strlen(key), tablenum) {
+}
+
+ReadRequest::ReadRequest(const std::string& value, uint32_t tableNum) : this(value.c_str(), value.size(), tableNum) {
+}
+
+ReadRequest::executeSingle(void* socket, std::string& value) {
+    //Send the read request
+    if (zmsg_send(&msg, socket)) {
+        debugZMQError("Send count request", errno);
+    }
+    //Receive the reply (blocks until finished)
+    msg = zmsg_recv(socket);
+    assert(msg);
+    zframe_t* headerFrame = zmsg_first(msg);
+    assert(headerFrame);
+    //In contrast to executeSingle, we only read one value.
+    zframe_t* valueFrame = zmsg_next(msg);
+    assert(valueFrame);
+    //Set the reference to the value that has been read
+    value = std::string(zframe_data(valueFrame), zmsg_data(valueFrame));
+    //Cleanup
+    zmsg_destroy(&msg);
+}
+
+
+
+
+
+void ReadRequest::executeMultiple(void* socket, std::vector<std::string> values) {
+    
 }
 
 CountRequest::CountRequest(uint32_t tableNum) : msg(zmsg_new()) {
@@ -85,7 +123,6 @@ uint64_t CountRequest::execute(void* socket) {
     }
     //Receive the reply
     msg = zmsg_recv(socket);
-    cout << "RA" << endl;
     assert(msg);
     zframe_t* headerFrame = zmsg_first(msg);
     assert(headerFrame);

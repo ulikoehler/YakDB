@@ -13,11 +13,54 @@
 #include <vector>
 #include <string>
 
+class ReadRequest {
+public:
+    /**
+     * Create a new single-key read request from a std::string
+     * @param key The key to be read
+     * @param tablenum The table number to be read
+     */
+    ReadRequest(const std::string& key, uint32_t tablenum = 0);
+    /**
+     * Create a new single-key read request from a cstring
+     * @param key The key to be read (NUL-terminated cstring)
+     * @param tablenum The table number to be read
+     */
+    ReadRequest(const char* key, size_t keySize, uint32_t tablenum = 0);
+    /**
+     * Create a new single-key read request from an arbitrary byte string
+     * @param key The key to be read
+     * @param size The size of the key to be read
+     * @param tablenum The table number to be read
+     */
+    ReadRequest(const char* key, uint32_t tablenum = 0);
+    ReadRequest(const std::vector<std::string> key, uint32_t tablenum = 0);
+    /**
+     * Execute a read request that only reads a single values.
+     * Note that for read requests reading more than one value, everything but
+     * the first value is discarded.
+     * @param socket The socket to send the request over
+     * @param value A reference to the string to store the referenced value in.
+     */
+    void executeSingle(void* socket, std::string& value);
+    void executeMultiple(void* socket, std::vector<std::string> values);
+private:
+    zmsg_t* msg;
+};
+
+class PutRequest {
+public:
+    PutRequest(const std::string& key, const std::string& value) noexcept;
+    PutRequest(const char* key, size_t keyLength, const char* value, size_t valueLength) noexcept;
+private:
+    zmsg_t* msg;
+};
+
 //Functions for arbitrary data
-zmsg_t* buildSingleReadRequest(uint32_t tableNum, const char* key, size_t keyLength) ;
-zmsg_t* buildSinglePutRequest(uint32_t tableNum, const char* key, size_t keyLength, const char* value, size_t valueLength);
+zmsg_t* buildSingleReadRequest(uint32_t tableNum, const char* key, size_t keyLength);
+zmsg_t* buildSinglePutRequest(uint32_t tableNum, );
 //Functions that work on cstrings (just wrappers using strlen)
-zmsg_t* buildSingleReadRequest(uint32_t tableNum, const char* key) ;
+zmsg_t* buildSingleReadRequest(uint32_t tableNum, const char* key);
 zmsg_t* buildSinglePutRequest(uint32_t tableNum, const char* key, const char* value);
 //Incremental functions
 void addKeyValueToPutRequest(zmsg_t* msg, const char* key, size_t keyLength, const char* value, size_t valueLength);
@@ -27,6 +70,7 @@ void addKeyValueToReadRequest(zmsg_t* msg, const char* key);
 //
 //Other/unsorted
 //
+
 class CountRequest {
 public:
     CountRequest(uint32_t tableNum = 0);
