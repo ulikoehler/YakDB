@@ -103,7 +103,7 @@ Count response:
 
 Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x11 Response type (count response)][1-byte response code]
 Frame 1 (if response code indicates an error): NUL-terminated string describing the error
-Frame 1 (if response code indicates success): A 64-bit little-endian unsigned integer representing the number of values found
+Frame 1 (if response code indicates success): A 64-bit little-endian unsigned integer representing the number of values found in the given range (count)
 
 Response codes:
     0x00 Success (--> frame 1 contains count)

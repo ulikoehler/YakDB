@@ -26,16 +26,18 @@ using namespace std;
  * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
  */
 static zmsg_t* handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
-    static const char* ackReply = "\x31";
+    static const char* ackReply = "\x31\x01\x11\x00"; //--> No error
     //Parse the table id
     zframe_t* tableIdFrame = zmsg_next(msg);
     assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
     uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
     //Parse the start/end frame
     zframe_t* rangeStartFrame = zmsg_next(msg);
-    zframe_t* rangeEndFrame = zmsg_next(msg);
+    //zmsg_next returns a non-NULL frame when calling zmsg_next after the last frame has been next'ed, so we'll have to perform additional checks here
+    zframe_t* rangeEndFrame = (rangeStartFrame == NULL ? NULL : zmsg_next(msg));
     bool haveRangeStart = !(rangeStartFrame == NULL || zframe_size(rangeStartFrame) == 0);
     bool haveRangeEnd = !(rangeEndFrame == NULL || zframe_size(rangeEndFrame) == 0);
+    cout << " have " << haveRangeStart << "  " << haveRangeEnd << endl;
     std::string rangeStart = (haveRangeStart ? string((char*) zframe_data(rangeStartFrame), zframe_size(rangeStartFrame)) : "");
     std::string rangeEnd = (haveRangeEnd ? string((char*) zframe_data(rangeEndFrame), zframe_size(rangeEndFrame)) : "");
     //Get the table to read from
@@ -151,6 +153,7 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         //Get the request type
         RequestType requestType = getRequestType(headerFrame);
         //Process the rest of the frame
+        cout << "Isize " << zmsg_size(msg) << endl;
         if (requestType == ReadRequest) {
             handleReadRequest(tablespace, msg, tableOpenHelper);
         } else if (requestType == CountRequest) {
@@ -161,8 +164,8 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         //Send reply (the handler function rewrote the original message to contain the reply)
         assert(msg);
         assert(zmsg_size(msg) >= 3); //2 Envelope + 1 Response header (corner case: Nothing to be read)
+        cout << "Sentit" << zmsg_size(msg) << endl;
         zmsg_send(&msg, replyProxySocket);
-        cout << "Sentit" << requestType << endl;
     }
     printf("Stopping update processor\n");
     zsocket_destroy(ctx, workPullSocket);
