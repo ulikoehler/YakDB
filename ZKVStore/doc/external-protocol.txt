@@ -96,7 +96,7 @@ Frame 1: 4-byte little-endian unsigned table number
 Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
 Frame 3: End key (inclusive). If this has zero length, the count ends at the first key
 
-Note that the start key frame and the end key frame are not optional.
+If no start and end key shall be specified, the frames 3 and 4 may be left out.
 
 --------------
 Count response:

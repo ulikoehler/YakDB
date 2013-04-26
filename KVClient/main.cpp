@@ -3,19 +3,12 @@
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
-#include "../ZKVStore/client.h"
+#include "client.h"
 
 using namespace std;
 
 /**
- * ZMQ zero-copy free function that uses standard C free
- */
-void standardFree(void *data, void *hint) {
-    free(data);
-}
-
-/**
- * ZDB KeyValueServer
+ * ZDB KeyValue Client (test)
  * Port 
  */
 int main() {
@@ -51,6 +44,12 @@ int main() {
     parseReadRequestResult(msg, result);
     cout << "Got read result: " << result[0] << endl;
     fflush(stdout);
+    //
+    //Count
+    //
+    CountRequest request(0);
+    cout << "Got count " << request.execute(reqRepSocket) << endl;
+    //Cleanup
     zmsg_destroy(&msg);
     zctx_destroy(&ctx);
     //All tables are closed at scope exit.

@@ -54,6 +54,23 @@ zmsg_t* createEmptyFrameMessage();
  */
 void sendEmptyFrameMessage(void* socket);
 
+/**
+ * Create a new frame of constant data.
+ * The data will not be deallocated after usage.
+ * @param data
+ * @param size
+ * @return 
+ */
+zframe_t* createConstFrame(const char* data, size_t size);
+/**
+ * Create a new frame of constant data.
+ * The data will not be deallocated after usage.
+ * strlen(data) is used as size.
+ * @param data
+ * @return 
+ */
+zframe_t* createConstFrame(const char* data);
+
 void removeAndDestroyFrame(zmsg_t* msg, zframe_t* frame);
 
 #endif	/* ZUTIL_HPP */

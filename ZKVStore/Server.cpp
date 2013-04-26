@@ -33,12 +33,15 @@ using namespace std;
 int proxyWorkerThreadResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     KeyValueServer* server = (KeyValueServer*) arg;
     zmsg_t* msg = zmsg_recv(server->responseProxySocket);
-    //We assume the message contains a valid envelope.
-    //Just proxy it. Nothing special here.
-    //zmq_proxy is a loop and therefore can't be used here.
-    int rc = zmsg_send(&msg, server->externalRepSocket);
-    if (rc == -1) {
-        debugZMQError("Proxy worker thread response", errno);
+    if (msg) {
+        //We assume the message contains a valid envelope.
+        //Just proxy it. Nothing special here.
+        //zmq_proxy is a loop and therefore can't be used here
+        cout << "Send something" << zmsg_size(msg) << endl;
+        int rc = zmsg_send(&msg, server->externalRepSocket);
+        if (rc == -1) {
+            debugZMQError("Proxy worker thread response", errno);
+        }
     }
     return 0;
 }
@@ -66,7 +69,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         }
         RequestType requestType = (RequestType) (uint8_t) headerData[2];
         //        fprintf(stderr, "Got message of type %d from client\n", (int) msgType);
-        if (requestType == RequestType::ReadRequest) {
+        if (requestType == RequestType::ReadRequest || requestType == RequestType::CountRequest) {
             //Forward the message to the read worker controller, the response is sent asynchronously
             server->readWorkerController.send(&msg);
         } else if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {

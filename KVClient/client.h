@@ -27,6 +27,14 @@ void addKeyValueToReadRequest(zmsg_t* msg, const char* key);
 //
 //Other/unsorted
 //
+class CountRequest {
+public:
+    CountRequest(uint32_t tableNum = 0);
+    uint64_t execute(void* socket);
+    ~CountRequest();
+private:
+    zmsg_t* msg;
+};
 
 /**
  * Extract read results into a vector

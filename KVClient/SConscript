@@ -1,0 +1,7 @@
+env = Environment(CXXFLAGS=["-std=c++0x","-march=core2"],CPPPATH='../ZKVStore')   # Create an environmnet
+
+libraries = ["zmq","czmq"]
+
+zkvSource =  ["main.cpp","../ZKVStore/zutil.cpp",
+    "client.cpp"]
+hello = env.Program(target="kvc", source=zkvSource,LIBS=libraries)

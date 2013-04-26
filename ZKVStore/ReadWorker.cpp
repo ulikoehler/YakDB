@@ -15,7 +15,7 @@
 #include "zutil.hpp"
 #include "endpoints.hpp"
 
-        using namespace std;
+using namespace std;
 #define DEBUG_READ
 
 /**
@@ -25,11 +25,8 @@
  * 
  * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
  */
-static void handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
-#ifdef DEBUG_READ
-    printf("Starting to handle count request of size %d\n", (uint32_t) zmsg_size(msg) - 3);
-    fflush(stdout);
-#endif
+static zmsg_t* handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
+    static const char* ackReply = "\x31";
     //Parse the table id
     zframe_t* tableIdFrame = zmsg_next(msg);
     assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
@@ -41,13 +38,6 @@ static void handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper&
     bool haveRangeEnd = !(rangeEndFrame == NULL || zframe_size(rangeEndFrame) == 0);
     std::string rangeStart = (haveRangeStart ? string((char*) zframe_data(rangeStartFrame), zframe_size(rangeStartFrame)) : "");
     std::string rangeEnd = (haveRangeEnd ? string((char*) zframe_data(rangeEndFrame), zframe_size(rangeEndFrame)) : "");
-    //Remove the range frames (if any), the reply is shorter 
-    if (rangeStartFrame) {
-        removeAndDestroyFrame(msg, rangeStartFrame);
-    }
-    if (rangeEndFrame) {
-        removeAndDestroyFrame(msg, rangeEndFrame);
-    }
     //Get the table to read from
     leveldb::DB* db = tables.getTable(tableId, openHelper);
     //Create the response object
@@ -70,12 +60,19 @@ static void handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper&
             break;
         }
     }
-    //TODO handle error
+    //TODO handle error properly
     assert(it->status().ok()); // Check for any errors found during the scan
     //Delete the iterator
     delete it;
     //Build the response message
     zframe_reset(tableIdFrame, &count, sizeof (uint64_t));
+    //Remove the range frames (if any), doing so before confuses frame order etc.
+    if (rangeStartFrame) {
+        removeAndDestroyFrame(msg, rangeStartFrame);
+    }
+    if (rangeEndFrame) {
+        removeAndDestroyFrame(msg, rangeEndFrame);
+    }
 }
 
 /**
@@ -86,10 +83,6 @@ static void handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper&
  * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
  */
 static void handleReadRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
-#ifdef DEBUG_READ
-    printf("Starting to handle read request of size %d\n", (uint32_t) zmsg_size(msg) - 3);
-    fflush(stdout);
-#endif
     //Parse the table id
     zframe_t* tableIdFrame = zmsg_next(msg);
     assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
@@ -107,33 +100,21 @@ static void handleReadRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& 
         //Build a slice of the key (zero-copy)
         string keystr((char*) zframe_data(keyFrame), zframe_size(keyFrame));
         leveldb::Slice key((char*) zframe_data(keyFrame), zframe_size(keyFrame));
-#ifdef DEBUG_READ
-        printf("Reading key %s from table %d\n", key.ToString().c_str(), tableId);
-#endif
         status = db->Get(readOptions, key, &value);
         if (status.IsNotFound()) {
-#ifdef DEBUG_READ
-            cout << "Could not find value for key " << key.ToString() << "in table " << tableId << endl;
-#endif
             //Empty value
             zframe_reset(keyFrame, "", 0);
         } else {
-#ifdef DEBUG_READ
-            cout << "Read " << value << " (key = " << key.ToString() << ") --> " << value << endl;
-#endif
             zframe_reset(keyFrame, value.c_str(), value.length());
         }
     }
     //Now we can remove the table ID frame from the message (doing so before would confuse zmsg_next())
     zmsg_remove(msg, tableIdFrame);
     zframe_destroy(&tableIdFrame);
-#ifdef DEBUG_READ
-    cout << "Final reply msg size: " << zmsg_size(msg) << endl;
-#endif
 }
 
 /**
- * The main function for the update worker thread.
+ * The main function for the read worker thread.
  * 
  * This function parses the header, calls the appropriate handler function
  * and sends the response for PARTSYNC requests
@@ -181,6 +162,7 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         assert(msg);
         assert(zmsg_size(msg) >= 3); //2 Envelope + 1 Response header (corner case: Nothing to be read)
         zmsg_send(&msg, replyProxySocket);
+        cout << "Sentit" << requestType << endl;
     }
     printf("Stopping update processor\n");
     zsocket_destroy(ctx, workPullSocket);

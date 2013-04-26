@@ -13,6 +13,14 @@ zframe_t* createEmptyFrame() {
     return zframe_new_zero_copy(NULL, 0, doNothingFree, NULL);
 }
 
+zframe_t* createConstFrame(const char* data, size_t size) {
+    return zframe_new_zero_copy(const_cast<char*>(data), size, doNothingFree, NULL);
+}
+
+zframe_t* createConstFrame(const char* data) {
+    return createConstFrame(data, strlen(data));
+}
+
 zmsg_t* createEmptyFrameMessage() {
     zmsg_t* msg = zmsg_new();
     zmsg_add(msg, createEmptyFrame());
