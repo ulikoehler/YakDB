@@ -17,6 +17,7 @@ int main() {
     //    const char* errorPubUrl = "tcp://*:7102";
     printf("Starting client...\n");
     fflush(stdout);
+    srand(time(0));
     //Create the sockets
     zctx_t *ctx = zctx_new();
     void* reqRepSocket = zsocket_new(ctx, ZMQ_REQ);

@@ -40,6 +40,13 @@ static zmsg_t* handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelp
     cout << " have " << haveRangeStart << "  " << haveRangeEnd << endl;
     std::string rangeStart = (haveRangeStart ? string((char*) zframe_data(rangeStartFrame), zframe_size(rangeStartFrame)) : "");
     std::string rangeEnd = (haveRangeEnd ? string((char*) zframe_data(rangeEndFrame), zframe_size(rangeEndFrame)) : "");
+    //We don't need the range frames any more
+    if (rangeStartFrame) {
+        removeAndDestroyFrame(msg, rangeStartFrame);
+    }
+    if (rangeEndFrame) {
+        removeAndDestroyFrame(msg, rangeEndFrame);
+    }
     //Get the table to read from
     leveldb::DB* db = tables.getTable(tableId, openHelper);
     //Create the response object
@@ -68,13 +75,6 @@ static zmsg_t* handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelp
     delete it;
     //Build the response message
     zframe_reset(tableIdFrame, &count, sizeof (uint64_t));
-    //Remove the range frames (if any), doing so before confuses frame order etc.
-    if (rangeStartFrame) {
-        removeAndDestroyFrame(msg, rangeStartFrame);
-    }
-    if (rangeEndFrame) {
-        removeAndDestroyFrame(msg, rangeEndFrame);
-    }
 }
 
 /**
