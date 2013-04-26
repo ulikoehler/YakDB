@@ -25,8 +25,9 @@ using namespace std;
  * 
  * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
  */
-static zmsg_t* handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
+static zmsg_t* handleCountRequest(Tablespace& tables, zmsg_t* msg, zframe_t* headerFrame, TableOpenHelper& openHelper) {
     static const char* ackReply = "\x31\x01\x11\x00"; //--> No error
+    static const char* errorReply = "\x31\x01\x11\x10"; //--> No error
     //Parse the table id
     zframe_t* tableIdFrame = zmsg_next(msg);
     assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
@@ -69,12 +70,19 @@ static zmsg_t* handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelp
             break;
         }
     }
-    //TODO handle error properly
-    assert(it->status().ok()); // Check for any errors found during the scan
-    //Delete the iterator
+    if (!it->status().ok()) { // Check for any errors found during the scan
+        zframe_reset(headerFrame, errorReply, 4);
+        //Reuse the table id frame to store the error message
+        string status = it->status().ToString();
+        zframe_reset(tableIdFrame, status.c_str(), status.length());
+    } else { //Nothing happened wrong
+        //Set th reply code to success if nothing happened wrong
+        zframe_reset(headerFrame, ackReply, 4);
+        //Reuse the table id frame to store the count
+        zframe_reset(tableIdFrame, &count, sizeof (uint64_t));
+    }
+    //Cleanup
     delete it;
-    //Build the response message
-    zframe_reset(tableIdFrame, &count, sizeof (uint64_t));
 }
 
 /**
@@ -84,7 +92,7 @@ static zmsg_t* handleCountRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelp
  * 
  * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
  */
-static void handleReadRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& openHelper) {
+static void handleReadRequest(Tablespace& tables, zmsg_t* msg, zframe_t* headerFrame, TableOpenHelper& openHelper) {
     //Parse the table id
     zframe_t* tableIdFrame = zmsg_next(msg);
     assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
@@ -155,9 +163,9 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         //Process the rest of the frame
         cout << "Isize " << zmsg_size(msg) << endl;
         if (requestType == ReadRequest) {
-            handleReadRequest(tablespace, msg, tableOpenHelper);
+            handleReadRequest(tablespace, msg, headerFrame, tableOpenHelper);
         } else if (requestType == CountRequest) {
-            handleCountRequest(tablespace, msg, tableOpenHelper);
+            handleCountRequest(tablespace, msg, headerFrame, tableOpenHelper);
         } else {
             cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;
         }
