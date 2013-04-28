@@ -13,6 +13,24 @@
 #include <vector>
 #include <string>
 
+
+/**
+ * A status representation that stores information about if
+ * an operation has been executed successfully, and, if not,
+ * an error code and an error message
+ */
+class Status {
+public:
+    Status(const std::string& string);
+    Status(Status&& other);
+    bool ok();
+    ~Status();
+    std::string getErrorMessage();
+private:
+    int statusCode;
+    std::string* status;
+};
+
 class ReadRequest {
 public:
     /**
@@ -51,6 +69,44 @@ public:
      * @param values
      */
     void executeMultiple(void* socket, std::vector<std::string> values) noexcept;
+    /**
+     * Add a new key to this read request.
+     * The key is added to the end of the request.
+     */
+    void addKey(const std::string& key) noexcept;
+    void addKey(const char* key, size_t keySize) noexcept;
+    void addKey(const char* key) noexcept;
+private:
+    zmsg_t* msg;
+};
+
+class DeleteRequest {
+public:
+    /**
+     * Create a new single-key delete request from a std::string
+     * @param key The key to be read
+     * @param tablenum The table number to be read
+     */
+    DeleteRequest(const std::string& key, uint32_t tablenum = 0) noexcept;
+    /**
+     * Create a new single-key delete request from a cstring
+     * @param key The key to be read (NUL-terminated cstring)
+     * @param tablenum The table number to be read
+     */
+    DeleteRequest(const char* key, size_t keySize, uint32_t tablenum = 0) noexcept;
+    /**
+     * Create a new single-key delete request from an arbitrary byte string
+     * @param key The key to be read
+     * @param size The size of the key to be read
+     * @param tablenum The table number to be read
+     */
+    DeleteRequest(const char* key, uint32_t tablenum = 0) noexcept;
+    DeleteRequest(const std::vector<std::string> key, uint32_t tablenum = 0) noexcept;
+    /**
+     * Execute a delete request.
+     * @param socket The socket to send the request over
+     */
+    void execute(void* socket) noexcept;
     /**
      * Add a new key to this read request.
      * The key is added to the end of the request.

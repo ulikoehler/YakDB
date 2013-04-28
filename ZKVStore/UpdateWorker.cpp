@@ -146,11 +146,18 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
             handleDeleteRequest(tablespace, msg, tableOpenHelper, fullsync);
         } else if (requestType == OpenTableRequest) {
             uint32_t tableId = parseTableId(msg);
-            tableOpenHelper.openTable(index);
+            tableOpenHelper.openTable(tableId);
             //Set partsync to force the code to respond after finished
             partsync = true;
         } else if (requestType == CloseTableRequest) {
-            tablespace.
+            uint32_t tableId = parseTableId(msg);
+            tablespace.closeTable(tableId);
+            //Set partsync to force the code to respond after finished
+            partsync = true;
+        } else if (requestType == CompactTableRequest) {
+            uint32_t tableId = parseTableId(msg);
+            //Set partsync to force the code to respond after finished
+            partsync = true;
         } else {
             cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;
         }

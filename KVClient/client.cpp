@@ -3,6 +3,7 @@
 #include <cassert>
 #include <iostream>
 #include "zutil.hpp"
+#include "macros.hpp"
 
 using namespace std;
 
@@ -67,7 +68,7 @@ zmsg_t* createCountRequest(uint32_t tableNum) {
 }
 
 ReadRequest::ReadRequest(const char* key, size_t keySize, uint32_t tablenum) : msg(zmsg_new()) {
-    zmsg_addmem(msg, "\x31\x01\x11", 3);
+    zmsg_addmem(msg, "\x31\x01\x10", 3);
     zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
     zmsg_addmem(msg, key, keySize);
 }
@@ -126,6 +127,46 @@ void ReadRequest::addKey(const char* key, size_t keySize) {
 }
 
 void ReadRequest::addKey(const char* key) {
+    addKey(key, strlen(key));
+}
+
+
+DeleteRequest::DeleteRequest(const char* key, size_t keySize, uint32_t tablenum) : msg(zmsg_new()) {
+    zmsg_addmem(msg, "\x31\x01\x21", 3);
+    zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
+    zmsg_addmem(msg, key, keySize);
+}
+
+DeleteRequest::DeleteRequest(const char* key, uint32_t tablenum) : this(key, strlen(key), tablenum) {
+}
+
+DeleteRequest::DeleteRequest(const std::string& value, uint32_t tableNum) : this(value.c_str(), value.size(), tableNum) {
+}
+
+int DeleteRequest::execute(void* socket) {
+    //Send the read request
+    if (unlikely(zmsg_send(&msg, socket))) {
+        debugZMQError("Send delete request", errno);
+    }
+    //Receive the reply (blocks until finished)
+    msg = zmsg_recv(socket);
+    assert(msg);
+    zframe_t* headerFrame = zmsg_first(msg);
+    assert(headerFrame);
+    //TODO parse response code
+    //Cleanup
+    zmsg_destroy(&msg);
+}
+
+void DeleteRequest::addKey(const std::string& key) {
+    addKey(key.c_str(), key.size());
+}
+
+void DeleteRequest::addKey(const char* key, size_t keySize) {
+    zmsg_addmem(msg, key, keySize);
+}
+
+void DeleteRequest::addKey(const char* key) {
     addKey(key, strlen(key));
 }
 
