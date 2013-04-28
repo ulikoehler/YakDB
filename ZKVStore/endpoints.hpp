@@ -21,5 +21,7 @@
 #define updateWorkerThreadAddr "inproc://updateWorkerThreads"
 #define readWorkerThreadAddr "inproc://readWorkerThreads"
 
+#define logEndpoint "inproc://globalLog"
+
 #endif	/* ENDPOINTS_HPP */
 

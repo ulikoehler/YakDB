@@ -14,7 +14,7 @@ zframe_t* createEmptyFrame() {
 }
 
 zframe_t* createConstFrame(const char* data, size_t size) {
-    return zframe_new_zero_copy(const_cast<char*>(data), size, doNothingFree, NULL);
+    return zframe_new_zero_copy(const_cast<char*> (data), size, doNothingFree, NULL);
 }
 
 zframe_t* createConstFrame(const char* data) {
@@ -38,4 +38,15 @@ void removeAndDestroyFrame(zmsg_t* msg, zframe_t* frame) {
     assert(frame);
     zmsg_remove(msg, frame);
     zframe_destroy(&frame);
+}
+
+void* zsocket_new_bind(zctx_t* context, int type, const char* endpoint) {
+    void* sock = zsocket_new(context, type);
+    zsocket_bind(sock, endpoint);
+}
+
+void* zsocket_new_connect(zctx_t* context, int type, const char* endpoint) {
+    void* sock = zsocket_new(context, type);
+    zsocket_bind(sock, endpoint);
+
 }

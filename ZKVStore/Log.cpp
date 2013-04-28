@@ -6,13 +6,13 @@
  */
 
 #include "Log.hpp"
+#include "endpoints.hpp"
+#include "zutil.hpp"
 
-Log::Log() {
+LogSource::LogSource(zctx_t* ctx, const std::string& name) : ctx(ctx) {
+    socket = zsocket_new_connect(ctx, ZMQ_PUB, logEndpoint);
 }
 
-Log::Log(const Log& orig) {
+LogSource::~LogSource() {
+    zsocket_destroy(ctx, socket);
 }
-
-Log::~Log() {
-}
-

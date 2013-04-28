@@ -73,5 +73,17 @@ zframe_t* createConstFrame(const char* data);
 
 void removeAndDestroyFrame(zmsg_t* msg, zframe_t* frame);
 
+/**
+ * Create and bind a ZeroMQ socket in a single step
+ * @return 
+ */
+void* zsocket_new_bind(zctx_t* context, int type, const char* endpoint);
+
+/**
+ * Create and connect a ZeroMQ socket in a single step
+ * @return 
+ */
+void* zsocket_new_connect(zctx_t* context, int type, const char* endpoint);
+
 #endif	/* ZUTIL_HPP */
 
