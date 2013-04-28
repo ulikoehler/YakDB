@@ -18,15 +18,26 @@
 
 using namespace std;
 
+/**
+ * Assuming that the next frame in the msg is the table id frame,
+ * parse the table ID from it.
+ * @param msg
+ * @return 
+ */
+static inline uint32_t parseTableId(zmsg_t* msg) {
+    zframe_t* tableIdFrame = zmsg_next(msg);
+    assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
+    uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
+    return tableId;
+}
+
 static void handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite) {
     leveldb::Status status;
     leveldb::WriteOptions writeOptions;
     writeOptions.sync = synchronousWrite;
     //Parse the table id
     //This function requires that the given message has the table id in its first frame
-    zframe_t* tableIdFrame = zmsg_next(msg);
-    assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
-    uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
+    uint32_t tableId = parseTableId(msg);
     //Get the table
     leveldb::DB* db = tables.getTable(tableId, helper);
     //The entire update is processed in one batch
@@ -54,6 +65,31 @@ static void handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper
 #ifdef DEBUG_UPDATES
     printf("Commit update batch\n");
 #endif
+    db->Write(writeOptions, &batch);
+    //The memory occupied by the message is free'd in the thread loop
+}
+
+static void handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite) {
+    leveldb::Status status;
+    leveldb::WriteOptions writeOptions;
+    writeOptions.sync = synchronousWrite;
+    //Parse the table id
+    //This function requires that the given message has the table id in its first frame
+    uint32_t tableId = parseTableId(msg);
+    //Get the table
+    leveldb::DB* db = tables.getTable(tableId, helper);
+    //The entire update is processed in one batch
+    leveldb::WriteBatch batch;
+    while (true) {
+        //The next two frames contain 
+        zframe_t* keyFrame = zmsg_next(msg);
+        if (!keyFrame) { //last key frame already read --> keyFrame == nullptr
+            break;
+        }
+        leveldb::Slice keySlice((char*) zframe_data(keyFrame), zframe_size(keyFrame));
+        batch.Delete(keySlice);
+    }
+    //Commit the batch
     db->Write(writeOptions, &batch);
     //The memory occupied by the message is free'd in the thread loop
 }
@@ -107,7 +143,14 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         if (requestType == PutRequest) {
             handleUpdateRequest(tablespace, msg, tableOpenHelper, fullsync);
         } else if (requestType == DeleteRequest) {
-            cerr << "Delete request TBD - WIP!" << endl;
+            handleDeleteRequest(tablespace, msg, tableOpenHelper, fullsync);
+        } else if (requestType == OpenTableRequest) {
+            uint32_t tableId = parseTableId(msg);
+            tableOpenHelper.openTable(index);
+            //Set partsync to force the code to respond after finished
+            partsync = true;
+        } else if (requestType == CloseTableRequest) {
+            tablespace.
         } else {
             cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;
         }

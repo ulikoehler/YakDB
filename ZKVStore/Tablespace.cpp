@@ -37,8 +37,8 @@ Tablespace::TableType Tablespace::getTable(IndexType index, TableOpenHelper& ope
 }
 
 void Tablespace::closeTable(IndexType index) {
-        if (databases[index] != nullptr) {
-            delete databases[index];
-            databases[index] = nullptr;
-        }
+    if (databases[index] != nullptr) {
+        delete databases[index];
+        databases[index] = nullptr;
+    }
 }

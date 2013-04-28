@@ -72,6 +72,11 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         if (requestType == RequestType::ReadRequest || requestType == RequestType::CountRequest) {
             //Forward the message to the read worker controller, the response is sent asynchronously
             server->readWorkerController.send(&msg);
+        } else if (requestType == RequestType::OpenTableRequest
+                || requestType == RequestType::CloseTableRequest
+                || requestType == RequestType::CompactTableRequest) {
+            //Send the message to the update worker (--> processed async)
+            server->updateWorkerController.send(&msg);
         } else if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
             //We reuse the header frame and the routing information to send the acknowledge message
             //The rest of the msg (the table id + data) is directly forwarded to one of the handler threads

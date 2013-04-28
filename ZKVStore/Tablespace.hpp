@@ -12,6 +12,7 @@
 #include <leveldb/db.h>
 
 #include "TableOpenHelper.hpp"
+
 /**
  * Encapsulates multiple key-value tables in one interface.
  * The tables are addressed by number and 
@@ -44,6 +45,12 @@ public:
      */
     TableType getTable(IndexType index, TableOpenHelper& openHelper);
 
+    /**
+     * Close a table immediately.
+     * It is the caller's responsibility to ensure that the table it not in use
+     * currently. If it is in use, unexpected stuff will happen.
+     * @param index
+     */
     void closeTable(IndexType index);
 
     inline TableType getExistingTable(IndexType index) {
