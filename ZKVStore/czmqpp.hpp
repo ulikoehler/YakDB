@@ -9,6 +9,8 @@
 #define	CZMQPP_HPP
 #include <czmq.h>
 
+//UNFINISHED DO NOT USE !!!
+
 class ZCtx {
 public:
     ZCtx();

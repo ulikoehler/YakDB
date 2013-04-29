@@ -7,6 +7,32 @@
 
 using namespace std;
 
+Status::Status() {
+
+}
+
+Status::Status(const std::string& string) {
+
+}
+
+Status::Status(Status&& other) : errorMessage(other.errorMessage) {
+    other.errorMessage = nullptr;
+}
+
+bool Status::ok() {
+    return (errorMessage == nullptr);
+}
+
+Status::~Status() {
+    if (errorMessage != nullptr) {
+        delete errorMessage;
+    }
+}
+
+std::string Status::getErrorMessage() {
+    return *errorMessage;
+}
+
 zmsg_t* buildSingleReadRequest(uint32_t tableNum, const char* key, size_t keyLength) {
     zmsg_t* msg = zmsg_new();
     //Add the header (magic, protocol version, request type(0x10))
@@ -59,7 +85,7 @@ void addKeyValueToReadRequest(zmsg_t* msg, const char* key) {
 void parseReadRequestResult(zmsg_t* readRequest, std::vector<std::string>& dataVector) {
     zframe_t* header = zmsg_first(readRequest);
     zframe_t* dataFrame = NULL;
-    while ((dataFrame = zmsg_next(readRequest)) != NULL) {
+    while ((dataFrame = zmsg_next(readRequest)) != nullptr) {
         dataVector.push_back(std::string((char*) zframe_data(dataFrame), zframe_size(dataFrame)));
     }
 }
@@ -81,7 +107,7 @@ ReadRequest::ReadRequest(const std::string& value, uint32_t tableNum) : this(val
 
 ReadRequest::executeSingle(void* socket, std::string& value) {
     //Send the read request
-    if (zmsg_send(&msg, socket)) {
+    if (unlikely(zmsg_send(&msg, socket))) {
         debugZMQError("Send count request", errno);
     }
     //Receive the reply (blocks until finished)
@@ -129,7 +155,6 @@ void ReadRequest::addKey(const char* key, size_t keySize) {
 void ReadRequest::addKey(const char* key) {
     addKey(key, strlen(key));
 }
-
 
 DeleteRequest::DeleteRequest(const char* key, size_t keySize, uint32_t tablenum) : msg(zmsg_new()) {
     zmsg_addmem(msg, "\x31\x01\x21", 3);

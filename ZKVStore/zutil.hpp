@@ -71,7 +71,7 @@ zframe_t* createConstFrame(const char* data, size_t size);
  */
 zframe_t* createConstFrame(const char* data);
 
-void removeAndDestroyFrame(zmsg_t* msg, zframe_t* frame);
+void zmsg_remove_destroy(zmsg_t* msg, zframe_t** frame);
 
 /**
  * Create and bind a ZeroMQ socket in a single step

@@ -33,11 +33,11 @@ void sendEmptyFrameMessage(void* socket) {
     zmsg_send(&msg, socket);
 }
 
-void removeAndDestroyFrame(zmsg_t* msg, zframe_t* frame) {
+void zmsg_remove_destroy(zmsg_t* msg, zframe_t** frame) {
     assert(msg);
     assert(frame);
-    zmsg_remove(msg, frame);
-    zframe_destroy(&frame);
+    zmsg_remove(msg, *frame);
+    zframe_destroy(frame);
 }
 
 void* zsocket_new_bind(zctx_t* context, int type, const char* endpoint) {
@@ -48,5 +48,5 @@ void* zsocket_new_bind(zctx_t* context, int type, const char* endpoint) {
 void* zsocket_new_connect(zctx_t* context, int type, const char* endpoint) {
     void* sock = zsocket_new(context, type);
     zsocket_bind(sock, endpoint);
-
 }
+

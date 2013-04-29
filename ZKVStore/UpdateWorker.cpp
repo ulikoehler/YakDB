@@ -18,19 +18,6 @@
 
 using namespace std;
 
-/**
- * Assuming that the next frame in the msg is the table id frame,
- * parse the table ID from it.
- * @param msg
- * @return 
- */
-static inline uint32_t parseTableId(zmsg_t* msg) {
-    zframe_t* tableIdFrame = zmsg_next(msg);
-    assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
-    uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
-    return tableId;
-}
-
 static void handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite) {
     leveldb::Status status;
     leveldb::WriteOptions writeOptions;
@@ -69,13 +56,75 @@ static void handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper
     //The memory occupied by the message is free'd in the thread loop
 }
 
+/**
+ * Handle compact requests. Note that, in contrast to Update/Delete requests,
+ * performance doesn't really matter here because compacts are incredibly time-consuming.
+ * In many cases they need to rewrite almost the entire databases, especially in the common
+ * use caseof compacting the entire database
+ * @param tables
+ * @param msg
+ * @param helper
+ * @param headerFrame
+ */
+static void handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, zframe_t* headerFrame) {
+    //Parse the table ID
+    zframe_t* tableIdFrame = zmsg_next(msg);
+    assert(zframe_size(tableIdFrame) == sizeof (Tablespace::IndexType));
+    Tablespace::IndexType tableId = *((Tablespace::IndexType*) zframe_data(tableIdFrame));
+    //Get the table
+    leveldb::DB* db = tables.getTable(index, helper);
+    //Parse the start/end frame
+    //zmsg_next returns a non-NULL frame when calling zmsg_next after the last frame has been next'ed, so we'll have to perform additional checks here
+    zframe_t* rangeStartFrame = zmsg_next(msg);
+    zframe_t* rangeEndFrame = (rangeStartFrame == NULL ? NULL : zmsg_next(msg));
+    bool haveRangeStart = !(rangeStartFrame == NULL || zframe_size(rangeStartFrame) == 0);
+    bool haveRangeEnd = !(rangeEndFrame == NULL || zframe_size(rangeEndFrame) == 0);
+    leveldb::Slice* rangeStart = (haveRangeStart ? new leveldb::Slice((char*) zframe_data(rangeStartFrame), zframe_size(rangeStartFrame)) : nullptr);
+    leveldb::Slice* rangeEnd = (haveRangeEnd ? new leveldb::Slice((char*) zframe_data(rangeEndFrame), zframe_size(rangeEndFrame)) : nullptr);
+    db->CompactRange(rangeStart, rangeEnd);
+    //Cleanup
+    delete rangeStart;
+    delete rangeEnd;
+    //Remove and destroy the range frames, because they're not used in the response
+    zmsg_remove_destroy(msg, rangeStartFrame);
+    zmsg_remove_destroy(msg, rangeEndFrame);
+    zframe_reset(headerFrame, "\x31\x01\x03\x00", 4);
+}
+
+static void handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, zframe_t* headerFrame) {
+    //Parse the table ID
+    zframe_t* tableIdFrame = zmsg_next(msg);
+    assert(zframe_size(tableIdFrame) == sizeof (Tablespace::IndexType));
+    Tablespace::IndexType tableId = *((Tablespace::IndexType*) zframe_data(tableIdFrame));
+    //Open the table
+    helper.openTable(tableId);
+    //Remove the table ID frame from the message
+    zmsg_remove_destroy(msg, &tableIdFrame);
+    //Rewrite the header frame for the response
+    zframe_reset(headerFrame, "\x31\x01\x01\x00", 4);
+}
+
+static void handleTableCloseRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, zframe_t* headerFrame) {
+    zframe_t* tableIdFrame = zmsg_next(msg);
+    assert(zframe_size(tableIdFrame) == sizeof (Tablespace::IndexType));
+    Tablespace::IndexType tableId = *((Tablespace::IndexType*) zframe_data(tableIdFrame));
+    //Close the table
+    tables.closeTable(tableId);
+    //Remove the table ID frame from the message
+    zmsg_remove_destroy(msg, &tableIdFrame);
+    //Rewrite the header frame for the response
+    zframe_reset(headerFrame, "\x31\x01\x02\x00", 4);
+}
+
 static void handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite) {
     leveldb::Status status;
     leveldb::WriteOptions writeOptions;
     writeOptions.sync = synchronousWrite;
     //Parse the table id
     //This function requires that the given message has the table id in its first frame
-    uint32_t tableId = parseTableId(msg);
+    zframe_t* tableIdFrame = zmsg_next(msg);
+    assert(zframe_size(tableIdFrame) == sizeof (Tablespace::IndexType));
+    Tablespace::IndexType tableId = *((Tablespace::IndexType*) zframe_data(tableIdFrame));
     //Get the table
     leveldb::DB* db = tables.getTable(tableId, helper);
     //The entire update is processed in one batch
@@ -121,8 +170,8 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         // request types processed by the update worker threads, we can distiguish these cases
         zframe_t* firstFrame = zmsg_first(msg);
         zframe_t* secondFrame = zmsg_next(msg);
-        zframe_t* headerFrame = NULL;
-        zframe_t* routingFrame = NULL; //Set to non-null if there is an envelope
+        zframe_t* headerFrame = nullptr;
+        zframe_t* routingFrame = nullptr; //Set to non-null if there is an envelope
         if (zframe_size(secondFrame) == 0) { //Msg contains envelope
             headerFrame = zmsg_next(msg);
             routingFrame = firstFrame;
@@ -145,18 +194,16 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         } else if (requestType == DeleteRequest) {
             handleDeleteRequest(tablespace, msg, tableOpenHelper, fullsync);
         } else if (requestType == OpenTableRequest) {
-            uint32_t tableId = parseTableId(msg);
-            tableOpenHelper.openTable(tableId);
-            //Set partsync to force the code to respond after finished
+            handleTableOpenRequest(tablespace, msg, tableOpenHelper)
+            //Set partsync to force the program to respond after finished
             partsync = true;
         } else if (requestType == CloseTableRequest) {
-            uint32_t tableId = parseTableId(msg);
-            tablespace.closeTable(tableId);
-            //Set partsync to force the code to respond after finished
+            handleTableCloseRequest(tablespace, msg, tableOpenHelper, headerFrame);
+            //Set partsync to force the program to respond after finished
             partsync = true;
         } else if (requestType == CompactTableRequest) {
-            uint32_t tableId = parseTableId(msg);
-            //Set partsync to force the code to respond after finished
+            handleCompactRequest(tablespace, msg, tableOpenHelper, headerFrame);
+            //Set partsync to force the code to respond after finishing
             partsync = true;
         } else {
             cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;

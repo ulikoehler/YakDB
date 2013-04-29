@@ -13,22 +13,38 @@
 #include <vector>
 #include <string>
 
-
 /**
  * A status representation that stores information about if
  * an operation has been executed successfully, and, if not,
- * an error code and an error message
+ * an error message
  */
 class Status {
 public:
+    /**
+     * Construct a status that indicates success
+     */
+    Status();
+    /**
+     * Construct a status that indicates an error, defined by the given error string
+     * @return 
+     */
     Status(const std::string& string);
+    /**
+     * Construct a status from another status object, C++11 Zero-Copy version
+     * @param other
+     */
     Status(Status&& other);
+    /**
+     * @return true if and only if this status indicates success,
+     */
     bool ok();
     ~Status();
+    /**
+     * @return The error message. Empty if it doesn't exist
+     */
     std::string getErrorMessage();
 private:
-    int statusCode;
-    std::string* status;
+    std::string* errorMessage; //Set to 
 };
 
 class ReadRequest {

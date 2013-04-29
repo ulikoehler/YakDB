@@ -42,7 +42,6 @@ Response codes:
     0x00 Table opened successfully
     0x10 Error while opening table (implies frame 1 being existent and non-empty)
     
-    
 -------------
 Close table request: Close a table (e.g. to save memory) - includes flushing the unwritten table data to disk
 
@@ -52,7 +51,7 @@ Frame 1: 4-byte little-endian unsigned integer table number
 -------------
 Close table response:
 
-Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x01 Response type (open table response)] [1-byte response code]
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x02 Response type (open table response)] [1-byte response code]
 Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
 
 Response codes:
@@ -60,14 +59,25 @@ Response codes:
     0x10 Error while close table (implies frame 1 being existent and non-empty)
     
 -------------
-Compact table request: Compact a table or a range in a table. Might take a long time for large tables
+Compact request: Count the number of keys in a given range
 
-Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x03 Response type (open table response)] [1-byte response code]
-Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x03 Request type (compact request)]
+Frame 1: 4-byte little-endian unsigned table number
+Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
+Frame 3: End key (inclusive). If this has zero length, the count ends at the last key
+
+If frame 2 and 3 are not present, the full key range (=entire table) is compace 
+If only frame 2, but not frame 3 is present, frame 3 is treated as if it was zero-length.
+
+--------------
+Compact response:
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x03 Response type (compact response)][1-byte response code]
+Frame 1 (if response code indicates an error): NUL-terminated string describing the error
 
 Response codes:
-    0x00 Table closed successfully
-    0x10 Error while close table (implies frame 1 being existent and non-empty)
+    0x00 Success (--> frame 1 not present)
+    0x10 Error (--> frame 1 contains error description cstring)
 
 -------------------------------
 ------Read-only requests-------

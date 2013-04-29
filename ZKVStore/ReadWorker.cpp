@@ -33,12 +33,11 @@ static zmsg_t* handleCountRequest(Tablespace& tables, zmsg_t* msg, zframe_t* hea
     assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
     uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
     //Parse the start/end frame
-    zframe_t* rangeStartFrame = zmsg_next(msg);
     //zmsg_next returns a non-NULL frame when calling zmsg_next after the last frame has been next'ed, so we'll have to perform additional checks here
+    zframe_t* rangeStartFrame = zmsg_next(msg);
     zframe_t* rangeEndFrame = (rangeStartFrame == NULL ? NULL : zmsg_next(msg));
     bool haveRangeStart = !(rangeStartFrame == NULL || zframe_size(rangeStartFrame) == 0);
     bool haveRangeEnd = !(rangeEndFrame == NULL || zframe_size(rangeEndFrame) == 0);
-    cout << " have " << haveRangeStart << "  " << haveRangeEnd << endl;
     std::string rangeStart = (haveRangeStart ? string((char*) zframe_data(rangeStartFrame), zframe_size(rangeStartFrame)) : "");
     std::string rangeEnd = (haveRangeEnd ? string((char*) zframe_data(rangeEndFrame), zframe_size(rangeEndFrame)) : "");
     //We don't need the range frames any more
