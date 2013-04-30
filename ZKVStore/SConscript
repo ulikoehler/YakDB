@@ -1,4 +1,9 @@
-env = Environment(CXXFLAGS=["-std=c++0x","-march=core2"])   # Create an environmnet
+#Use colorgcc and C++11
+import os
+env = Environment(CXXFLAGS=["-std=c++0x","-march=core2"],ENV =
+						{'PATH' : os.environ['PATH'],
+                         'TERM' : os.environ['TERM'],
+                         'HOME' : os.environ['HOME']})
 
 libraries = ["zmq","czmq","leveldb"]
 
