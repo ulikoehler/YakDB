@@ -4,9 +4,14 @@ env = Environment(CXXFLAGS=["-std=c++0x","-march=core2"],CPPPATH='../ZKVStore',E
 						{'PATH' : os.environ['PATH'],
                          'TERM' : os.environ['TERM'],
                          'HOME' : os.environ['HOME']})
+#Get CLI flags
+enableDebug = ARGUMENTS.get('debug', 0)
+optimize = ARGUMENTS.get('optimize', 0)
+if int(enableDebug):
+	env.Append(CCFLAGS = '-g')
 
 libraries = ["zmq","czmq"]
 
-zkvSource =  ["main.cpp","../ZKVStore/zutil.cpp",
-    "client.cpp"]
+zkvSource =  ["main.cpp","../ZKVStore/zutil.cpp","client.cpp"]
+
 hello = env.Program(target="kvc", source=zkvSource,LIBS=libraries)

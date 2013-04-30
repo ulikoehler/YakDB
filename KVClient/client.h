@@ -53,9 +53,13 @@ private:
  * 
  * This function is intended to be able to write convenient one-liners that execute a request and check for errors
  * 
+ * Log message: [Error] occurred during {action}: {errorMsg}
+ * Log message (for empty action string): [Error] {errorMsg}
+ * 
+ * @param action (optional) Describe the action that yielded the status. The string is included in the log message if non-empty.
  * @return true if and only if the given status object indicated success
  */
-bool printErr(const Status& status);
+bool printErr(const Status& status, const char* action = "");
 
 class ReadRequest {
 public:

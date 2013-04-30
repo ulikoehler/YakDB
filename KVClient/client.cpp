@@ -24,17 +24,22 @@ using namespace std;
         zmsg_destroy(&msg);\
         return Status("Protocol error: Header frame missing", 1);\
     } else if (unlikely(zframe_size(headerFrame) != 4)) {\
-        Status stat(std::string("Protocol error: Header frame size mismatch: ") + std::to_string(zframe_size(headerFrame)), 2);\
+        Status status(std::string("Protocol error: Header frame size mismatch (expected 4): ") + std::to_string(zframe_size(headerFrame)), 2);\
         zmsg_destroy(&msg);\
+        return status;\
     } else if (unlikely(zframe_data(headerFrame)[3] != 0x00)) {\
         Status status(std::string("Server error: Header frame indicates error: ") + frameToString(zmsg_next(msg)), 3);\
         zmsg_destroy(&msg);\
         return status;\
     }
 
-bool printErr(const Status& status) {
+bool printErr(const Status& status, const char* action) {
     if (unlikely(!status.ok())) {
-        fprintf(stderr, "[Error] %s\n", status.getErrorMessage().c_str());
+        if (strlen(action) == 0) { //No whatYouDid message 
+            fprintf(stderr, "[Error] %s\n", status.getErrorMessage().c_str());
+        } else {
+            fprintf(stderr, "[Error] occured during %s: %s\n", action, status.getErrorMessage().c_str());
+        }
         return false;
     }
     return true;
@@ -94,6 +99,7 @@ ReadRequest::ReadRequest(const std::string& value, uint32_t tableNum) noexcept :
 }
 
 Status ReadRequest::executeSingle(void* socket, std::string& value) noexcept {
+    assert(msg);
     //Send the read request
     if (unlikely(zmsg_send(&msg, socket))) {
         debugZMQError("Send count request", errno);
@@ -260,7 +266,6 @@ Status CountRequest::execute(void* socket, uint64_t* count) noexcept {
     //Parse the count
     zframe_t* countFrame = zmsg_next(msg);
     assert(countFrame);
-    assert(zframe_size(countFrame) == sizeof (uint64_t));
     *count = ((uint64_t*) zframe_data(countFrame))[0];
     //Cleanup the message
     zmsg_destroy(&msg);
