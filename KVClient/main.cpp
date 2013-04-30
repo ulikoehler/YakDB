@@ -23,35 +23,28 @@ int main() {
     void* reqRepSocket = zsocket_new(ctx, ZMQ_REQ);
     zsocket_connect(reqRepSocket, reqRepUrl);
     //Send a lot of data (10001 put requests in one message)
-    zmsg_t* msg = buildSinglePutRequest(0, "testkey", "testvalue");
+    PutRequest putRequest("testkey", "testvalue", 0);
     for(int i = 0; i < 10000; i++) {
-        addKeyValueToPutRequest(msg, std::to_string(rand()).c_str(), std::to_string(rand()).c_str());
+        putRequest.addKeyValue(std::to_string(rand()), std::to_string(rand()));
     }
-    zmsg_send(&msg, reqRepSocket);
-    msg = zmsg_recv(reqRepSocket);
-    zframe_t* replyHeader = zmsg_first(msg);
-    printf("Update reply (0 = acknowledge): %d\n", (int) zframe_data(replyHeader)[0]);
-    zmsg_destroy(&msg);
+    printErr(putRequest.execute(reqRepSocket));
+    cout << "Finished writing - sending read request..." << endl;
     //
     //Read
     //
-    printf("Sending read request...\n");
-    fflush(stdout);
-    msg = buildSingleReadRequest(0, "testkey");
-    zmsg_send(&msg, reqRepSocket);
+    cout << "Sending read request...\n" << endl;
+    ReadRequest readRequest("testkey", 0);
+    string readResult;
+    printErr(readRequest.executeSingle(reqRepSocket, readResult));
     //Receive the reply
-    msg = zmsg_recv(reqRepSocket);
-    vector<string> result;
-    parseReadRequestResult(msg, result);
-    cout << "Got read result: " << result[0] << endl;
-    fflush(stdout);
+    cout << "Got read result: " << readResult << endl;
     //
     //Count
     //
     CountRequest request(0);
-    cout << "Got count " << request.execute(reqRepSocket) << endl;
-    //Cleanup
-    zmsg_destroy(&msg);
+    uint64_t count;
+    request.execute(reqRepSocket, &count);
+    cout << "Got count " << count << endl;
     zctx_destroy(&ctx);
     //All tables are closed at scope exit.
 }

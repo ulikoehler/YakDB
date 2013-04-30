@@ -37,39 +37,49 @@ public:
     /**
      * @return true if and only if this status indicates success,
      */
-    bool ok();
+    bool ok() const;
     ~Status();
     /**
      * @return The error message. Empty if it doesn't exist
      */
-    std::string getErrorMessage();
+    std::string getErrorMessage() const;
 private:
     std::string* errorMessage; //Set to an error message, or NULL if no error occured
     int errorCode;
 };
 
+/**
+ * If the supplied status argument indicates an error, print it to stderr.
+ * 
+ * This function is intended to be able to write convenient one-liners that execute a request and check for errors
+ * 
+ * @return true if and only if the given status object indicated success
+ */
+bool printErr(const Status& status);
+
 class ReadRequest {
 public:
+    ReadRequest(uint32_t tablenum) noexcept;
     /**
      * Create a new single-key read request from a std::string
      * @param key The key to be read
      * @param tablenum The table number to be read
      */
-    ReadRequest(const std::string& key, uint32_t tablenum = 0) noexcept;
+    ReadRequest(const std::string& key, uint32_t tablenum) noexcept;
     /**
-     * Create a new single-key read request from a cstring
+     * Create a new single-key read request from an arbitrary byte string
      * @param key The key to be read (NUL-terminated cstring)
      * @param tablenum The table number to be read
      */
-    ReadRequest(const char* key, size_t keySize, uint32_t tablenum = 0) noexcept;
+    ReadRequest(const char* key, size_t keySize, uint32_t tablenum) noexcept;
     /**
      * Create a new single-key read request from an arbitrary byte string
      * @param key The key to be read
      * @param size The size of the key to be read
      * @param tablenum The table number to be read
      */
-    ReadRequest(const char* key, uint32_t tablenum = 0) noexcept;
-    ReadRequest(const std::vector<std::string> key, uint32_t tablenum = 0) noexcept;
+    ReadRequest(const char* key, uint32_t tablenum) noexcept;
+    ReadRequest(const std::vector<std::string> key, uint32_t tablenum) noexcept;
     /**
      * Execute a read request that only reads a single values.
      * Note that for read requests reading more than one value, everything but
@@ -105,21 +115,21 @@ public:
      * @param key The key to be read
      * @param tablenum The table number to be read
      */
-    DeleteRequest(const std::string& key, uint32_t tablenum = 0) noexcept;
+    DeleteRequest(const std::string& key, uint32_t tablenum) noexcept;
     /**
      * Create a new single-key delete request from a cstring
      * @param key The key to be read (NUL-terminated cstring)
      * @param tablenum The table number to be read
      */
-    DeleteRequest(const char* key, size_t keySize, uint32_t tablenum = 0) noexcept;
+    DeleteRequest(const char* key, size_t keySize, uint32_t tablenum) noexcept;
     /**
      * Create a new single-key delete request from an arbitrary byte string
      * @param key The key to be read
      * @param size The size of the key to be read
      * @param tablenum The table number to be read
      */
-    DeleteRequest(const char* key, uint32_t tablenum = 0) noexcept;
-    DeleteRequest(const std::vector<std::string> key, uint32_t tablenum = 0) noexcept;
+    DeleteRequest(const char* key, uint32_t tablenum) noexcept;
+    DeleteRequest(const std::vector<std::string> key, uint32_t tablenum) noexcept;
     /**
      * Execute a delete request.
      * @param socket The socket to send the request over
@@ -139,8 +149,8 @@ private:
 
 class PutRequest {
 public:
-    PutRequest(const std::string& key, const std::string& value, uint32_t tableNum = 0) noexcept;
-    PutRequest(const char* key, size_t keyLength, const char* value, size_t valueLength, uint32_t tableNum = 0) noexcept;
+    PutRequest(const std::string& key, const std::string& value, uint32_t tableNum) noexcept;
+    PutRequest(const char* key, size_t keyLength, const char* value, size_t valueLength, uint32_t tableNum) noexcept;
 
     /**
      * Add a new key to this put request.
@@ -165,7 +175,7 @@ private:
 
 class CountRequest {
 public:
-    CountRequest(uint32_t tableNum = 0) noexcept;
+    CountRequest(uint32_t tableNum) noexcept;
     ~CountRequest() noexcept;
     /**
      * Execute a count request.

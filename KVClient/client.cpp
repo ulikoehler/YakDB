@@ -32,6 +32,14 @@ using namespace std;
         return status;\
     }
 
+bool printErr(const Status& status) {
+    if (unlikely(!status.ok())) {
+        fprintf(stderr, "[Error] %s\n", status.getErrorMessage().c_str());
+        return false;
+    }
+    return true;
+}
+
 Status::Status() : errorMessage(nullptr) {
 
 }
@@ -44,17 +52,17 @@ Status::Status(Status&& other) : errorMessage(other.errorMessage), errorCode(oth
     other.errorMessage = nullptr;
 }
 
-bool Status::ok() {
-    return unlikely(errorMessage == nullptr);
-}
-
 Status::~Status() {
     if (unlikely(errorMessage != nullptr)) {
         delete errorMessage;
     }
 }
 
-std::string Status::getErrorMessage() {
+bool Status::ok() const {
+    return unlikely(errorMessage == nullptr);
+}
+
+std::string Status::getErrorMessage() const {
     if (likely(errorMessage == nullptr)) {
         return "";
     } else {
@@ -66,6 +74,11 @@ void ReadRequest::init(const char* key, size_t keySize, uint32_t tableNum)noexce
     zmsg_addmem(msg, "\x31\x01\x10", 3);
     zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
     zmsg_addmem(msg, key, keySize);
+}
+
+ReadRequest::ReadRequest(uint32_t tableNum) noexcept : msg(zmsg_new()) {
+    zmsg_addmem(msg, "\x31\x01\x10", 3);
+    zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
 }
 
 ReadRequest::ReadRequest(const char* key, size_t keySize, uint32_t tableNum) noexcept : msg(zmsg_new()) {
