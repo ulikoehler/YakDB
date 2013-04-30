@@ -67,36 +67,6 @@ bool printErr(const Status& status, const char* action) {
     return true;
 }
 
-Status::Status() : errorMessage(nullptr) {
-
-}
-
-Status::Status(const std::string& msg, int errorCode) : errorCode(errorCode) {
-    errorMessage = new std::string(msg);
-}
-
-Status::Status(Status&& other) : errorMessage(other.errorMessage), errorCode(other.errorCode) {
-    other.errorMessage = nullptr;
-}
-
-Status::~Status() {
-    if (unlikely(errorMessage != nullptr)) {
-        delete errorMessage;
-    }
-}
-
-bool Status::ok() const {
-    return unlikely(errorMessage == nullptr);
-}
-
-std::string Status::getErrorMessage() const {
-    if (likely(errorMessage == nullptr)) {
-        return "";
-    } else {
-        return *errorMessage;
-    }
-}
-
 void ReadRequest::init(uint32_t tableNum)noexcept {
     zmsg_addmem(msg, "\x31\x01\x10", 3);
     zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
