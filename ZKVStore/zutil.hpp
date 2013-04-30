@@ -9,6 +9,7 @@
 #define	ZUTIL_HPP
 #include <czmq.h>
 #include <cstdio>
+#include <string>
 
 /**
  * If errno is not zero, print a
@@ -84,6 +85,14 @@ void* zsocket_new_bind(zctx_t* context, int type, const char* endpoint);
  * @return 
  */
 void* zsocket_new_connect(zctx_t* context, int type, const char* endpoint);
+
+/**
+ * Convert a ZMQ frame to a string.
+ * Can be inefficient, avoid using in IML if possible
+ * @param frame
+ * @return 
+ */
+std::string frameToString(zframe_t* frame);
 
 #endif	/* ZUTIL_HPP */
 

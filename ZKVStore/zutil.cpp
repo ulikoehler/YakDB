@@ -50,3 +50,6 @@ void* zsocket_new_connect(zctx_t* context, int type, const char* endpoint) {
     zsocket_bind(sock, endpoint);
 }
 
+std::string frameToString(zframe_t* frame) {
+    return std::string((char*) zframe_data(frame), zframe_size(frame));
+}

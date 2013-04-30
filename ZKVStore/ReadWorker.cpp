@@ -42,10 +42,10 @@ static zmsg_t* handleCountRequest(Tablespace& tables, zmsg_t* msg, zframe_t* hea
     std::string rangeEnd = (haveRangeEnd ? string((char*) zframe_data(rangeEndFrame), zframe_size(rangeEndFrame)) : "");
     //We don't need the range frames any more
     if (rangeStartFrame) {
-        removeAndDestroyFrame(msg, rangeStartFrame);
+        zmsg_remove_destroy(msg, &rangeStartFrame);
     }
     if (rangeEndFrame) {
-        removeAndDestroyFrame(msg, rangeEndFrame);
+        zmsg_remove_destroy(msg, &rangeEndFrame);
     }
     //Get the table to read from
     leveldb::DB* db = tables.getTable(tableId, openHelper);

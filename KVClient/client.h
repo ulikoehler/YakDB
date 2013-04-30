@@ -94,6 +94,7 @@ public:
     void addKey(const char* key, size_t keySize) noexcept;
     void addKey(const char* key) noexcept;
 private:
+    void init(const char* key, size_t size, uint32_t tableNum)noexcept;
     zmsg_t* msg;
 };
 
@@ -123,7 +124,7 @@ public:
      * Execute a delete request.
      * @param socket The socket to send the request over
      */
-    void execute(void* socket) noexcept;
+    Status execute(void* socket) noexcept;
     /**
      * Add a new key to this read request.
      * The key is added to the end of the request.
@@ -132,13 +133,14 @@ public:
     void addKey(const char* key, size_t keySize) noexcept;
     void addKey(const char* key) noexcept;
 private:
+    void init(const char* key, size_t size, uint32_t tableNum) noexcept;
     zmsg_t* msg;
 };
 
 class PutRequest {
 public:
-    PutRequest(const std::string& key, const std::string& value) noexcept;
-    PutRequest(const char* key, size_t keyLength, const char* value, size_t valueLength) noexcept;
+    PutRequest(const std::string& key, const std::string& value, uint32_t tableNum = 0) noexcept;
+    PutRequest(const char* key, size_t keyLength, const char* value, size_t valueLength, uint32_t tableNum = 0) noexcept;
 
     /**
      * Add a new key to this put request.
@@ -147,42 +149,35 @@ public:
     void addKeyValue(const std::string& key, const std::string& value) noexcept;
     void addKeyValue(const char* key, size_t keySize, const char* value, size_t valueSize) noexcept;
     void addKeyValue(const char* key, const char* value) noexcept;
-
-    void execute(void* socket);
+    /**
+     * Execute a Put request
+     * @param socket
+     * @return A status indicating success or error
+     */
+    Status execute(void* socket) noexcept;
 private:
     zmsg_t* msg;
 };
 
-//Functions for arbitrary data
-zmsg_t* buildSingleReadRequest(uint32_t tableNum, const char* key, size_t keyLength);
-//zmsg_t* buildSinglePutRequest(uint32_t tableNum, );
-//Functions that work on cstrings (just wrappers using strlen)
-zmsg_t* buildSingleReadRequest(uint32_t tableNum, const char* key);
-zmsg_t* buildSinglePutRequest(uint32_t tableNum, const char* key, const char* value);
-//Incremental functions
-void addKeyValueToPutRequest(zmsg_t* msg, const char* key, size_t keyLength, const char* value, size_t valueLength);
-void addKeyValueToPutRequest(zmsg_t* msg, const char* key, const char* value);
-void addKeyValueToReadRequest(zmsg_t* msg, const char* key, size_t keyLength);
-void addKeyValueToReadRequest(zmsg_t* msg, const char* key);
 //
 //Other/unsorted
 //
 
 class CountRequest {
 public:
-    CountRequest(uint32_t tableNum = 0);
-    uint64_t execute(void* socket);
-    ~CountRequest();
+    CountRequest(uint32_t tableNum = 0) noexcept;
+    ~CountRequest() noexcept;
+    /**
+     * Execute a count request.
+     * 
+     * @param socket
+     * @param count A pointer to a memory location where the resulting count shall be saved if no error occured
+     * @return A status object that indicates if an error occured
+     */
+    Status execute(void* socket, uint64_t* count) noexcept;
 private:
     zmsg_t* msg;
 };
-
-/**
- * Extract read results into a vector
- * @param readRequest
- * @param 
- */
-void parseReadRequestResult(zmsg_t* readRequest, std::vector<std::string>& dataRef);
 
 #endif	/* CLIENT_H */
 

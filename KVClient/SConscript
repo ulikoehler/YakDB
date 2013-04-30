@@ -1,4 +1,9 @@
-env = Environment(CXXFLAGS=["-std=c++0x","-march=core2"],CPPPATH='../ZKVStore')   # Create an environmnet
+#Use colorgcc and C++11
+import os
+env = Environment(CXXFLAGS=["-std=c++0x","-march=core2"],CPPPATH='../ZKVStore',ENV =
+						{'PATH' : os.environ['PATH'],
+                         'TERM' : os.environ['TERM'],
+                         'HOME' : os.environ['HOME']})
 
 libraries = ["zmq","czmq"]
 

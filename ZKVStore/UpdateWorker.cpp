@@ -24,7 +24,9 @@ static void handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper
     writeOptions.sync = synchronousWrite;
     //Parse the table id
     //This function requires that the given message has the table id in its first frame
-    uint32_t tableId = parseTableId(msg);
+    zframe_t* tableIdFrame = zmsg_next(msg);
+    assert(zframe_size(tableIdFrame) == sizeof (Tablespace::IndexType));
+    Tablespace::IndexType tableId = *((Tablespace::IndexType*) zframe_data(tableIdFrame));
     //Get the table
     leveldb::DB* db = tables.getTable(tableId, helper);
     //The entire update is processed in one batch
@@ -72,7 +74,7 @@ static void handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelpe
     assert(zframe_size(tableIdFrame) == sizeof (Tablespace::IndexType));
     Tablespace::IndexType tableId = *((Tablespace::IndexType*) zframe_data(tableIdFrame));
     //Get the table
-    leveldb::DB* db = tables.getTable(index, helper);
+    leveldb::DB* db = tables.getTable(tableId, helper);
     //Parse the start/end frame
     //zmsg_next returns a non-NULL frame when calling zmsg_next after the last frame has been next'ed, so we'll have to perform additional checks here
     zframe_t* rangeStartFrame = zmsg_next(msg);
@@ -86,8 +88,8 @@ static void handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelpe
     delete rangeStart;
     delete rangeEnd;
     //Remove and destroy the range frames, because they're not used in the response
-    zmsg_remove_destroy(msg, rangeStartFrame);
-    zmsg_remove_destroy(msg, rangeEndFrame);
+    zmsg_remove_destroy(msg, &rangeStartFrame);
+    zmsg_remove_destroy(msg, &rangeEndFrame);
     zframe_reset(headerFrame, "\x31\x01\x03\x00", 4);
 }
 
@@ -194,7 +196,7 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         } else if (requestType == DeleteRequest) {
             handleDeleteRequest(tablespace, msg, tableOpenHelper, fullsync);
         } else if (requestType == OpenTableRequest) {
-            handleTableOpenRequest(tablespace, msg, tableOpenHelper)
+            handleTableOpenRequest(tablespace, msg, tableOpenHelper, headerFrame);
             //Set partsync to force the program to respond after finished
             partsync = true;
         } else if (requestType == CloseTableRequest) {
