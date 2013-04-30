@@ -253,7 +253,7 @@ CountRequest::~CountRequest() noexcept {
     }
 }
 
-Status CountRequest::execute(void* socket, uint64_t* count) noexcept {
+Status CountRequest::execute(void* socket, uint64_t& count) noexcept {
     assert(msg);
     if (unlikely(zmsg_send(&msg, socket))) {
         debugZMQError("Send count request", errno);
@@ -262,11 +262,12 @@ Status CountRequest::execute(void* socket, uint64_t* count) noexcept {
     msg = zmsg_recv(socket);
     assert(msg);
     //Check for protocol correctness and non-error return code
-    //CHECK_HEADERFRAME(zmsg_first(msg), msg);
+    CHECK_HEADERFRAME(zmsg_first(msg), msg);
     //Parse the count
     zframe_t* countFrame = zmsg_next(msg);
     assert(countFrame);
-    *count = ((uint64_t*) zframe_data(countFrame))[0];
+    assert(zframe_size(countFrame) == sizeof(uint64_t));
+    count = ((uint64_t*) zframe_data(countFrame))[0];
     //Cleanup the message
     zmsg_destroy(&msg);
     return Status();

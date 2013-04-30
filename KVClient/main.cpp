@@ -30,7 +30,7 @@ int main() {
     //
     //Read
     //
-    cout << "Sending read request...\n" << endl;
+    cout << "Sending read request..." << endl;
     ReadRequest readRequest("testkey", 0);
     string readResult;
     printErr(readRequest.executeSingle(reqRepSocket, readResult), "Read testkey");
@@ -39,9 +39,9 @@ int main() {
     //
     //Count
     //
-    CountRequest request(0);
+    CountRequest countRequest(0);
     uint64_t count;
-    printErr(request.execute(reqRepSocket, &count), "Count values");
+    printErr(countRequest.execute(reqRepSocket, count), "Count values");
     cout << "Got count " << count << endl;
     zctx_destroy(&ctx);
     //All tables are closed at scope exit.

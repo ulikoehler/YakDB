@@ -117,6 +117,8 @@ static void handleReadRequest(Tablespace& tables, zmsg_t* msg, zframe_t* headerF
             zframe_reset(keyFrame, value.c_str(), value.length());
         }
     }
+    //Rewrite the header frame (--> ack message)
+    zframe_reset(headerFrame, "\x31\x01\x10\x00", 4);
     //Now we can remove the table ID frame from the message (doing so before would confuse zmsg_next())
     zmsg_remove(msg, tableIdFrame);
     zframe_destroy(&tableIdFrame);

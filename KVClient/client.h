@@ -188,7 +188,7 @@ public:
      * @param count A pointer to a memory location where the resulting count shall be saved if no error occured
      * @return A status object that indicates if an error occured
      */
-    Status execute(void* socket, uint64_t* count) noexcept;
+    Status execute(void* socket, uint64_t& count) noexcept;
 private:
     zmsg_t* msg;
 };
