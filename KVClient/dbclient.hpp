@@ -23,12 +23,15 @@ public:
      */
     DKVClient(zctx_t* ctx);
     /**
+     * Destructor that only destroyess the underlying context if the corresponding option is set
+     */
+    ~DKVClient();
+    /**
      * Connect 
      * @param host
      * @param port
      */
     void connect(const char* host, uint32_t port);
-    ~DKVClient();
     /**
      * Get the current context in use by this instance.
      * @return 
