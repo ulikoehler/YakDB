@@ -14,14 +14,17 @@ using namespace std;
  * Not creating an inline function here avoids unncessary copying of Status objects,
  * because it would be difficult to check if an error occurred without creating an additional
  * Status copy.
+ * 
+ * This macro also declared the local headerFrame variable
  */
-#define CHECK_HEADERFRAME(headerFrame, msg) if(unlikely(!msg)) {\
+#define CHECK_HEADERFRAME(headerFrameExpr, msg) zframe_t* headerFrame = headerFrameExpr;/*Evaluate the expression exactly once, else zmsg_next() will cause headache*/\
+    if(unlikely(!msg)) {\
         return Status("Communication error: Failed to receive reply", -1);\
     } else if (unlikely(!headerFrame)) {\
         zmsg_destroy(&msg);\
         return Status("Protocol error: Header frame missing", 1);\
     } else if (unlikely(zframe_size(headerFrame) != 4)) {\
-        Status stat(std::string("Protocol error: Header frame size mismatch: ") + zframe_size(headerFrame), 2);\
+        Status stat(std::string("Protocol error: Header frame size mismatch: ") + std::to_string(zframe_size(headerFrame)), 2);\
         zmsg_destroy(&msg);\
     } else if (unlikely(zframe_data(headerFrame)[3] != 0x00)) {\
         Status status(std::string("Server error: Header frame indicates error: ") + frameToString(zmsg_next(msg)), 3);\
