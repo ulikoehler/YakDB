@@ -95,8 +95,14 @@ None of the frames may be empty under any circumstances. Empty frames may lead t
 --------------
 Read response:
 
-Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x10 Response type (read response)]
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x10 Response type (read response)][1-byte Response code]
 Frame 1-n: Read results (values only) in the same order as the requests, zero-sized if not found
+Frame 1 (if response code indicates an error): Error message
+
+Response codes:
+    0x00 Success (--> frame 1 contains first value)
+    0x10 Error (--> frame 1 contains error description cstring)
+
 
 ---------------
 Count request: Count the number of keys in a given range

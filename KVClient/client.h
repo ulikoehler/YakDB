@@ -28,7 +28,7 @@ public:
      * Construct a status that indicates an error, defined by the given error string
      * @return 
      */
-    Status(const std::string& string);
+    Status(const std::string& string, int errorCode = 1);
     /**
      * Construct a status from another status object, C++11 Zero-Copy version
      * @param other
@@ -44,7 +44,8 @@ public:
      */
     std::string getErrorMessage();
 private:
-    std::string* errorMessage; //Set to 
+    std::string* errorMessage; //Set to an error message, or NULL if no error occured
+    int errorCode;
 };
 
 class ReadRequest {
@@ -76,7 +77,7 @@ public:
      * @param socket The socket to send the request over
      * @param value A reference to the string to store the referenced value in.
      */
-    void executeSingle(void* socket, std::string& value) noexcept;
+    Status executeSingle(void* socket, std::string& value) noexcept;
     /**
      * Execute a read request that yields multiple values.
      * The values are placed in the 'values' vector in the same order as the read
@@ -84,7 +85,7 @@ public:
      * @param socket
      * @param values
      */
-    void executeMultiple(void* socket, std::vector<std::string> values) noexcept;
+    Status executeMultiple(void* socket, std::vector<std::string> values) noexcept;
     /**
      * Add a new key to this read request.
      * The key is added to the end of the request.

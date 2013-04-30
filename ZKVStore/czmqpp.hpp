@@ -26,5 +26,15 @@ private:
     zctx_t* underlying;
 };
 
+class zframe {
+public:
+    zframe(zframe_t* frame);
+    ~zframe();
+    size_t size();
+    char* data();
+private:
+    zframe_t* zframe;
+};
+
 #endif	/* CZMQPP_HPP */
 

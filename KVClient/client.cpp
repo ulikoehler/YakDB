@@ -7,30 +7,74 @@
 
 using namespace std;
 
+/**
+ * An instance of this class shall be returned by methods
+ * that check for errors (e.g. in communication messages).
+ * 
+ * This allows fast checking if the result indicates an error.
+ */
+static struct CheckResult {
+    bool error;
+    Status status;
+    /**
+     * Construct an error check result
+     */
+    CheckResult(Status status) : status(status), error(true) {
+        
+    }
+    /**
+     * Construct a non-error check result
+     */
+    CheckResult() : error(false) {
+        
+    }
+};
+
+static CheckResult checkHeaderFrame() {
+    //Check for errors
+    if (unlikely(!headerFrame)) {
+        return {true, Status("Protocol error: Header frame missing")};
+    } else if (unlikely(zframe_size(headerFrame) != 4)) {
+        return Status("Protocol error: Header frame size mismatch: " + headerFrame, 2);
+    } else if (unlikely(zframe_data(headerFrame)[3] != 0x00)) {
+        return Status("Server error: Header frame indicates error: " + zframe_data(zmsg_next(msg)), 3);
+    }
+}
+
+/**
+ * Executes checkHeaderFrame() and returns from the current function
+ * if an error was found.
+ */
+#define CHECK_HEADER()
+
 Status::Status() {
 
 }
 
-Status::Status(const std::string& string) {
-
+Status::Status(const std::string& msg, int errorCode) : errorCode(errorCode) {
+    errorMessage = new std::string(msg);
 }
 
-Status::Status(Status&& other) : errorMessage(other.errorMessage) {
+Status::Status(Status&& other) : errorMessage(other.errorMessage), errorCode(other.errorCode) {
     other.errorMessage = nullptr;
 }
 
 bool Status::ok() {
-    return (errorMessage == nullptr);
+    return unlikely(errorMessage == nullptr);
 }
 
 Status::~Status() {
-    if (errorMessage != nullptr) {
+    if (unlikely(errorMessage != nullptr)) {
         delete errorMessage;
     }
 }
 
 std::string Status::getErrorMessage() {
-    return *errorMessage;
+    if (likely(errorMessage) == nullptr) {
+        return "";
+    } else {
+        return *errorMessage;
+    }
 }
 
 zmsg_t* buildSingleReadRequest(uint32_t tableNum, const char* key, size_t keyLength) {
@@ -105,7 +149,7 @@ ReadRequest::ReadRequest(const char* key, uint32_t tablenum) : this(key, strlen(
 ReadRequest::ReadRequest(const std::string& value, uint32_t tableNum) : this(value.c_str(), value.size(), tableNum) {
 }
 
-ReadRequest::executeSingle(void* socket, std::string& value) {
+Status ReadRequest::executeSingle(void* socket, std::string& value) {
     //Send the read request
     if (unlikely(zmsg_send(&msg, socket))) {
         debugZMQError("Send count request", errno);
@@ -113,8 +157,19 @@ ReadRequest::executeSingle(void* socket, std::string& value) {
     //Receive the reply (blocks until finished)
     msg = zmsg_recv(socket);
     assert(msg);
+    R
     zframe_t* headerFrame = zmsg_first(msg);
     assert(headerFrame);
+    //Check for errors
+    if (unlikely(!headerFrame)) {
+        return Status("Protocol error: Header frame missing");
+    }
+    if (unlikely(zframe_size(headerFrame) != 4)) {
+        return Status("Protocol error: Header frame size mismatch: " + headerFrame, 2);
+    }
+    if (unlikely(zframe_data(headerFrame)[3] != 0x00)) {
+        return Status("Server error: Header frame indicates error: " + zframe_data(zmsg_next(msg)), 3);
+    }
     //In contrast to executeMultiple, we only read one value.
     zframe_t* valueFrame = zmsg_next(msg);
     assert(valueFrame);
@@ -122,9 +177,10 @@ ReadRequest::executeSingle(void* socket, std::string& value) {
     value = std::string(zframe_data(valueFrame), zmsg_data(valueFrame));
     //Cleanup
     zmsg_destroy(&msg);
+    return Status();
 }
 
-void ReadRequest::executeMultiple(void* socket, std::vector<std::string> values) {
+Status ReadRequest::executeMultiple(void* socket, std::vector<std::string> values) {
     //Send the read request
     if (zmsg_send(&msg, socket)) {
         debugZMQError("Send count request", errno);
@@ -133,7 +189,6 @@ void ReadRequest::executeMultiple(void* socket, std::vector<std::string> values)
     msg = zmsg_recv(socket);
     assert(msg);
     zframe_t* headerFrame = zmsg_first(msg);
-    assert(headerFrame);
     //Iterate over the value frames
     zframe_t * valueFrame = nullptr;
     while ((valueFrame == zmsg_next(msg)) != nullptr) {
@@ -141,6 +196,7 @@ void ReadRequest::executeMultiple(void* socket, std::vector<std::string> values)
     }
     //Cleanup
     zmsg_destroy(&msg);
+    return Status();
 }
 
 void ReadRequest::addKey(const std::string& key) {
