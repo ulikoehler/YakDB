@@ -83,7 +83,7 @@ public:
      * @param tablenum The table number to be read
      */
     ReadRequest(const char* key, uint32_t tablenum) noexcept;
-    ReadRequest(const std::vector<std::string> key, uint32_t tablenum) noexcept;
+    ReadRequest(const std::vector<std::string>& keys, uint32_t tablenum) noexcept;
     /**
      * Execute a read request that only reads a single values.
      * Note that for read requests reading more than one value, everything but
@@ -99,7 +99,7 @@ public:
      * @param socket
      * @param values
      */
-    Status executeMultiple(void* socket, std::vector<std::string> values) noexcept;
+    Status executeMultiple(void* socket, std::vector<std::string>& values) noexcept;
     /**
      * Add a new key to this read request.
      * The key is added to the end of the request.
@@ -108,9 +108,65 @@ public:
     void addKey(const char* key, size_t keySize) noexcept;
     void addKey(const char* key) noexcept;
 private:
-    void init(const char* key, size_t size, uint32_t tableNum)noexcept;
+    void init(uint32_t tableNum)noexcept;
     zmsg_t* msg;
 };
+
+class ExistsRequest {
+public:
+    ExistsRequest(uint32_t tablenum) noexcept;
+    /**
+     * Create a new single-key exists request from a std::string
+     * @param key The key to be checked for existence
+     * @param tablenum The table number to be read
+     */
+    ExistsRequest(const std::string& key, uint32_t tablenum) noexcept;
+    /**
+     * Create a new single-key exists request from an arbitrary byte string
+     * @param key The key to be checked for existence (NUL-terminated cstring)
+     * @param tablenum The table number to be read
+     */
+    ExistsRequest(const char* key, size_t keySize, uint32_t tablenum) noexcept;
+    /**
+     * Create a new single-key exists request from an arbitrary byte string
+     * @param key The key to be read
+     * @param size The size of the key to be checked for existence
+     * @param tablenum The table number to use
+     */
+    ExistsRequest(const char* key, uint32_t tablenum) noexcept;
+    ExistsRequest(const std::vector<std::string> key, uint32_t tablenum) noexcept;
+    /**
+     * Execute an exists request that only checks a single value.
+     * Note that for read requests reading more than one value, everything but
+     * the first value is discarded.
+     * @param socket The socket to send the request over
+     * @param value This variable will be set to true if and only if the value exists
+     */
+    Status executeSingle(void* socket, bool& value) noexcept;
+    /**
+     * Execute an exists request that yields multiple values.
+     * The values are placed in the 'values' vector in the same order as the read
+     * requests
+     * 
+     * Note that std::vector<bool> is inefficient in most compilers, see
+     * http://llvm.org/docs/ProgrammersManual.html#bit-storage-containers-bitvector-sparsebitvector
+     * 
+     * @param socket
+     * @param values
+     */
+    Status executeMultiple(void* socket, std::vector<bool>& values) noexcept;
+    /**
+     * Add a new key to this exists request.
+     * The key is added to the end of the request.
+     */
+    void addKey(const std::string& key) noexcept;
+    void addKey(const char* key, size_t keySize) noexcept;
+    void addKey(const char* key) noexcept;
+private:
+    void init(const char* key, size_t size, uint32_t tableNum) noexcept;
+    zmsg_t* msg;
+};
+
 
 class DeleteRequest {
 public:
@@ -182,6 +238,16 @@ public:
     CountRequest(uint32_t tableNum) noexcept;
     ~CountRequest() noexcept;
     /**
+     * Set the first key that will be included in the count
+     * @param startKey
+     */
+    void setStartKey(const std::string& startKey);
+    /**
+     * Set the last key that will be included in the count
+     * @param endKey
+     */
+    void setEndKey(const std::string& endKey);
+    /**
      * Execute a count request.
      * 
      * @param socket
@@ -190,7 +256,11 @@ public:
      */
     Status execute(void* socket, uint64_t& count) noexcept;
 private:
-    zmsg_t* msg;
+    uint32_t tableNum;
+    std::string startKey;
+    std::string endKey;
+    bool haveStartKey;
+    bool haveEndKey;
 };
 
 #endif	/* CLIENT_H */

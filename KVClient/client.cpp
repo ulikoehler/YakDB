@@ -19,7 +19,7 @@ using namespace std;
  */
 #define CHECK_HEADERFRAME(headerFrameExpr, msg) zframe_t* headerFrame = headerFrameExpr;/*Evaluate the expression exactly once, else zmsg_next() will cause headache*/\
     if(unlikely(!msg)) {\
-        return Status("Communication error: Failed to receive reply", -1);\
+        return Status(std::string("Communication error: Failed to receive reply: ") + std::string(zmq_strerror(zmq_errno())), -1);\
     } else if (unlikely(!headerFrame)) {\
         zmsg_destroy(&msg);\
         return Status("Protocol error: Header frame missing", 1);\
@@ -31,6 +31,28 @@ using namespace std;
         Status status(std::string("Server error: Header frame indicates error: ") + frameToString(zmsg_next(msg)), 3);\
         zmsg_destroy(&msg);\
         return status;\
+    }
+
+/**
+ * Code-deduplication macro for functions that return a Status.
+ * This macro returns an error-describing status if the message could not be sent.
+ * 
+ * This macro does not require a semicolon at the end!
+ */
+#define CHECKED_SEND(msg, socket) \
+    if (unlikely(zmsg_send(&(msg), socket))) {\
+        return Status(std::string("Communication error: Failed to send message: ") + std::string(zmq_strerror(zmq_errno())), -1);\
+    }
+
+/**
+ * Code-deduplication macro for functions that return a Status.
+ * 
+ * Sends a single frame with user-specified flags.
+ * Available flags (bitwise-OR them): ZFRAME_MORE, ZFRAME_REUSE, ZFRAME_DONTWAIT
+ */
+#define CHECKED_SEND_FRAME(frame, socket, flags) \
+    if (unlikely(zframe_send(&(frame), (socket), (flags)))) {\
+        return Status(std::string("Communication error: Failed to send frame: ") + std::string(zmq_strerror(zmq_errno())), -1);\
     }
 
 bool printErr(const Status& status, const char* action) {
@@ -75,35 +97,41 @@ std::string Status::getErrorMessage() const {
     }
 }
 
-void ReadRequest::init(const char* key, size_t keySize, uint32_t tableNum)noexcept {
+void ReadRequest::init(uint32_t tableNum)noexcept {
     zmsg_addmem(msg, "\x31\x01\x10", 3);
     zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
-    zmsg_addmem(msg, key, keySize);
 }
 
 ReadRequest::ReadRequest(uint32_t tableNum) noexcept : msg(zmsg_new()) {
-    zmsg_addmem(msg, "\x31\x01\x10", 3);
-    zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
+    init(tableNum);
 }
 
 ReadRequest::ReadRequest(const char* key, size_t keySize, uint32_t tableNum) noexcept : msg(zmsg_new()) {
-    init(key, keySize, tableNum);
+    init(tableNum);
+    addKey(key, keySize);
 }
 
 ReadRequest::ReadRequest(const char* key, uint32_t tablenum) noexcept : msg(zmsg_new()) {
-    init(key, strlen(key), tablenum);
+    init(tablenum);
+    addKey(key, strlen(key));
 }
 
 ReadRequest::ReadRequest(const std::string& value, uint32_t tableNum) noexcept : msg(zmsg_new()) {
-    init(value.c_str(), value.size(), tableNum);
+    init(tableNum);
+    addKey(value.c_str(), value.size());
+}
+
+ReadRequest::ReadRequest(const std::vector<std::string>& keys, uint32_t tableNum) noexcept {
+    init(tableNum);
+    for (const std::string& key : keys) {
+        addKey(key.c_str(), key.size());
+    }
 }
 
 Status ReadRequest::executeSingle(void* socket, std::string& value) noexcept {
     assert(msg);
     //Send the read request
-    if (unlikely(zmsg_send(&msg, socket))) {
-        debugZMQError("Send count request", errno);
-    }
+    CHECKED_SEND(msg, socket)
     //Receive the reply (blocks until finished)
     msg = zmsg_recv(socket);
     assert(msg);
@@ -119,11 +147,9 @@ Status ReadRequest::executeSingle(void* socket, std::string& value) noexcept {
     return Status();
 }
 
-Status ReadRequest::executeMultiple(void* socket, std::vector<std::string> values) noexcept {
+Status ReadRequest::executeMultiple(void* socket, std::vector<std::string>& values) noexcept {
     //Send the read request
-    if (zmsg_send(&msg, socket)) {
-        debugZMQError("Send count request", errno);
-    }
+    CHECKED_SEND(msg, socket)
     //Receive the reply (blocks until finished)
     msg = zmsg_recv(socket);
     assert(msg);
@@ -171,9 +197,7 @@ DeleteRequest::DeleteRequest(const std::string& value, uint32_t tableNum) noexce
 
 Status DeleteRequest::execute(void* socket) noexcept {
     //Send the read request
-    if (unlikely(zmsg_send(&msg, socket))) {
-        debugZMQError("Send delete request", errno);
-    }
+    CHECKED_SEND(msg, socket)
     //Receive the reply (blocks until finished)
     msg = zmsg_recv(socket);
     assert(msg);
@@ -228,9 +252,7 @@ void PutRequest::addKeyValue(const char* key, const char* value) noexcept {
 Status PutRequest::execute(void* socket) noexcept {
     assert(msg);
     assert(socket);
-    if (unlikely(zmsg_send(&msg, socket))) {
-        return Status();
-    }
+    CHECKED_SEND(msg, socket)
     //Receive the reply
     msg = zmsg_recv(socket);
     assert(msg);
@@ -242,22 +264,30 @@ Status PutRequest::execute(void* socket) noexcept {
     return Status();
 }
 
-CountRequest::CountRequest(uint32_t tableNum) noexcept : msg(zmsg_new()) {
-    zmsg_addmem(msg, "\x31\x01\x11", 3);
-    zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
+CountRequest::CountRequest(uint32_t tableNum) noexcept : haveStartKey(false), haveEndKey(false), startKey(), endKey() {
+
 }
 
 CountRequest::~CountRequest() noexcept {
-    if (msg) {
-        zmsg_destroy(&msg);
-    }
 }
 
 Status CountRequest::execute(void* socket, uint64_t& count) noexcept {
-    assert(msg);
-    if (unlikely(zmsg_send(&msg, socket))) {
-        debugZMQError("Send count request", errno);
+    zmsg_t* msg = zmsg_new();
+    zmsg_addmem(msg, "\x31\x01\x11", 3);
+    zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
+    //Add the start/end key (we always add a frame, even if the could be left out)
+    if (haveStartKey) {
+        zmsg_addmem(msg, startKey.c_str(), startKey.length());
+    } else {
+        zmsg_addmem(msg, "", 0);
     }
+    if (haveEndKey) {
+        zmsg_addmem(msg, endKey.c_str(), endKey.length());
+    } else {
+        zmsg_addmem(msg, "", 0);
+    }
+    //Send the message
+    CHECKED_SEND(msg, socket)
     //Receive the reply
     msg = zmsg_recv(socket);
     assert(msg);
@@ -266,9 +296,93 @@ Status CountRequest::execute(void* socket, uint64_t& count) noexcept {
     //Parse the count
     zframe_t* countFrame = zmsg_next(msg);
     assert(countFrame);
-    assert(zframe_size(countFrame) == sizeof(uint64_t));
+    assert(zframe_size(countFrame) == sizeof (uint64_t));
     count = ((uint64_t*) zframe_data(countFrame))[0];
     //Cleanup the message
     zmsg_destroy(&msg);
     return Status();
+}
+
+void CountRequest::setStartKey(const std::string& startKeyArg) {
+    this->haveStartKey = true;
+    this->startKey = startKey;
+}
+
+void CountRequest::setEndKey(const std::string& endKey) {
+    this->haveEndKey = true;
+    this->endKey = startKey;
+}
+
+void ExistsRequest::init(const char* key, size_t keySize, uint32_t tableNum)noexcept {
+    zmsg_addmem(msg, "\x31\x01\x12", 3);
+    zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
+    zmsg_addmem(msg, key, keySize);
+}
+
+ExistsRequest::ExistsRequest(uint32_t tableNum) noexcept : msg(zmsg_new()) {
+    zmsg_addmem(msg, "\x31\x01\x12", 3);
+    zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
+}
+
+ExistsRequest::ExistsRequest(const char* key, size_t keySize, uint32_t tableNum) noexcept : msg(zmsg_new()) {
+    init(key, keySize, tableNum);
+}
+
+ExistsRequest::ExistsRequest(const char* key, uint32_t tablenum) noexcept : msg(zmsg_new()) {
+    init(key, strlen(key), tablenum);
+}
+
+ExistsRequest::ExistsRequest(const std::string& value, uint32_t tableNum) noexcept : msg(zmsg_new()) {
+    init(value.c_str(), value.size(), tableNum);
+}
+
+Status ExistsRequest::executeSingle(void* socket, bool& value) noexcept {
+    assert(msg);
+    //Send the read request
+    CHECKED_SEND(msg, socket)
+    //Receive the reply (blocks until finished)
+    msg = zmsg_recv(socket);
+    assert(msg);
+    //Check for protocol correctness and non-error return code
+    CHECK_HEADERFRAME(zmsg_first(msg), msg)
+    //In contrast to executeMultiple, we only read one value.
+    zframe_t* valueFrame = zmsg_next(msg);
+    assert(valueFrame);
+    assert(zframe_size(valueFrame) == 1);
+
+    //Cleanup
+    zmsg_destroy(&msg);
+    return Status();
+}
+
+Status ExistsRequest::executeMultiple(void* socket, std::vector<bool>& values) noexcept {
+    //Send the read request
+    CHECKED_SEND(msg, socket)
+    //Receive the reply (blocks until finished)
+    msg = zmsg_recv(socket);
+    assert(msg);
+    //Check for protocol correctness and non-error return code
+    CHECK_HEADERFRAME(zmsg_first(msg), msg)
+    //Iterate over the value frames
+    zframe_t * valueFrame = nullptr;
+    while ((valueFrame = zmsg_next(msg)) != nullptr) {
+        assert(zframe_size(valueFrame) == 1);
+        //== 0 --> does not exist
+        values.push_back(zframe_data(valueFrame)[0] > 0);
+    }
+    //Cleanup
+    zmsg_destroy(&msg);
+    return Status();
+}
+
+void ExistsRequest::addKey(const std::string& key) noexcept {
+    addKey(key.c_str(), key.size());
+}
+
+void ExistsRequest::addKey(const char* key, size_t keySize) noexcept {
+    zmsg_addmem(msg, key, keySize);
+}
+
+void ExistsRequest::addKey(const char* key) noexcept {
+    addKey(key, strlen(key));
 }

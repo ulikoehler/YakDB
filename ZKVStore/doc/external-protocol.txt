@@ -125,6 +125,32 @@ Frame 1 (if response code indicates success): A 64-bit little-endian unsigned in
 Response codes:
     0x00 Success (--> frame 1 contains count)
     0x10 Error (--> frame 1 contains error description cstring)
+
+---------------
+Exists request: Check for existence of keys in a table.
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x12 Request type (exists request)]
+Frame 1: 4-byte little-endian unsigned integer table number
+Frame 2-n: Each frame contains an arbitrary byte sequence containing the key to be read
+
+None of the frames may be empty under any circumstances. Empty frames may lead to undefined behaviour.
+
+--------------
+Éxists response:
+
+Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x12 Response type (exists response)][1-byte Response code]
+Frame 1-n: Each frame has a size of 1. If the byte is zero, the key doesn't exist in the table
+Frame 1 (if response code indicates an error): Error message
+
+The frames 1-n are in the same order as the request keys.
+
+Note that technically reads and exists are practically the same unless a the table is opened using a bloom filter.
+In this case, exist request for keys not being present in the database are faster.
+
+Response codes:
+    0x00 Success (--> frame 1 contains first value)
+    0x10 Error (--> frame 1 contains error description cstring)
+
     
 -------------------------------
 --------Write requests---------

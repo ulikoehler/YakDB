@@ -53,6 +53,7 @@ enum RequestType : uint8_t {
     CompactTableRequest = 0x03,
     ReadRequest = 0x10,
     CountRequest = 0x11,
+    ExistsRequest = 0x11,
     PutRequest = 0x20,
     DeleteRequest = 0x21
 };
@@ -64,6 +65,7 @@ enum ResponseType : uint8_t {
     CompactTableResponse = 0x03,
     ReadResponse = 0x10,
     CountResponse = 0x11,
+    ExistsResponse = 0x11,
     PutDeleteResponse = 0x20
 };
 

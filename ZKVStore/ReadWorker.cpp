@@ -107,7 +107,6 @@ static void handleReadRequest(Tablespace& tables, zmsg_t* msg, zframe_t* headerF
     zframe_t* keyFrame = NULL;
     while ((keyFrame = zmsg_next(msg)) != NULL) {
         //Build a slice of the key (zero-copy)
-        string keystr((char*) zframe_data(keyFrame), zframe_size(keyFrame));
         leveldb::Slice key((char*) zframe_data(keyFrame), zframe_size(keyFrame));
         status = db->Get(readOptions, key, &value);
         if (status.IsNotFound()) {
@@ -115,6 +114,45 @@ static void handleReadRequest(Tablespace& tables, zmsg_t* msg, zframe_t* headerF
             zframe_reset(keyFrame, "", 0);
         } else {
             zframe_reset(keyFrame, value.c_str(), value.length());
+        }
+    }
+    //Rewrite the header frame (--> ack message)
+    zframe_reset(headerFrame, "\x31\x01\x10\x00", 4);
+    //Now we can remove the table ID frame from the message (doing so before would confuse zmsg_next())
+    zmsg_remove(msg, tableIdFrame);
+    zframe_destroy(&tableIdFrame);
+}
+
+/**
+ * Read request handler. Shall be called for Read requests only!
+ * 
+ * The original message is modified to contain the response.
+ * 
+ * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
+ */
+static void handleExistsRequest(Tablespace& tables, zmsg_t* msg, zframe_t* headerFrame, TableOpenHelper& openHelper) {
+    //Parse the table id
+    zframe_t* tableIdFrame = zmsg_next(msg);
+    assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
+    uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
+    //Parse the 
+    //Get the table to read from
+    leveldb::DB* db = tables.getTable(tableId, openHelper);
+    //Create the response object
+    leveldb::ReadOptions readOptions;
+    leveldb::Status status;
+    string value;
+    //Read each read request
+    zframe_t* keyFrame = NULL;
+    while ((keyFrame = zmsg_next(msg)) != NULL) {
+        //Build a slice of the key (zero-copy)
+        leveldb::Slice key((char*) zframe_data(keyFrame), zframe_size(keyFrame));
+        status = db->Get(readOptions, key, &value);
+        if (status.IsNotFound()) {
+            //Empty value
+            zframe_reset(keyFrame, "\x00", 1);
+        } else {
+            zframe_reset(keyFrame, "\x01", 1);
         }
     }
     //Rewrite the header frame (--> ack message)
