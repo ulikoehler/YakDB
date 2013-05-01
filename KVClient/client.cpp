@@ -283,27 +283,35 @@ void CountRequest::setEndKey(const std::string& endKey) {
     this->endKey = startKey;
 }
 
-void ExistsRequest::init(const char* key, size_t keySize, uint32_t tableNum)noexcept {
+void ExistsRequest::init(uint32_t tableNum)noexcept {
     zmsg_addmem(msg, "\x31\x01\x12", 3);
     zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
-    zmsg_addmem(msg, key, keySize);
 }
 
 ExistsRequest::ExistsRequest(uint32_t tableNum) noexcept : msg(zmsg_new()) {
-    zmsg_addmem(msg, "\x31\x01\x12", 3);
-    zmsg_addmem(msg, &tableNum, sizeof (uint32_t));
+    init(tableNum);
 }
 
 ExistsRequest::ExistsRequest(const char* key, size_t keySize, uint32_t tableNum) noexcept : msg(zmsg_new()) {
-    init(key, keySize, tableNum);
+    init(tableNum);
+    addKey(key, keySize);
 }
 
 ExistsRequest::ExistsRequest(const char* key, uint32_t tablenum) noexcept : msg(zmsg_new()) {
-    init(key, strlen(key), tablenum);
+    init(tablenum);
+    addKey(key, strlen(key));
 }
 
 ExistsRequest::ExistsRequest(const std::string& value, uint32_t tableNum) noexcept : msg(zmsg_new()) {
-    init(value.c_str(), value.size(), tableNum);
+    init(tableNum);
+    addKey(value.c_str(), value.size());
+}
+
+ExistsRequest::ExistsRequest(const std::vector<std::string>& keys, uint32_t tablenum) noexcept {
+    init(tablenum);
+    for (const std::string& key : keys) {
+        addKey(key.c_str(), key.size());
+    }
 }
 
 Status ExistsRequest::executeSingle(void* socket, bool& value) noexcept {

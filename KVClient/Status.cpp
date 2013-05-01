@@ -6,6 +6,7 @@
  */
 
 #include "Status.hpp"
+#include "macros.hpp"
 
 Status::Status() : errorMessage(nullptr) {
 

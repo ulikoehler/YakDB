@@ -12,7 +12,7 @@
 #include <czmq.h>
 #include <vector>
 #include <string>
-
+#include "Status.hpp"
 
 
 /**
@@ -101,7 +101,7 @@ public:
      * @param tablenum The table number to use
      */
     ExistsRequest(const char* key, uint32_t tablenum) noexcept;
-    ExistsRequest(const std::vector<std::string> key, uint32_t tablenum) noexcept;
+    ExistsRequest(const std::vector<std::string>& key, uint32_t tablenum) noexcept;
     /**
      * Execute an exists request that only checks a single value.
      * Note that for read requests reading more than one value, everything but
@@ -130,7 +130,7 @@ public:
     void addKey(const char* key, size_t keySize) noexcept;
     void addKey(const char* key) noexcept;
 private:
-    void init(const char* key, size_t size, uint32_t tableNum) noexcept;
+    void init(uint32_t tableNum) noexcept;
     zmsg_t* msg;
 };
 

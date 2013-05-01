@@ -7,6 +7,7 @@
 
 #ifndef STATUS_HPP
 #define	STATUS_HPP
+#include <string>
 
 /**
  * A status representation that stores information about if

@@ -12,6 +12,6 @@ if int(enableDebug):
 
 libraries = ["zmq","czmq"]
 
-zkvSource =  ["main.cpp","../ZKVStore/zutil.cpp","client.cpp"]
+zkvSource =  ["main.cpp","../ZKVStore/zutil.cpp","client.cpp","dbclient.cpp","Status.cpp"]
 
 hello = env.Program(target="kvc", source=zkvSource,LIBS=libraries)

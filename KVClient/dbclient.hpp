@@ -14,19 +14,6 @@
 #include "Status.hpp"
 #include "client.h"
 
-class KVDBException : public exception {
-public:
-
-    inline KVDBException(const std::string) noexcept : msg(m) {
-    }
-
-    inline const char* what() {
-        return msg.c_str();
-    }
-private:
-    std::string msg;
-};
-
 /**
  * Macro that checks a Status object. If the status doesn't indicate success, it throws an exception.
  * Useful if you want to shrink your codebase or you don't want to do too much error handling.
@@ -98,16 +85,44 @@ public:
     Status execute(ExistsRequest& request, bool& resultRef) noexcept;
     Status execute(PutRequest& request) noexcept;
     Status execute(ReadRequest& request, std::string& resultRef) noexcept;
-    //High-level read functions that throw an exception if something went wrong
-    //...don't use if you're crazy about performance
-    std::string read(uint32_t table, const std::string& key);
-    std::vector<std::string> read(uint32_t table, const std::vector<std::string>& keys);
-    bool exists(uint32_t table, const std::string& key);
+    Status execute(ReadRequest& request, std::vector<std::string>& resultRef) noexcept;
+    /**
+     * High-level read function.
+     * Don't use this unless you don't really care about errors.
+     * Use the ReadRequest class together with execute() instead to be able to
+     * recognize errors.
+     * @return The value for the given key, or an empty string if an error occured or the string hasn't been found
+     */
+    std::string read(uint32_t table, const std::string& key) noexcept;
+    /**
+     * High-level read function.
+     * Don't use this unless you don't really care about error details.
+     * Use the ReadRequest class together with execute() instead to be able to recognize errors properly.
+     * @return The values for the given keys (in the same order), or an empty vector if an error occured.
+     */
+    std::vector<std::string> read(uint32_t table, const std::vector<std::string>& keys) noexcept;
+    /**
+     * High-level exists function.
+     * Don't use this unless you don't really care about errors.
+     * Use the ExistsRequest class together with execute() instead to be able to
+     * recognize errors.
+     * @return False if the given key does not exist or any error occured, true else
+     */
+    bool exists(uint32_t table, const std::string& key) noexcept;
+    /**
+     * High-level exists function.
+     * Don't use this unless you don't really care about error details.
+     * Use the ExistsRequest class together with execute() instead to be able to
+     * recognize what error occured.
+     * @return A vector that contains a bool (true if the key exists) for every given key (in the same order), or an empty vector if any error occured
+     */
+    std::vector<bool> exists(uint32_t table, const std::vector<std::string>& keys) noexcept;
     /**
      * Count a specific range in the database.
      * @param from The first key to count - if this is empty, the range starts at the beginning
+     * @param to The first key to count - if this is empty, the range starts at the beginning
      */
-    uint64_t count(const std::string& from, const std::string& to);
+    int64_t count(const std::string& from, const std::string& to) noexcept;
 private:
     zctx_t* context;
     void* socket;
