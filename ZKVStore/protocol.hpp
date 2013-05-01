@@ -21,6 +21,12 @@ using namespace std;
 const uint8_t magicByte = 0x31;
 const uint8_t protocolVersion = 0x01;
 
+template<typename T>
+inline static T extractBinary(zframe_t* frame) {
+    assert(zframe_size(frame) == sizeof (T));
+    return *((T*) zframe_data(frame));
+}
+
 /**
  * Checks if the magic byte and protocol version match.
  * @param data A pointer to the first byte of the packet
@@ -87,7 +93,7 @@ enum WriteFlag : uint8_t {
  */
 inline bool isHeaderFrame(zframe_t* frame) {
     size_t size = zframe_size(frame);
-    if(size < 3) {
+    if (size < 3) {
         return false;
     }
     byte* data = zframe_data(frame);
@@ -96,7 +102,7 @@ inline bool isHeaderFrame(zframe_t* frame) {
 
 inline RequestType getRequestType(zframe_t* frame) {
     assert(zframe_size(frame) >= 3);
-    return (RequestType)zframe_data(frame)[2];
+    return (RequestType) zframe_data(frame)[2];
 }
 
 inline uint8_t getWriteFlags(zframe_t* frame) {

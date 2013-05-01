@@ -15,18 +15,17 @@
 #include "zutil.hpp"
 #include "protocol.hpp"
 #include "endpoints.hpp"
+#include "macros.hpp"
 
 using namespace std;
 
-static void handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite) {
-    leveldb::Status status;
+static zmsg_t* handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite, bool noResponse) {
     leveldb::WriteOptions writeOptions;
     writeOptions.sync = synchronousWrite;
     //Parse the table id
     //This function requires that the given message has the table id in its first frame
     zframe_t* tableIdFrame = zmsg_next(msg);
-    assert(zframe_size(tableIdFrame) == sizeof (Tablespace::IndexType));
-    Tablespace::IndexType tableId = *((Tablespace::IndexType*) zframe_data(tableIdFrame));
+    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
     //Get the table
     leveldb::DB* db = tables.getTable(tableId, helper);
     //The entire update is processed in one batch
@@ -42,20 +41,29 @@ static void handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper
 
         leveldb::Slice keySlice((char*) zframe_data(keyFrame), zframe_size(keyFrame));
         leveldb::Slice valueSlice((char*) zframe_data(valueFrame), zframe_size(valueFrame));
-
-#ifdef DEBUG_UPDATES
-        printf("Insert '%s' = '%s'\n", keySlice.ToString().c_str(), valueSlice.ToString().c_str());
-        fflush(stdout);
-#endif
-
         batch.Put(keySlice, valueSlice);
     }
     //Commit the batch
-#ifdef DEBUG_UPDATES
-    printf("Commit update batch\n");
-#endif
-    db->Write(writeOptions, &batch);
+    leveldb::Status status = db->Write(writeOptions, &batch);
+    //If something went wrong, send an error response
+    if (unlikely(!status.ok())) {
+        //TODO log the error to the main log (not yet impl)
+        if (!noResponse) {
+            zmsg_t* response = zmsg_new();
+            zmsg_addmem(response, "\x31\x01\x20\x10", 4);
+            std::string err = status.ToString();
+            zmsg_addmem(response, err.c_str(), err.size());
+            return response;
+        }
+    }
     //The memory occupied by the message is free'd in the thread loop
+    //Create the response if neccessary
+    zmsg_t* response = nullptr;
+    if (!noResponse) {
+        response = zmsg_new();
+        zmsg_addmem(response, "\x31\x01\x20\x00");
+    }
+    return response;
 }
 
 /**
@@ -68,11 +76,10 @@ static void handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper
  * @param helper
  * @param headerFrame
  */
-static void handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, zframe_t* headerFrame) {
+static zmsg_t* handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, zframe_t* headerFrame, bool noResponse) {
     //Parse the table ID
     zframe_t* tableIdFrame = zmsg_next(msg);
-    assert(zframe_size(tableIdFrame) == sizeof (Tablespace::IndexType));
-    Tablespace::IndexType tableId = *((Tablespace::IndexType*) zframe_data(tableIdFrame));
+    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
     //Get the table
     leveldb::DB* db = tables.getTable(tableId, helper);
     //Parse the start/end frame
@@ -88,45 +95,57 @@ static void handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelpe
     delete rangeStart;
     delete rangeEnd;
     //Remove and destroy the range frames, because they're not used in the response
-    zmsg_remove_destroy(msg, &rangeStartFrame);
-    zmsg_remove_destroy(msg, &rangeEndFrame);
-    zframe_reset(headerFrame, "\x31\x01\x03\x00", 4);
+    //Create the response if neccessary
+    zmsg_t* response = nullptr;
+    if (!noResponse) {
+        response = zmsg_new();
+        zmsg_addmem(response, "\x31\x01\x03\x00");
+    }
+    return response;
 }
 
-static void handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, zframe_t* headerFrame) {
+static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, zframe_t* headerFrame, bool noResponse) {
     //Parse the table ID
-    zframe_t* tableIdFrame = zmsg_next(msg);
-    assert(zframe_size(tableIdFrame) == sizeof (Tablespace::IndexType));
-    Tablespace::IndexType tableId = *((Tablespace::IndexType*) zframe_data(tableIdFrame));
+    uint32_t tableId = extractBinary<uint32_t>(zmsg_next(msg));
+    //
+    //Parse the flags from the header frame
+    //
+    uint64_t lruCache = extractBinary<uint64_t>(zmsg_next(msg));
+    uint64_t tableBlocksize = extractBinary<uint64_t>(zmsg_next(msg));
+    uint64_t writeCache = extractBinary<uint64_t>(zmsg_next(msg));
     //Open the table
     helper.openTable(tableId);
-    //Remove the table ID frame from the message
-    zmsg_remove_destroy(msg, &tableIdFrame);
     //Rewrite the header frame for the response
-    zframe_reset(headerFrame, "\x31\x01\x01\x00", 4);
+    //Create the response if neccessary
+    zmsg_t* response = nullptr;
+    if (!noResponse) {
+        response = zmsg_new();
+        zmsg_addmem(response, "\x31\x01\x20\x01");
+    }
+    return response;
 }
 
-static void handleTableCloseRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, zframe_t* headerFrame) {
-    zframe_t* tableIdFrame = zmsg_next(msg);
-    assert(zframe_size(tableIdFrame) == sizeof (Tablespace::IndexType));
-    Tablespace::IndexType tableId = *((Tablespace::IndexType*) zframe_data(tableIdFrame));
+static zmsg_t* handleTableCloseRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, zframe_t* headerFrame, bool noResponse) {
+    uint32_t tableId = extractBinary<uint32_t>(zmsg_next(msg));
     //Close the table
     tables.closeTable(tableId);
-    //Remove the table ID frame from the message
-    zmsg_remove_destroy(msg, &tableIdFrame);
-    //Rewrite the header frame for the response
-    zframe_reset(headerFrame, "\x31\x01\x02\x00", 4);
+    //Create the response
+    zmsg_t* response = nullptr;
+    if (!noResponse) {
+        response = zmsg_new();
+        zmsg_addmem(response, "\x31\x01\x20\x01");
+    }
+    return response;
 }
 
-static void handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite) {
+static zmsg_t* handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite, bool noResponse) {
     leveldb::Status status;
     leveldb::WriteOptions writeOptions;
     writeOptions.sync = synchronousWrite;
     //Parse the table id
     //This function requires that the given message has the table id in its first frame
     zframe_t* tableIdFrame = zmsg_next(msg);
-    assert(zframe_size(tableIdFrame) == sizeof (Tablespace::IndexType));
-    Tablespace::IndexType tableId = *((Tablespace::IndexType*) zframe_data(tableIdFrame));
+    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
     //Get the table
     leveldb::DB* db = tables.getTable(tableId, helper);
     //The entire update is processed in one batch
@@ -141,8 +160,26 @@ static void handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper
         batch.Delete(keySlice);
     }
     //Commit the batch
-    db->Write(writeOptions, &batch);
+    leveldb::Status status = db->Write(writeOptions, &batch);
+    //If something went wrong, send an error response
+    if (unlikely(!status.ok())) {
+        //TODO log the error to the main log (not yet impl)
+        if (!noResponse) {
+            zmsg_t* response = zmsg_new();
+            zmsg_addmem(response, "\x31\x01\x20\x10", 4);
+            std::string err = status.ToString();
+            zmsg_addmem(response, err.c_str(), err.size());
+            return response;
+        }
+    }
     //The memory occupied by the message is free'd in the thread loop
+    //Create the response
+    zmsg_t* response = nullptr;
+    if (!noResponse) {
+        response = zmsg_new();
+        zmsg_addmem(response, "\x31\x01\x20\x00");
+    }
+    return response;
 }
 
 /**
@@ -167,7 +204,7 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         //Parse the header
         //At this point it is unknown if
         // 1) the msg contains an envelope (--> received from the main ROUTER) or
-        // 2) the msg does not contain an envelope (--> received from PULL, SUB etc.
+        // 2) the msg does not contain an envelope (--> received from PULL, SUB etc.)
         //As the frame after the header may not be empty under any circumstances for
         // request types processed by the update worker threads, we can distiguish these cases
         zframe_t* firstFrame = zmsg_first(msg);
@@ -177,13 +214,16 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         if (zframe_size(secondFrame) == 0) { //Msg contains envelope
             headerFrame = zmsg_next(msg);
             routingFrame = firstFrame;
-        } else {
+        } else { //No envelope
             //We need to reset the current frame ptr
             // (because the handlers may call zmsg_next()),
             // so we can't just use firstFrame as header
             headerFrame = zmsg_first(msg);
         }
         assert(isHeaderFrame(headerFrame));
+        //According to the protocol specs, the magic byte shall be set to 0x00 if the message was received
+        // over a socket that doesn't support responses (PULL and SUB)
+        bool responseUnsupported = (zframe_data(headerFrame)[0] == 0x00);
         //Get the request type
         RequestType requestType = getRequestType(headerFrame);
         //Process the flags
@@ -191,46 +231,49 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         bool partsync = isPartsync(flags); //= Send reply after written to backend
         bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
         //Process the rest of the frame
+        zmsg_t* response;
         if (requestType == PutRequest) {
-            handleUpdateRequest(tablespace, msg, tableOpenHelper, fullsync);
+            response = handleUpdateRequest(tablespace, msg, tableOpenHelper, fullsync, responseUnsupported);
         } else if (requestType == DeleteRequest) {
-            handleDeleteRequest(tablespace, msg, tableOpenHelper, fullsync);
+            response = handleDeleteRequest(tablespace, msg, tableOpenHelper, fullsync);
         } else if (requestType == OpenTableRequest) {
-            handleTableOpenRequest(tablespace, msg, tableOpenHelper, headerFrame);
+            response = handleTableOpenRequest(tablespace, msg, tableOpenHelper, headerFrame);
             //Set partsync to force the program to respond after finished
             partsync = true;
         } else if (requestType == CloseTableRequest) {
-            handleTableCloseRequest(tablespace, msg, tableOpenHelper, headerFrame);
+            response = handleTableCloseRequest(tablespace, msg, tableOpenHelper, headerFrame);
             //Set partsync to force the program to respond after finished
             partsync = true;
         } else if (requestType == CompactTableRequest) {
-            handleCompactRequest(tablespace, msg, tableOpenHelper, headerFrame);
+            response = handleCompactRequest(tablespace, msg, tableOpenHelper, headerFrame);
             //Set partsync to force the code to respond after finishing
             partsync = true;
         } else {
+            //TODO Log this and remove code that makes the program crash
             cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;
+            response = nullptr; //Some assertion will fail eventually
+            continue;
         }
         //Cleanup
-        if (routingFrame) { //If there is routing info available, we can reuse the frame
-            zmsg_remove(msg, routingFrame);
+        if (routingFrame) { //If there is routing info available, we can reuse the frame (it's always the first, so pop'ing works)
+            routingFrame = zmsg_pop(msg);
         }
-        zmsg_destroy(&msg);
         //If partsync is disabled, the main thread already sent the response.
         //Else, we need to create & send the response now.
-        //Routing 
-        if (partsync) {
-            //If no response is desired regardless of the message content,
-            // the first byte of the header message shall be set to 0x00 (instead of the magic byte 0x31)
-            byte* data = zframe_data(headerFrame);
-            if (data[0] == 0x31) {
-                assert(routingFrame); //If this fails, someone disobeyed the protocol specs and sent PARTSYNC over a non-REQ-REP-cominbation.
-                //Send acknowledge message
-                msg = zmsg_new();
-                zmsg_wrap(msg, routingFrame);
-                zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
-                zmsg_send(&msg, replyProxySocket);
-            }
+        //If no response is desired regardless of the message content (--> PULL or SUB socket),
+        // the first byte of the header message shall be set to 0x00 (instead of the magic byte 0x31)
+        if (partsync && zframe_data(headerFrame)[0] == 0x31) {
+            assert(routingFrame); //If this fails, someone disobeyed the protocol specs and sent PARTSYNC over a non-REQ-REP-cominbation.
+            //Send acknowledge message
+            zmsg_t* responseMsg = zmsg_new();
+            zmsg_wrap(responseMsg, routingFrame);
+            //The handler functions rewrite the header frame to contain the correct response
+            zmsg_add(responseMsg, headerFrame);
+            //Send the response
+            zmsg_send(&responseMsg, replyProxySocket);
         }
+        //Destroy the original message (after replying, reduces delay, even if only by microseconds)
+        zmsg_destroy(&msg);
     }
     printf("Stopping update processor\n");
     zsocket_destroy(ctx, workPullSocket);

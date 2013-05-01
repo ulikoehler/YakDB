@@ -21,19 +21,21 @@ Frame 1: NUL-Terminated server software info
 Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
 
 ---------------
-Open request: Opens a specified table. Creates the table if not already present.
+Table Open request: Opens a specified table. Creates the table if not already present.
 Tables can also be opened on-the-fly (optional feature), but you can't specify compression etc. in this case.
 Additionally, opening tables takes a considerable amount of time, therefore
 
 Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x01 Request type (table open requst)][1 byte Table open flags]
-Frame 1: 4-byte little-endian unsigned integer table number
-Frame 2 (optional, if not present, default values are assumed): [4 bytes table blocksize]
+Frame 1: [4-byte little-endian unsigned integer table number]
+Frame 2: [8 bytes little-endian unsigned integer LRU cache size (in bytes) or zero-length to assume default]
+Frame 3: [8 bytes little-endian unsigned integer table blocksize (in bytes) or zero-length to assume default]
+Frame 4: [8 bytes little-endian unsigned integer write buffer size (in bytes) or zero-length to assume default]
 
 [Table open flags]: 8-bit-field, with bitwise-OR-concatenated flags.
-    0x01: If this flag is set the table shall be created/opened with compression enabled
+    0x01: NOCOMPRESSION: If this flag is set the table shall be opened with compression disabled
     
 --------------
-Open response (sent after table has been opened):
+Table Open response (sent after table has been opened):
 
 Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x01 Response type (open table response)] [1-byte response code]
 Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
@@ -193,8 +195,6 @@ Frame 1 (Only present if response code indicates an error): NUL-terminated error
 
 Response codes:
     0x00 Acknowledge (Only acknowledges that the request has been received)
-    0x01 Acknowledge, write request issued (Anckowledges that the request has been handed to the database backend)
-    0x02 Acknowledge, fully synchronous (Acknowledges that the data has been written to disk)
     0x10 Error while processing request (implies Frame 1 being existing)
 
 Note: If not using PARTSYNC or FULLSYNC flags, the server will send a non-error acknowledge code
