@@ -1,4 +1,4 @@
-#include "client.h"
+#include "client.hpp"
 #include <cstring>
 #include <cassert>
 #include <iostream>
@@ -234,7 +234,7 @@ Status PutRequest::execute(void* socket) noexcept {
     return Status();
 }
 
-CountRequest::CountRequest(uint32_t tableNum) noexcept : haveStartKey(false), haveEndKey(false), startKey(), endKey() {
+CountRequest::CountRequest(uint32_t tableNum) noexcept : haveStartKey(false), haveEndKey(false), startKey(), endKey(), tableNum(tableNum) {
 
 }
 
@@ -256,6 +256,7 @@ Status CountRequest::execute(void* socket, uint64_t& count) noexcept {
     } else {
         zmsg_addmem(msg, "", 0);
     }
+    assert(zmsg_size(msg) == 4);
     //Send the message
     CHECKED_SEND(msg, socket)
     //Receive the reply

@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 #include "Status.hpp"
-#include "client.h"
+#include "client.hpp"
 
 /**
  * Macro that checks a Status object. If the status doesn't indicate success, it throws an exception.
@@ -55,7 +55,7 @@ public:
      * @param host
      * @param port
      */
-    void connect(const char* host, uint32_t port) noexcept;
+    void connectRequestReply(const char* host) noexcept;
     /**
      * Get the current context in use by this instance.
      * @return 
@@ -121,8 +121,9 @@ public:
      * Count a specific range in the database.
      * @param from The first key to count - if this is empty, the range starts at the beginning
      * @param to The first key to count - if this is empty, the range starts at the beginning
+     * @return The count or -1 in case of error
      */
-    int64_t count(const std::string& from, const std::string& to) noexcept;
+    int64_t count(uint32_t table, const std::string& from, const std::string& to) noexcept;
 private:
     zctx_t* context;
     void* socket;

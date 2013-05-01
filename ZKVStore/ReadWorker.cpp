@@ -32,6 +32,7 @@ static zmsg_t* handleCountRequest(Tablespace& tables, zmsg_t* msg, zframe_t* hea
     zframe_t* tableIdFrame = zmsg_next(msg);
     assert(zframe_size(tableIdFrame) == sizeof (uint32_t));
     uint32_t tableId = *((uint32_t*) zframe_data(tableIdFrame));
+    cout << "TID " << tableId << endl;
     //Parse the start/end frame
     //zmsg_next returns a non-NULL frame when calling zmsg_next after the last frame has been next'ed, so we'll have to perform additional checks here
     zframe_t* rangeStartFrame = zmsg_next(msg);

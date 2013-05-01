@@ -17,6 +17,9 @@ DKVClient::DKVClient(zctx_t* ctx) noexcept : context(ctx), destroyContextOnExit(
 }
 
 DKVClient::~DKVClient() noexcept {
+    if (socket) {
+        zsocket_destroy(context, socket);
+    }
     if (destroyContextOnExit && context) {
         zctx_destroy(&context);
     }
@@ -28,6 +31,11 @@ zctx_t* DKVClient::getContext() const noexcept {
 
 void DKVClient::setDestroyContextOnExit(bool param) noexcept {
     this->destroyContextOnExit = param;
+}
+
+void DKVClient::connectRequestReply(const char* url) noexcept {
+    socket = zsocket_new(context, ZMQ_REQ);
+    zsocket_connect(socket, url);
 }
 
 Status DKVClient::put(uint32_t table, const std::string& key, const std::string& value) noexcept {
@@ -105,4 +113,20 @@ std::vector<bool> DKVClient::exists(uint32_t table, const std::vector<std::strin
     Status status = request.executeMultiple(socket, value);
     //The value vector will be empty in case of errors
     return value;
+}
+
+int64_t DKVClient::count(uint32_t table, const std::string& from, const std::string& to) noexcept {
+    CountRequest request(table);
+    if (!from.empty()) {
+        request.setStartKey(from);
+    }
+    if (!to.empty()) {
+        request.setStartKey(to);
+    }
+    uint64_t count = 0;
+    Status status = execute(request, count);
+    if (!status.ok()) {
+        return -1;
+    }
+    return (int64_t) count;
 }
