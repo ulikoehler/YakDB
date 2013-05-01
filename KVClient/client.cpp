@@ -327,7 +327,7 @@ Status ExistsRequest::executeSingle(void* socket, bool& value) noexcept {
     zframe_t* valueFrame = zmsg_next(msg);
     assert(valueFrame);
     assert(zframe_size(valueFrame) == 1);
-
+    value = (zframe_data(valueFrame)[0] > 0);
     //Cleanup
     zmsg_destroy(&msg);
     return Status();
