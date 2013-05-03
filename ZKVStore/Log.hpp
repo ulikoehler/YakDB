@@ -8,6 +8,8 @@
 #ifndef LOG_HPP
 #define	LOG_HPP
 #include <string>
+#include <czmq.h>
+#include <thread>
 
 //Internal endpoint of the internal log sub socket
 #define DEFAULT_LOG_ENDPOINT "inproc://log"
@@ -27,7 +29,7 @@ class LogSource {
 public:
     LogSource(zctx_t* ctx, const std::string& name, const std::string& endpoint = std::string(DEFAULT_LOG_ENDPOINT));
     ~LogSource();
-    void log(const std::string& message, const LogLevel level = LogLevel::Info);
+    void log(const std::string& message, LogLevel level = LogLevel::Info);
     void error(const std::string& message);
     void warn(const std::string& message);
     void info(const std::string& message);
@@ -52,21 +54,29 @@ private:
  *      Frame 1: 1 byte log level
  *      Frame 2: Name of sender
  *      Frame 3: Log message
+ * 
+ * To stop the log, send a message with one zero-sized frame
  */
 class LogServer {
 public:
-    LogServer(zctx_t* ctx, const std::string& endpoint = std::string(DEFAULT_LOG_ENDPOINT));
+    LogServer(zctx_t* ctx, LogLevel logLevel = LogLevel::Debug, const std::string& endpoint = std::string(DEFAULT_LOG_ENDPOINT));
     ~LogServer();
     /**
-     * Start the log server message handler
+     * Start the log server message handler in the current thread.
+     * Blocks until a stop message is received
      */
     void start();
+    /**
+     * Starts a new thread that executes the start() function
+     */
+    void startInNewThread();
     void setLogLevel(LogLevel logLevel);
     LogLevel getLogLevel();
 private:
     void* internalSocket;
     LogLevel logLevel;
     zctx_t* ctx;
+    std::thread* thread;
 };
 
 

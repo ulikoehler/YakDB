@@ -9,6 +9,7 @@
 #include <czmq.h>
 #include <iostream>
 #include <cassert>
+#include <string>
 #include <leveldb/write_batch.h>
 #include <functional>
 #include "Tablespace.hpp"
@@ -61,7 +62,7 @@ static zmsg_t* handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHel
     zmsg_t* response = nullptr;
     if (!noResponse) {
         response = zmsg_new();
-        zmsg_addmem(response, "\x31\x01\x20\x00");
+        zmsg_addmem(response, "\x31\x01\x20\x00", 4);
     }
     return response;
 }
@@ -99,7 +100,7 @@ static zmsg_t* handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHe
     zmsg_t* response = nullptr;
     if (!noResponse) {
         response = zmsg_new();
-        zmsg_addmem(response, "\x31\x01\x03\x00");
+        zmsg_addmem(response, "\x31\x01\x03\x00", 4);
     }
     return response;
 }
@@ -120,7 +121,7 @@ static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpen
     zmsg_t* response = nullptr;
     if (!noResponse) {
         response = zmsg_new();
-        zmsg_addmem(response, "\x31\x01\x20\x01");
+        zmsg_addmem(response, "\x31\x01\x20\x01", 4);
     }
     return response;
 }
@@ -133,13 +134,12 @@ static zmsg_t* handleTableCloseRequest(Tablespace& tables, zmsg_t* msg, TableOpe
     zmsg_t* response = nullptr;
     if (!noResponse) {
         response = zmsg_new();
-        zmsg_addmem(response, "\x31\x01\x20\x01");
+        zmsg_addmem(response, "\x31\x01\x20\x01", 4);
     }
     return response;
 }
 
 static zmsg_t* handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite, bool noResponse) {
-    leveldb::Status status;
     leveldb::WriteOptions writeOptions;
     writeOptions.sync = synchronousWrite;
     //Parse the table id
@@ -177,7 +177,7 @@ static zmsg_t* handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHel
     zmsg_t* response = nullptr;
     if (!noResponse) {
         response = zmsg_new();
-        zmsg_addmem(response, "\x31\x01\x20\x00");
+        zmsg_addmem(response, "\x31\x01\x20\x00", 4);
     }
     return response;
 }
@@ -235,17 +235,17 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         if (requestType == PutRequest) {
             response = handleUpdateRequest(tablespace, msg, tableOpenHelper, fullsync, responseUnsupported);
         } else if (requestType == DeleteRequest) {
-            response = handleDeleteRequest(tablespace, msg, tableOpenHelper, fullsync);
+            response = handleDeleteRequest(tablespace, msg, tableOpenHelper, fullsync, responseUnsupported);
         } else if (requestType == OpenTableRequest) {
-            response = handleTableOpenRequest(tablespace, msg, tableOpenHelper, headerFrame);
+            response = handleTableOpenRequest(tablespace, msg, tableOpenHelper, headerFrame, responseUnsupported);
             //Set partsync to force the program to respond after finished
             partsync = true;
         } else if (requestType == CloseTableRequest) {
-            response = handleTableCloseRequest(tablespace, msg, tableOpenHelper, headerFrame);
+            response = handleTableCloseRequest(tablespace, msg, tableOpenHelper, headerFrame, responseUnsupported);
             //Set partsync to force the program to respond after finished
             partsync = true;
         } else if (requestType == CompactTableRequest) {
-            response = handleCompactRequest(tablespace, msg, tableOpenHelper, headerFrame);
+            response = handleCompactRequest(tablespace, msg, tableOpenHelper, headerFrame, responseUnsupported);
             //Set partsync to force the code to respond after finishing
             partsync = true;
         } else {

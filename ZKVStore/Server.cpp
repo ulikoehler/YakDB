@@ -13,6 +13,7 @@
 #include "zutil.hpp"
 #include "protocol.hpp"
 #include "endpoints.hpp"
+#include "macros.hpp"
 
 using namespace std;
 
