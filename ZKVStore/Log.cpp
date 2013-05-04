@@ -63,15 +63,19 @@ LogServer::LogServer(zctx_t* ctx, LogLevel logLevel, const std::string& endpoint
         fprintf(stderr, "Failed to connect log source to endpoint %s", endpoint.c_str());
     }
 }
+using namespace std;
 
 LogServer::~LogServer() {
     if (thread) {
         //Send the STOP message (single empty frame);
-        zframe_t* frame = zframe_new("",0);
+        zframe_t* frame = zframe_new("", 0);
         assert(!zframe_send(&frame, internalSocket, 0));
         thread->join(); //Wait until it exits
         delete thread;
     }
+    int linger = -1;
+    zmq_setsockopt(internalSocket, ZMQ_LINGER, &linger, sizeof (int));
+    cerr << "" << zmq_strerror(errno) << endl;
     zsocket_destroy(ctx, &internalSocket);
 }
 
@@ -81,7 +85,7 @@ void LogServer::start() {
         zframe_t* logLevelFrame = zmsg_first(msg);
         //Handle STOP messages
         if (zframe_size(logLevelFrame) == 0) {
-                break;
+            break;
         }
         zframe_t* senderName = zmsg_next(msg);
         zframe_t* logMessageFrame = zmsg_next(msg);

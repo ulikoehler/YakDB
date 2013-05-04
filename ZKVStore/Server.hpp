@@ -9,6 +9,7 @@
 #define SERVER_HPP_
 #include "UpdateWorker.hpp"
 #include "ReadWorker.hpp"
+#include "Log.hpp"
 
 class KeyValueServer {
 public:
@@ -27,6 +28,7 @@ public:
     TableOpenServer tableOpenServer;
     UpdateWorkerController updateWorkerController;
     ReadWorkerController readWorkerController;
+    LogServer logServer;
 };
 
 

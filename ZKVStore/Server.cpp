@@ -169,10 +169,15 @@ tableOpenServer(ctx, tables.getDatabases(), dbCompressionEnabled),
 externalPullSocket(NULL),
 externalSubSocket(NULL),
 updateWorkerController(ctx, tables),
-readWorkerController(ctx, tables) {
+readWorkerController(ctx, tables),
+logServer(ctx){
     const char* reqRepUrl = "tcp://*:7100";
     const char* writeSubscriptionUrl = "tcp://*:7101";
     const char* errorPubUrl = "tcp://*:7102";
+    //Start the log server
+    logServer.startInNewThread();
+    LogSource source(ctx, "test");
+    source.warn("msg");
     //Initialize the sockets that run on the main thread
     externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
     zsocket_bind(externalRepSocket, reqRepUrl);
