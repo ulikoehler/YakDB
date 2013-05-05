@@ -16,6 +16,7 @@
 #include <ctime>
 
 static const char* const ESCAPE_BOLD = "\x1B[1m";
+static const char* const ESCAPE_NORMALFONT = "\x1B[0m";
 static const char* const ESCAPE_BLACK_FOREGROUND = "\x1B[30m";
 static const char* const ESCAPE_RED_FOREGROUND = "\x1B[31m";
 static const char* const ESCAPE_GREEN_FOREGROUND = "\x1B[32m";
@@ -24,27 +25,18 @@ static const char* const ESCAPE_BLUE_FOREGROUND = "\x1B[34m";
 static const char* const ESCAPE_MAGENTA_FOREGROUND = "\x1B[35m";
 static const char* const ESCAPE_CYAN_FOREGROUND = "\x1B[36m";
 static const char* const ESCAPE_WHITE_FOREGROUND = "\x1B[37m";
-static const char* const ESCAPE_BOLD_BLACK_FOREGROUND = "\x1B[30;1m";
-static const char* const ESCAPE_BOLD_RED_FOREGROUND = "\x1B[31;1m";
-static const char* const ESCAPE_BOLD_GREEN_FOREGROUND = "\x1B[32;1m";
-static const char* const ESCAPE_BOLD_YELLOW_FOREGROUND = "\x1B[33;1m";
-static const char* const ESCAPE_BOLD_BLUE_FOREGROUND = "\x1B[34;1m";
-static const char* const ESCAPE_BOLD_MAGENTA_FOREGROUND = "\x1B[35;1m";
-static const char* const ESCAPE_BOLD_CYAN_FOREGROUND = "\x1B[36;1m";
-static const char* const ESCAPE_BOLD_WHITE_FOREGROUND = "\x1B[37;1m";
 
 inline static void printDate(std::ostream& stream) {
     //Get microsecond precision time
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    struct tm * timeinfo;
-    //Fill the tm struct
-    timeinfo = localtime(&(tv.tv_sec));
-    Format the tm data
-            char buf[32];
-    buf[0] = '[';
-    size_t formattedLength = strftime(buf + 1, 31, "%F %t", &tm);
+    //Format the tm data
+    char dateBuffer[32];
+    size_t formattedLength = strftime(dateBuffer, 32, "%F %T", localtime(&(tv.tv_sec)));
     assert(formattedLength > 0);
+    //Format the subsecond part
+    snprintf(dateBuffer + formattedLength, 32 - formattedLength, ".%03lu", (unsigned long) (tv.tv_usec / 1000));
+    stream << '[' << dateBuffer << ']';
     //    stream << '[' << (timeinfo->tm_year + 1900) << '-' << (timeinfo->tm_mon + 1)
     //            << '-' << timeinfo->tm_mday << ' ' << timeinfo->tm_hour << ':'
     //            << timeinfo->tm_min << ':' << timeinfo->tm_sec << '.' << (tv.tv_usec / 1000) << ']';
@@ -133,17 +125,16 @@ void LogServer::start() {
         switch (logLevel) {
             case LogLevel::Error:
             {
-                std::cout << ESCAPE_BOLD_RED_FOREGROUND;
+                std::cout << ESCAPE_BOLD << ESCAPE_RED_FOREGROUND;
                 printDate(std::cout);
-                std::cout << "[Error]" << ESCAPE_BLACK_FOREGROUND << endl;
-                frameToString(logMessageFrame) << std::endl;
+                std::cout << "[Error] " << frameToString(senderName) << " - " << ESCAPE_NORMALFONT << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
                 break;
             }
             case LogLevel::Warn:
             {
-                std::cout << ESCAPE_BOLD_YELLOW_FOREGROUND;
+                std::cout << ESCAPE_YELLOW_FOREGROUND;
                 printDate(std::cout);
-                std::cout << "[Error]" << frameToString(logMessageFrame) << std::endl;
+                std::cout << "[Warning] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
                 break;
             }
             case LogLevel::Info:
@@ -167,7 +158,6 @@ void LogServer::start() {
                 break;
             }
         }
-        std::cout << std::endl;
         zmsg_destroy(&msg);
     }
 }
