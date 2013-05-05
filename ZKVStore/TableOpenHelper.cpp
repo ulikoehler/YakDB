@@ -31,7 +31,7 @@ static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<
     while (true) {
         zmsg_t* msg = zmsg_recv(repSocket);
         if (unlikely(!msg)) {
-            if(errno == ETERM || errno == EINTR) {
+            if (errno == ETERM || errno == EINTR) {
                 break;
             }
             debugZMQError("Receive TableOpenServer message", errno);
@@ -125,8 +125,10 @@ TableOpenServer::~TableOpenServer() {
     zmsg_send(&stopMsg, tempSocket); //--> single zero byte frame
     //Receive the reply, ignore the data (--> thread has cleaned up & exited)
     zmsg_t* msg = zmsg_recv(tempSocket);
+    if (likely(msg != NULL)) {
+        zmsg_destroy(&msg);
+    }
     //Cleanup
-    zmsg_destroy(&msg);
     zsocket_destroy(context, tempSocket);
     //The thread might take some time to exit, but we want to delete the thread ptr immediately
     //So, let it finish on his 
@@ -156,10 +158,9 @@ void TableOpenHelper::openTable(TableOpenHelper::IndexType index) {
     }
     //Wait for the reply (it's empty but that does not matter)
     msg = zmsg_recv(reqSocket); //Blocks until reply received
-    if (msg == NULL) {
-        debugZMQError("Receive reply from table opener", errno);
+    if (msg != NULL) {
+        zmsg_destroy(&msg);
     }
-    zmsg_destroy(&msg);
 }
 
 void TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {
@@ -172,7 +173,7 @@ void TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {
     }
     //Wait for the reply (it's empty but that does not matter)
     msg = zmsg_recv(reqSocket); //Blocks until reply received
-    if (msg == NULL) {
+    if (unlikely(!msg)) {
         debugZMQError("Receive reply from table opener", errno);
     }
     zmsg_destroy(&msg);

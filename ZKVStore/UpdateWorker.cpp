@@ -203,6 +203,12 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     //Create the data structure with all info for the poll handler
     while (true) {
         zmsg_t* msg = zmsg_recv(workPullSocket);
+        if (unlikely(!msg)) {
+            if (errno != ETERM && errno != EINTR) {
+                debugZMQError("Receive TableOpenServer message", errno);
+            }
+            break;
+        }
         assert(zmsg_size(msg) >= 1);
         //Parse the header
         //At this point it is unknown if

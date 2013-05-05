@@ -105,17 +105,19 @@ LogServer::~LogServer() {
     zsocket_destroy(ctx, internalSocket);
 }
 
+#define LOG_STREAM std::cout
+
 void LogServer::start() {
     while (true) {
         zmsg_t* msg = zmsg_recv(internalSocket);
-        if(!msg) { //Terminated
+        if (unlikely(!msg)) { //Terminated
             break;
         }
         zframe_t* logLevelFrame = zmsg_first(msg);
         assert(logLevelFrame);
         //Handle STOP messages
         if (zframe_size(logLevelFrame) == 0) {
-            cout << "Logger exiting" << endl;
+            LOG_STREAM << "Logger exiting" << endl;
             break;
         }
         zframe_t* senderName = zmsg_next(msg);
@@ -127,43 +129,43 @@ void LogServer::start() {
         switch (logLevel) {
             case LogLevel::Error:
             {
-                std::cout << ESCAPE_BOLD << ESCAPE_RED_FOREGROUND;
-                printDate(std::cout);
-                std::cout << "[Error] " << frameToString(senderName) << " - " << ESCAPE_NORMALFONT << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
+                LOG_STREAM << ESCAPE_BOLD << ESCAPE_RED_FOREGROUND;
+                printDate(LOG_STREAM);
+                LOG_STREAM << "[Error] " << frameToString(senderName) << " - " << ESCAPE_NORMALFONT << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
                 break;
             }
             case LogLevel::Warn:
             {
-                std::cout << ESCAPE_YELLOW_FOREGROUND;
-                printDate(std::cout);
-                std::cout << "[Warning] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
+                LOG_STREAM << ESCAPE_YELLOW_FOREGROUND;
+                printDate(LOG_STREAM);
+                LOG_STREAM << "[Warning] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
                 break;
             }
             case LogLevel::Info:
             {
-                std::cout << ESCAPE_GREEN_FOREGROUND;
-                printDate(std::cout);
-                std::cout << "[Info] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
+                LOG_STREAM << ESCAPE_GREEN_FOREGROUND;
+                printDate(LOG_STREAM);
+                LOG_STREAM << "[Info] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
                 break;
             }
             case LogLevel::Debug:
             {
-                std::cout << ESCAPE_BLUE_FOREGROUND;
-                printDate(std::cout);
-                std::cout << "[Debug] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
+                LOG_STREAM << ESCAPE_BLUE_FOREGROUND;
+                printDate(LOG_STREAM);
+                LOG_STREAM << "[Debug] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
                 break;
             }
             case LogLevel::Trace:
             {
-                std::cout << ESCAPE_CYAN_FOREGROUND;
-                printDate(std::cout);
-                std::cout << "[Trace] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
+                LOG_STREAM << ESCAPE_CYAN_FOREGROUND;
+                printDate(LOG_STREAM);
+                LOG_STREAM << "[Trace] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
                 break;
             }
             default:
             {
-                printDate(std::cout);
-                std::cout << "[Unknown] " << frameToString(senderName) << " - " << frameToString(logMessageFrame) << std::endl;
+                printDate(LOG_STREAM);
+                LOG_STREAM << "[Unknown] " << frameToString(senderName) << " - " << frameToString(logMessageFrame) << std::endl;
                 break;
                 break;
             }

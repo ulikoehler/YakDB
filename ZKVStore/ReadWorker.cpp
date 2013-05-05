@@ -15,6 +15,7 @@
 #include "zutil.hpp"
 #include "Log.hpp"
 #include "endpoints.hpp"
+#include "macros.hpp"
 
 using namespace std;
 #define DEBUG_READ
@@ -184,7 +185,7 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     //Create the data structure with all info for the poll handler
     while (true) {
         zmsg_t* msg = zmsg_recv(workPullSocket);
-        if (!msg) { //Interu
+        if (unlikely(!msg)) {
             break;
         }
         assert(zmsg_size(msg) >= 1);

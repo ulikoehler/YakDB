@@ -125,39 +125,40 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     KeyValueServer* server = (KeyValueServer*) arg;
     //Initialize a scoped lock
     zmsg_t *msg = zmsg_recv(server->externalRepSocket);
-    if (msg) {
-        //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
-        assert(zmsg_size(msg) >= 3); //return addr + empty delimiter + protocol header [+ data frames]
-        //PULL requests do not contain routing information
-        zframe_t* headerFrame = zmsg_first(msg);
-        //The downstream processors require that if the message has been sent over a socket
-        // that does not support replies (like PULL), the magic byte is set to 0x00 (they won't try to send a reply then)
-        zframe_data(headerFrame)[0] = 0x00;
-        //Check the header -- send error message if invalid
-        string errorString;
-        char* headerData = (char*) zframe_data(headerFrame);
-        if (unlikely(!checkProtocolVersion(headerData, zframe_size(headerFrame), errorString))) {
-            server->logSource.error("Got illegal message (unmatching protocol version / magic bytes) from client");
-            return 1;
-        }
-        RequestType requestType = (RequestType) (uint8_t) headerData[2];
-        if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
-            //Send the message to the update worker (--> processed async)
-            //This is simpler than the req/rep controller because no 
-            // response flags need to be checked
-            server->updateWorkerController.send(&msg);
-        } else if (requestType == RequestType::OpenTableRequest
-                || requestType == RequestType::CloseTableRequest
-                || requestType == RequestType::CompactTableRequest) {
-            //Send the message to the update worker (--> processed async)
-            server->updateWorkerController.send(&msg);
-        } else if (unlikely(requestType == RequestType::ReadRequest || requestType == RequestType::CountRequest)) {
-            //These request types demand an response and don't make sense over PUB/SUB sockets
-            //TODO Use the logger
-            cerr << "Error: Received read/count/server info request over PULL/SUB socket (you need to use REQ/REP sockets for read/count requests)" << endl;
-        } else {
-            server->logSource.error("Unknown message type " + std::to_string(requestType) + " from client");
-        }
+    if (unlikely(!msg)) {
+        return -1;
+    }
+    //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
+    assert(zmsg_size(msg) >= 3); //return addr + empty delimiter + protocol header [+ data frames]
+    //PULL requests do not contain routing information
+    zframe_t* headerFrame = zmsg_first(msg);
+    //The downstream processors require that if the message has been sent over a socket
+    // that does not support replies (like PULL), the magic byte is set to 0x00 (they won't try to send a reply then)
+    zframe_data(headerFrame)[0] = 0x00;
+    //Check the header -- send error message if invalid
+    string errorString;
+    char* headerData = (char*) zframe_data(headerFrame);
+    if (unlikely(!checkProtocolVersion(headerData, zframe_size(headerFrame), errorString))) {
+        server->logSource.error("Got illegal message (unmatching protocol version / magic bytes) from client");
+        return 1;
+    }
+    RequestType requestType = (RequestType) (uint8_t) headerData[2];
+    if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
+        //Send the message to the update worker (--> processed async)
+        //This is simpler than the req/rep controller because no 
+        // response flags need to be checked
+        server->updateWorkerController.send(&msg);
+    } else if (requestType == RequestType::OpenTableRequest
+            || requestType == RequestType::CloseTableRequest
+            || requestType == RequestType::CompactTableRequest) {
+        //Send the message to the update worker (--> processed async)
+        server->updateWorkerController.send(&msg);
+    } else if (unlikely(requestType == RequestType::ReadRequest || requestType == RequestType::CountRequest)) {
+        //These request types demand an response and don't make sense over PUB/SUB sockets
+        //TODO Use the logger
+        cerr << "Error: Received read/count/server info request over PULL/SUB socket (you need to use REQ/REP sockets for read/count requests)" << endl;
+    } else {
+        server->logSource.error("Unknown message type " + std::to_string(requestType) + " from client");
     }
     return 0;
 }
