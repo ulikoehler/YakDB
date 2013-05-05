@@ -11,7 +11,7 @@
 #include <czmq.h>
 #include <thread>
 
-//Internal endpoint of the internal log sub socket
+//Internal endpoint of the internal log PULL socket
 #define DEFAULT_LOG_ENDPOINT "inproc://defaultLog"
 
 enum class LogLevel : uint8_t {
@@ -42,10 +42,9 @@ private:
 };
 
 /**
- * A log server that proxies inproc to an external endpoint
- * using XPUB/XSUB pattern
+ * A log server that proxies inproc pattern to external PUB/SUB
  * 
- * A SUB-like socket is bound to the endpoint supplied at construction time.
+ * A PULL-like socket is bound to the endpoint supplied at construction time.
  * 
  * The proxy is started in a separate thread that can be stopped
  * using a specific message 

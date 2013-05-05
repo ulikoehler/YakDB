@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <functional>
 #include <iostream>
+#include <iomanip>
 #include <ctime>
 
 static const char* const ESCAPE_BOLD = "\x1B[1m";
@@ -39,17 +40,19 @@ inline static void printDate(std::ostream& stream) {
     struct tm * timeinfo;
     //Fill the tm struct
     timeinfo = localtime(&(tv.tv_sec));
-    //Print the tm data to the ostream
-    std::streamsize originalPrecision = stream.precision();
-    stream.precision(3);
-    stream << '[' << (timeinfo->tm_year + 1900) << '-' << (timeinfo->tm_mon + 1)
-            << '-' << timeinfo->tm_mday << ' ' << timeinfo->tm_hour << ':'
-            << timeinfo->tm_min << ':' << timeinfo->tm_sec << '.' << (tv.tv_usec / 1000) << ']';
-    stream.precision(originalPrecision);
+    Format the tm data
+            char buf[32];
+    buf[0] = '[';
+    size_t formattedLength = strftime(buf + 1, 31, "%F %t", &tm);
+    assert(formattedLength > 0);
+    //    stream << '[' << (timeinfo->tm_year + 1900) << '-' << (timeinfo->tm_mon + 1)
+    //            << '-' << timeinfo->tm_mday << ' ' << timeinfo->tm_hour << ':'
+    //            << timeinfo->tm_min << ':' << timeinfo->tm_sec << '.' << (tv.tv_usec / 1000) << ']';
+    //    stream.precision(originalPrecision);
 }
 
 LogSource::LogSource(zctx_t* ctx, const std::string& name, const std::string& endpoint) : ctx(ctx), loggerName(name) {
-    socket = zsocket_new(ctx, ZMQ_PUB);
+    socket = zsocket_new(ctx, ZMQ_PUSH);
     if (unlikely(zsocket_connect(socket, endpoint.c_str()))) {
         fprintf(stderr, "Failed to connect log source to endpoint %s", endpoint.c_str());
     }
@@ -91,9 +94,8 @@ void LogSource::trace(const std::string& message) {
 }
 
 LogServer::LogServer(zctx_t* ctx, LogLevel logLevel, const std::string& endpoint) : ctx(ctx), logLevel(logLevel), thread(nullptr) {
-    internalSocket = zsocket_new(ctx, ZMQ_SUB);
+    internalSocket = zsocket_new(ctx, ZMQ_PULL);
     const char* subscription = "";
-    zsocket_set_subscribe(internalSocket, (char*) subscription);
     if (unlikely(zsocket_bind(internalSocket, endpoint.c_str()))) {
         fprintf(stderr, "Failed to connect log source to endpoint %s", endpoint.c_str());
     }
@@ -113,11 +115,7 @@ LogServer::~LogServer() {
 
 void LogServer::start() {
     while (true) {
-        cout << "Logger waiting" << endl;
         zmsg_t* msg = zmsg_recv(internalSocket);
-        if (!msg && errno == EINTR) {
-            break;
-        }
         assert(msg);
         zframe_t* logLevelFrame = zmsg_first(msg);
         assert(logLevelFrame);
@@ -126,55 +124,49 @@ void LogServer::start() {
             cout << "Logger exiting" << endl;
             break;
         }
-        cout << "RX" << endl;
         zframe_t* senderName = zmsg_next(msg);
         assert(senderName);
         zframe_t* logMessageFrame = zmsg_next(msg);
         assert(logMessageFrame);
         //Parse the frames
         LogLevel logLevel = *((LogLevel*) zframe_data(logLevelFrame));
-        //Get time info
-        //        time_t rawtime;
-        //        struct tm * timeinfo;
-        //        time(&rawtime);
-        //        timeinfo = localtime(&rawgtime);
-        cout << "YZY" << endl;
-        //        switch (logLevel) {
-        //            case LogLevel::Error:
-        //            {
-        //                std::cout << ESCAPE_BOLD_RED_FOREGROUND;
-        //                printDate(std::cout);
-        //                std::cout << "[Error]" << frameToString(logMessageFrame) << std::endl;
-        //                break;
-        //            }
-        //            case LogLevel::Warn:
-        //            {
-        //                std::cout << ESCAPE_BOLD_RED_FOREGROUND;
-        //                printDate(std::cout);
-        //                std::cout << "[Error]" << frameToString(logMessageFrame) << std::endl;
-        //                break;
-        //            }
-        //            case LogLevel::Info:
-        //            {
-        //                std::cout << "DU1";
-        //                break;
-        //            }
-        //            case LogLevel::Debug:
-        //            {
-        //                std::cout << "DU2";
-        //                break;
-        //            }
-        //            case LogLevel::Trace:
-        //            {
-        //                std::cout << "DU3";
-        //                break;
-        //            }
-        //            default:
-        //            {
-        //                std::cout << "DU4";
-        //                break;
-        //            }
-        //        }
+        switch (logLevel) {
+            case LogLevel::Error:
+            {
+                std::cout << ESCAPE_BOLD_RED_FOREGROUND;
+                printDate(std::cout);
+                std::cout << "[Error]" << ESCAPE_BLACK_FOREGROUND << endl;
+                frameToString(logMessageFrame) << std::endl;
+                break;
+            }
+            case LogLevel::Warn:
+            {
+                std::cout << ESCAPE_BOLD_YELLOW_FOREGROUND;
+                printDate(std::cout);
+                std::cout << "[Error]" << frameToString(logMessageFrame) << std::endl;
+                break;
+            }
+            case LogLevel::Info:
+            {
+                std::cout << "DU1";
+                break;
+            }
+            case LogLevel::Debug:
+            {
+                std::cout << "DU2";
+                break;
+            }
+            case LogLevel::Trace:
+            {
+                std::cout << "DU3";
+                break;
+            }
+            default:
+            {
+                std::cout << "DU4";
+                break;
+            }
+        }
         std::cout << std::endl;
         zmsg_destroy(&msg);
     }
