@@ -96,7 +96,7 @@ static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<
     }
     cout << "Stopping table open server" << endl;
     //We received an exit msg, cleanup
-    zsocket_destroy(context, &repSocket);
+    zsocket_destroy(context, repSocket);
 }
 
 TableOpenServer::TableOpenServer(zctx_t* context, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) : context(context) {
@@ -123,7 +123,7 @@ TableOpenServer::~TableOpenServer() {
     zmsg_t* msg = zmsg_recv(tempSocket);
     //Cleanup
     zmsg_destroy(&msg);
-    zsocket_destroy(context, &tempSocket);
+    zsocket_destroy(context, tempSocket);
     //The thread might take some time to exit, but we want to delete the thread ptr immediately
     //So, let it finish on his 
     workerThread->detach();
@@ -175,5 +175,5 @@ void TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {
 }
 
 TableOpenHelper::~TableOpenHelper() {
-    zsocket_destroy(context, &reqSocket);
+    zsocket_destroy(context, reqSocket);
 }

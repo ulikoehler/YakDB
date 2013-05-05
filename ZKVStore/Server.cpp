@@ -177,7 +177,9 @@ logServer(ctx){
     //Start the log server
     logServer.startInNewThread();
     LogSource source(ctx, "test");
-    source.warn("msg");
+    source.warn("This is a warning");
+    source.error("This is an error");
+    cout << "SX" << endl;
     //Initialize the sockets that run on the main thread
     externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
     zsocket_bind(externalRepSocket, reqRepUrl);
@@ -193,15 +195,15 @@ KeyValueServer::~KeyValueServer() {
     tables.cleanup();
     //Destroy the sockets
     if (externalRepSocket != nullptr) {
-        zsocket_destroy(ctx, &externalRepSocket);
+        zsocket_destroy(ctx, externalRepSocket);
     }
     if (externalSubSocket != nullptr) {
-        zsocket_destroy(ctx, &externalSubSocket);
+        zsocket_destroy(ctx, externalSubSocket);
     }
     if (externalPullSocket != nullptr) {
-        zsocket_destroy(ctx, &externalPullSocket);
+        zsocket_destroy(ctx, externalPullSocket);
     }
-    zsocket_destroy(ctx, &responseProxySocket);
+    zsocket_destroy(ctx, responseProxySocket);
     printf("Gracefully closed tables, exiting...\n");
     zctx_destroy(&ctx);
 }

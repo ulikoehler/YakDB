@@ -240,7 +240,7 @@ ReadWorkerController::~ReadWorkerController() {
         sendEmptyFrameMessage(tempSocket);
     }
     //Cleanup
-    zsocket_destroy(context, &tempSocket);
+    zsocket_destroy(context, tempSocket);
     //Wait for each thread to exit
     for (int i = 0; i < numThreads; i++) {
         threads[i]->join();

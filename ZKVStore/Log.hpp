@@ -12,7 +12,7 @@
 #include <thread>
 
 //Internal endpoint of the internal log sub socket
-#define DEFAULT_LOG_ENDPOINT "inproc://log"
+#define DEFAULT_LOG_ENDPOINT "inproc://defaultLog"
 
 enum class LogLevel : uint8_t {
     Error = 0,
