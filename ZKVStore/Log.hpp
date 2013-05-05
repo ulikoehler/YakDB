@@ -11,6 +11,14 @@
 #include <czmq.h>
 #include <thread>
 
+//Sample usage:
+//LogSource source(ctx, "test");
+//source.warn("This is a warning");
+//source.error("This is an error");
+//source.info("This is an information message");
+//source.debug("This is a debug message");
+//source.trace("This is a trace message");
+
 //Internal endpoint of the internal log PULL socket
 #define DEFAULT_LOG_ENDPOINT "inproc://defaultLog"
 

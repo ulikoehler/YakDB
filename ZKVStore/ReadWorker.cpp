@@ -13,6 +13,7 @@
 #include "Tablespace.hpp"
 #include "protocol.hpp"
 #include "zutil.hpp"
+#include "Log.hpp"
 #include "endpoints.hpp"
 
 using namespace std;
@@ -176,12 +177,16 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     void* workPullSocket = zsocket_new(ctx, ZMQ_PULL);
     zsocket_connect(workPullSocket, readWorkerThreadAddr);
     assert(workPullSocket);
+    //Create the log source
+    LogSource logSource(ctx, "Read worker");
     //Create the table open helper (creates a socket that sends table open requests)
     TableOpenHelper tableOpenHelper(ctx);
     //Create the data structure with all info for the poll handler
     while (true) {
         zmsg_t* msg = zmsg_recv(workPullSocket);
-        assert(msg);
+        if (!msg) { //Interu
+            break;
+        }
         assert(zmsg_size(msg) >= 1);
         //Parse the header
         //Contrary to the update message handling, we assume (checked by the request router) that
@@ -197,18 +202,17 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         //Get the request type
         RequestType requestType = getRequestType(headerFrame);
         //Process the rest of the frame
-        cout << "Isize " << zmsg_size(msg) << endl;
         if (requestType == ReadRequest) {
             handleReadRequest(tablespace, msg, headerFrame, tableOpenHelper);
         } else if (requestType == CountRequest) {
             handleCountRequest(tablespace, msg, headerFrame, tableOpenHelper);
         } else {
-            cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;
+            logSource.error(std::string("Internal routing error: request type ") + std::to_string(requestType) + " routed to read worker thread!");
         }
         //Send reply (the handler function rewrote the original message to contain the reply)
         assert(msg);
         assert(zmsg_size(msg) >= 3); //2 Envelope + 1 Response header (corner case: Nothing to be read)
-        cout << "Sentit" << zmsg_size(msg) << endl;
+
         zmsg_send(&msg, replyProxySocket);
     }
     printf("Stopping update processor\n");

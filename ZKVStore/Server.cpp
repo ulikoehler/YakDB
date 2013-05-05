@@ -34,16 +34,17 @@ using namespace std;
 int proxyWorkerThreadResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     KeyValueServer* server = (KeyValueServer*) arg;
     zmsg_t* msg = zmsg_recv(server->responseProxySocket);
-    if (msg) {
-        //We assume the message contains a valid envelope.
-        //Just proxy it. Nothing special here.
-        //zmq_proxy is a loop and therefore can't be used here
-        cout << "Send something" << zmsg_size(msg) << endl;
-        int rc = zmsg_send(&msg, server->externalRepSocket);
-        if (rc == -1) {
-            debugZMQError("Proxy worker thread response", errno);
-        }
+    if (unlikely(!msg)) {
+        return -1;
     }
+    //We assume the message contains a valid envelope.
+    //Just proxy it. Nothing special here.
+    //zmq_proxy is a loop and therefore can't be used here
+    int rc = zmsg_send(&msg, server->externalRepSocket);
+    if (unlikely(rc == -1)) {
+        debugZMQError("Proxy worker thread response", errno);
+    }
+
     return 0;
 }
 
@@ -54,69 +55,68 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
     KeyValueServer* server = (KeyValueServer*) arg;
     //Initialize a scoped lock
     zmsg_t *msg = zmsg_recv(server->externalRepSocket);
-    if (msg) {
-        //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
-        assert(zmsg_size(msg) >= 3); //return addr + empty delimiter + protocol header [+ data frames]
-        //Extract the frames
-        zframe_t* addrFrame = zmsg_first(msg);
+    if (unlikely(!msg)) {
+        return -1;
+    }
+    //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
+    assert(zmsg_size(msg) >= 3); //return addr + empty delimiter + protocol header [+ data frames]
+    //Extract the frames
+    zframe_t* addrFrame = zmsg_first(msg);
+    zframe_t* delimiterFrame = zmsg_next(msg);
+    zframe_t* headerFrame = zmsg_next(msg);
+    //Check the header -- send error message if invalid
+    string errorString;
+    char* headerData = (char*) zframe_data(headerFrame);
+    if (!checkProtocolVersion(headerData, zframe_size(headerFrame), errorString)) {
+        server->logSource.error("Got illegal message (unmatching protocol version / magic bytes) from client");
+        return 1;
+    }
+    RequestType requestType = (RequestType) (uint8_t) headerData[2];
+    if (requestType == RequestType::ReadRequest || requestType == RequestType::CountRequest) {
+        //Forward the message to the read worker controller, the response is sent asynchronously
+        server->readWorkerController.send(&msg);
+    } else if (requestType == RequestType::OpenTableRequest
+            || requestType == RequestType::CloseTableRequest
+            || requestType == RequestType::CompactTableRequest) {
+        //Send the message to the update worker (--> processed async)
+        server->updateWorkerController.send(&msg);
+    } else if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
+        //We reuse the header frame and the routing information to send the acknowledge message
+        //The rest of the msg (the table id + data) is directly forwarded to one of the handler threads
+        //Get the routing information
+        zframe_t* routingFrame = zmsg_first(msg);
         zframe_t* delimiterFrame = zmsg_next(msg);
         zframe_t* headerFrame = zmsg_next(msg);
-        //Check the header -- send error message if invalid
-        string errorString;
-        char* headerData = (char*) zframe_data(headerFrame);
-        if (!checkProtocolVersion(headerData, zframe_size(headerFrame), errorString)) {
-            fprintf(stderr, "Got illegal message from client\n");
-            return 1;
+        uint8_t writeFlags = getWriteFlags(headerFrame);
+        //Duplicate the routing frame if we need it later
+        //If partsync is not set (--> immediate reply)
+        // the downstream processor doesn't need the update informatio
+        if (!isPartsync(writeFlags)) {
+            routingFrame = zmsg_unwrap(msg);
         }
-        RequestType requestType = (RequestType) (uint8_t) headerData[2];
-        //        fprintf(stderr, "Got message of type %d from client\n", (int) msgType);
-        if (requestType == RequestType::ReadRequest || requestType == RequestType::CountRequest) {
-            //Forward the message to the read worker controller, the response is sent asynchronously
-            server->readWorkerController.send(&msg);
-        } else if (requestType == RequestType::OpenTableRequest
-                || requestType == RequestType::CloseTableRequest
-                || requestType == RequestType::CompactTableRequest) {
-            //Send the message to the update worker (--> processed async)
-            server->updateWorkerController.send(&msg);
-        } else if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
-            //We reuse the header frame and the routing information to send the acknowledge message
-            //The rest of the msg (the table id + data) is directly forwarded to one of the handler threads
-            //Get the routing information
-            zframe_t* routingFrame = zmsg_first(msg);
-            zframe_t* delimiterFrame = zmsg_next(msg);
-            zframe_t* headerFrame = zmsg_next(msg);
-            uint8_t writeFlags = getWriteFlags(headerFrame);
-            //Duplicate the routing frame if we need it later
-            //If partsync is not set (--> immediate reply)
-            // the downstream processor doesn't need the update informatio
-            if (!isPartsync(writeFlags)) {
-                routingFrame = zmsg_unwrap(msg);
-            }
-            //Send the message to the update worker (--> processed async)
-            server->updateWorkerController.send(&msg);
-            //Send acknowledge message unless PARTSYNC is set (in which case it is sent in the update worker thread)
-            if (!isPartsync(writeFlags)) {
-                msg = zmsg_new();
-                zmsg_wrap(msg, routingFrame); //Send response code 0x00 (ack)
-                zmsg_addmem(msg, "\x31\x01\x20\x00", 4);
-                zmsg_send(&msg, server->externalRepSocket);
-            }
-        } else if (requestType == RequestType::ServerInfoRequest) {
-            //Server info requests are answered in the main thread
-            const uint64_t serverFlags = SupportOnTheFlyTableOpen | SupportPARTSYNC | SupportFULLSYNC;
-            const size_t responseSize = 3/*Metadata*/ + sizeof (uint64_t)/*Flags*/;
-            char serverInfoData[responseSize]; //Allocate on stack
-            serverInfoData[0] = magicByte;
-            serverInfoData[1] = protocolVersion;
-            serverInfoData[2] = ServerInfoResponse;
-            memcpy(serverInfoData + 3, &serverFlags, sizeof (uint64_t));
-            //Re-use the header frame and the original message and send the response
-            zframe_reset(headerFrame, serverInfoData, responseSize);
+        //Send the message to the update worker (--> processed async)
+        server->updateWorkerController.send(&msg);
+        //Send acknowledge message unless PARTSYNC is set (in which case it is sent in the update worker thread)
+        if (!isPartsync(writeFlags)) {
+            msg = zmsg_new();
+            zmsg_wrap(msg, routingFrame); //Send response code 0x00 (ack)
+            zmsg_addmem(msg, "\x31\x01\x20\x00", 4);
             zmsg_send(&msg, server->externalRepSocket);
-        } else {
-            fprintf(stderr, "Unknown message type %d from client\n", (int) requestType);
         }
-        cout << "Sending reply to" << (requestType == RequestType::PutRequest ? " put request " : " read request ") << endl;
+    } else if (requestType == RequestType::ServerInfoRequest) {
+        //Server info requests are answered in the main thread
+        const uint64_t serverFlags = SupportOnTheFlyTableOpen | SupportPARTSYNC | SupportFULLSYNC;
+        const size_t responseSize = 3/*Metadata*/ + sizeof (uint64_t)/*Flags*/;
+        char serverInfoData[responseSize]; //Allocate on stack
+        serverInfoData[0] = magicByte;
+        serverInfoData[1] = protocolVersion;
+        serverInfoData[2] = ServerInfoResponse;
+        memcpy(serverInfoData + 3, &serverFlags, sizeof (uint64_t));
+        //Re-use the header frame and the original message and send the response
+        zframe_reset(headerFrame, serverInfoData, responseSize);
+        zmsg_send(&msg, server->externalRepSocket);
+    } else {
+        server->logSource.error("Unknown message type " + std::to_string(requestType) + "from client\n");
     }
     return 0;
 }
@@ -136,8 +136,8 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         //Check the header -- send error message if invalid
         string errorString;
         char* headerData = (char*) zframe_data(headerFrame);
-        if (!checkProtocolVersion(headerData, zframe_size(headerFrame), errorString)) {
-            fprintf(stderr, "Got illegal message from client\n");
+        if (unlikely(!checkProtocolVersion(headerData, zframe_size(headerFrame), errorString))) {
+            server->logSource.error("Got illegal message (unmatching protocol version / magic bytes) from client");
             return 1;
         }
         RequestType requestType = (RequestType) (uint8_t) headerData[2];
@@ -156,9 +156,8 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
             //TODO Use the logger
             cerr << "Error: Received read/count/server info request over PULL/SUB socket (you need to use REQ/REP sockets for read/count requests)" << endl;
         } else {
-            fprintf(stderr, "Unknown message type %d from client\n", (int) requestType);
+            server->logSource.error("Unknown message type " + std::to_string(requestType) + " from client");
         }
-        cout << "Sending reply to" << (requestType == RequestType::PutRequest ? " put request " : " read request ") << endl;
     }
     return 0;
 }
@@ -170,16 +169,13 @@ externalPullSocket(NULL),
 externalSubSocket(NULL),
 updateWorkerController(ctx, tables),
 readWorkerController(ctx, tables),
-logServer(ctx){
+logServer(ctx),
+logSource(ctx, "Main router") {
     const char* reqRepUrl = "tcp://*:7100";
     const char* writeSubscriptionUrl = "tcp://*:7101";
     const char* errorPubUrl = "tcp://*:7102";
     //Start the log server
     logServer.startInNewThread();
-    LogSource source(ctx, "test");
-    source.warn("This is a warning");
-    source.error("This is an error");
-    cout << "SX" << endl;
     //Initialize the sockets that run on the main thread
     externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
     zsocket_bind(externalRepSocket, reqRepUrl);
@@ -204,7 +200,7 @@ KeyValueServer::~KeyValueServer() {
         zsocket_destroy(ctx, externalPullSocket);
     }
     zsocket_destroy(ctx, responseProxySocket);
-    printf("Gracefully closed tables, exiting...\n");
+    logSource.info("Gracefully closed tables, exiting...");
     zctx_destroy(&ctx);
 }
 

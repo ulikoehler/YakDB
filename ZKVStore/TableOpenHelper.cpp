@@ -13,6 +13,7 @@
 #include <exception>
 #include "zutil.hpp"
 #include "endpoints.hpp"
+#include "macros.hpp"
 #include "Tablespace.hpp"
 
 using namespace std;
@@ -29,7 +30,10 @@ using namespace std;
 static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) {
     while (true) {
         zmsg_t* msg = zmsg_recv(repSocket);
-        if (msg == NULL) {
+        if (unlikely(!msg)) {
+            if(errno == ETERM || errno == EINTR) {
+                break;
+            }
             debugZMQError("Receive TableOpenServer message", errno);
         }
         //Parse msg parts

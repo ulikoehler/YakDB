@@ -13,6 +13,7 @@
 #include <leveldb/write_batch.h>
 #include <functional>
 #include "Tablespace.hpp"
+#include "Log.hpp"
 #include "zutil.hpp"
 #include "protocol.hpp"
 #include "endpoints.hpp"
@@ -20,7 +21,7 @@
 
 using namespace std;
 
-static zmsg_t* handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite, bool noResponse) {
+static zmsg_t* handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, LogSource& log, bool synchronousWrite, bool noResponse) {
     leveldb::WriteOptions writeOptions;
     writeOptions.sync = synchronousWrite;
     //Parse the table id
@@ -48,11 +49,11 @@ static zmsg_t* handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHel
     leveldb::Status status = db->Write(writeOptions, &batch);
     //If something went wrong, send an error response
     if (unlikely(!status.ok())) {
-        //TODO log the error to the main log (not yet impl)
+        std::string err = status.ToString();
+        log.error("Database error while processing update request: " + err);
         if (!noResponse) {
             zmsg_t* response = zmsg_new();
             zmsg_addmem(response, "\x31\x01\x20\x10", 4);
-            std::string err = status.ToString();
             zmsg_addmem(response, err.c_str(), err.size());
             return response;
         }
@@ -77,7 +78,7 @@ static zmsg_t* handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHel
  * @param helper
  * @param headerFrame
  */
-static zmsg_t* handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, zframe_t* headerFrame, bool noResponse) {
+static zmsg_t* handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, LogSource& log, zframe_t* headerFrame, bool noResponse) {
     //Parse the table ID
     zframe_t* tableIdFrame = zmsg_next(msg);
     uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
@@ -105,7 +106,7 @@ static zmsg_t* handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHe
     return response;
 }
 
-static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, zframe_t* headerFrame, bool noResponse) {
+static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, LogSource& log, zframe_t* headerFrame, bool noResponse) {
     //Parse the table ID
     uint32_t tableId = extractBinary<uint32_t>(zmsg_next(msg));
     //
@@ -126,7 +127,7 @@ static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpen
     return response;
 }
 
-static zmsg_t* handleTableCloseRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, zframe_t* headerFrame, bool noResponse) {
+static zmsg_t* handleTableCloseRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, LogSource& log, zframe_t* headerFrame, bool noResponse) {
     uint32_t tableId = extractBinary<uint32_t>(zmsg_next(msg));
     //Close the table
     tables.closeTable(tableId);
@@ -139,7 +140,7 @@ static zmsg_t* handleTableCloseRequest(Tablespace& tables, zmsg_t* msg, TableOpe
     return response;
 }
 
-static zmsg_t* handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, bool synchronousWrite, bool noResponse) {
+static zmsg_t* handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, LogSource& log, bool synchronousWrite, bool noResponse) {
     leveldb::WriteOptions writeOptions;
     writeOptions.sync = synchronousWrite;
     //Parse the table id
@@ -163,11 +164,11 @@ static zmsg_t* handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHel
     leveldb::Status status = db->Write(writeOptions, &batch);
     //If something went wrong, send an error response
     if (unlikely(!status.ok())) {
-        //TODO log the error to the main log (not yet impl)
+        std::string err = status.ToString();
+        log.error("Database error while processing delete request: " + err);
         if (!noResponse) {
             zmsg_t* response = zmsg_new();
             zmsg_addmem(response, "\x31\x01\x20\x10", 4);
-            std::string err = status.ToString();
             zmsg_addmem(response, err.c_str(), err.size());
             return response;
         }
@@ -197,6 +198,8 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     zsocket_connect(workPullSocket, updateWorkerThreadAddr);
     //Create the table open helper (creates a socket that sends table open requests)
     TableOpenHelper tableOpenHelper(ctx);
+    //Create a thread local log source
+    LogSource logSource(ctx, "Update worker");
     //Create the data structure with all info for the poll handler
     while (true) {
         zmsg_t* msg = zmsg_recv(workPullSocket);
@@ -233,25 +236,23 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         //Process the rest of the frame
         zmsg_t* response;
         if (requestType == PutRequest) {
-            response = handleUpdateRequest(tablespace, msg, tableOpenHelper, fullsync, responseUnsupported);
+            response = handleUpdateRequest(tablespace, msg, tableOpenHelper, logSource, fullsync, responseUnsupported);
         } else if (requestType == DeleteRequest) {
-            response = handleDeleteRequest(tablespace, msg, tableOpenHelper, fullsync, responseUnsupported);
+            response = handleDeleteRequest(tablespace, msg, tableOpenHelper, logSource, fullsync, responseUnsupported);
         } else if (requestType == OpenTableRequest) {
-            response = handleTableOpenRequest(tablespace, msg, tableOpenHelper, headerFrame, responseUnsupported);
+            response = handleTableOpenRequest(tablespace, msg, tableOpenHelper, logSource, headerFrame, responseUnsupported);
             //Set partsync to force the program to respond after finished
             partsync = true;
         } else if (requestType == CloseTableRequest) {
-            response = handleTableCloseRequest(tablespace, msg, tableOpenHelper, headerFrame, responseUnsupported);
+            response = handleTableCloseRequest(tablespace, msg, tableOpenHelper, logSource, headerFrame, responseUnsupported);
             //Set partsync to force the program to respond after finished
             partsync = true;
         } else if (requestType == CompactTableRequest) {
-            response = handleCompactRequest(tablespace, msg, tableOpenHelper, headerFrame, responseUnsupported);
+            response = handleCompactRequest(tablespace, msg, tableOpenHelper, logSource, headerFrame, responseUnsupported);
             //Set partsync to force the code to respond after finishing
             partsync = true;
         } else {
-            //TODO Log this and remove code that makes the program crash
-            cerr << "Internal routing error: request type " << requestType << " routed to update worker thread!" << endl;
-            response = nullptr; //Some assertion will fail eventually
+            logSource.error(std::string("Internal routing error: request type ") + std::to_string(requestType) + " routed to update worker thread!");
             continue;
         }
         //Cleanup
@@ -275,7 +276,7 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         //Destroy the original message (after replying, reduces delay, even if only by microseconds)
         zmsg_destroy(&msg);
     }
-    printf("Stopping update processor\n");
+    logSource.info("Stopping update processor");
     zsocket_destroy(ctx, workPullSocket);
     zsocket_destroy(ctx, replyProxySocket);
 }

@@ -108,7 +108,9 @@ LogServer::~LogServer() {
 void LogServer::start() {
     while (true) {
         zmsg_t* msg = zmsg_recv(internalSocket);
-        assert(msg);
+        if(!msg) { //Terminated
+            break;
+        }
         zframe_t* logLevelFrame = zmsg_first(msg);
         assert(logLevelFrame);
         //Handle STOP messages
@@ -139,22 +141,30 @@ void LogServer::start() {
             }
             case LogLevel::Info:
             {
-                std::cout << "DU1";
+                std::cout << ESCAPE_GREEN_FOREGROUND;
+                printDate(std::cout);
+                std::cout << "[Info] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
                 break;
             }
             case LogLevel::Debug:
             {
-                std::cout << "DU2";
+                std::cout << ESCAPE_BLUE_FOREGROUND;
+                printDate(std::cout);
+                std::cout << "[Debug] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
                 break;
             }
             case LogLevel::Trace:
             {
-                std::cout << "DU3";
+                std::cout << ESCAPE_CYAN_FOREGROUND;
+                printDate(std::cout);
+                std::cout << "[Trace] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
                 break;
             }
             default:
             {
-                std::cout << "DU4";
+                printDate(std::cout);
+                std::cout << "[Unknown] " << frameToString(senderName) << " - " << frameToString(logMessageFrame) << std::endl;
+                break;
                 break;
             }
         }
