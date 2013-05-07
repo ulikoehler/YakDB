@@ -1,5 +1,4 @@
 Logging:
-	- Logging server
 	- Logging protocol definition (simple)
 	- Logging to file
 Request receiving over PULL sockets
