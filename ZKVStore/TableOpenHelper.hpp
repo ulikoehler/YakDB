@@ -11,6 +11,7 @@
 #include <thread>
 #include <leveldb/db.h>
 #include <vector>
+#include "Log.hpp"
 
 /**
  * This class starts a single thread in the background that shall receive an
@@ -48,6 +49,7 @@ public:
 private:
     void* reqSocket; //This ZMQ socket is used to send requests
     zctx_t* context;
+    Logger logger;
 };
 
 #endif	/* TABLEOPENHELPER_HPP */

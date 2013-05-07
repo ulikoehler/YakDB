@@ -69,6 +69,10 @@ void LogSource::error(const std::string& message) {
     log(message, LogLevel::Error);
 }
 
+void LogSource::critical(const std::string& message) {
+    log(message, LogLevel::Critical);
+}
+
 void LogSource::warn(const std::string& message) {
     log(message, LogLevel::Warn);
 }
@@ -127,11 +131,18 @@ void LogServer::start() {
         //Parse the frames
         LogLevel logLevel = *((LogLevel*) zframe_data(logLevelFrame));
         switch (logLevel) {
-            case LogLevel::Error:
+            case LogLevel::Critical:
             {
                 LOG_STREAM << ESCAPE_BOLD << ESCAPE_RED_FOREGROUND;
                 printDate(LOG_STREAM);
-                LOG_STREAM << "[Error] " << frameToString(senderName) << " - " << ESCAPE_NORMALFONT << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
+                LOG_STREAM << "[Error] " << frameToString(senderName) << " - " << frameToString(logMessageFrame) << ESCAPE_NORMALFONT << ESCAPE_BLACK_FOREGROUND << std::endl;
+                break;
+            }
+            case LogLevel::Error:
+            {
+                LOG_STREAM << ESCAPE_RED_FOREGROUND;
+                printDate(LOG_STREAM);
+                LOG_STREAM << "[Error] " << frameToString(senderName) << " - " << ESCAPE_BLACK_FOREGROUND << frameToString(logMessageFrame) << std::endl;
                 break;
             }
             case LogLevel::Warn:
@@ -166,7 +177,6 @@ void LogServer::start() {
             {
                 printDate(LOG_STREAM);
                 LOG_STREAM << "[Unknown] " << frameToString(senderName) << " - " << frameToString(logMessageFrame) << std::endl;
-                break;
                 break;
             }
         }

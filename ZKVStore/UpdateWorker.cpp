@@ -21,7 +21,7 @@
 
 using namespace std;
 
-static zmsg_t* handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, LogSource& log, bool synchronousWrite, bool noResponse) {
+static zmsg_t* handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, bool synchronousWrite, bool noResponse) {
     leveldb::WriteOptions writeOptions;
     writeOptions.sync = synchronousWrite;
     //Parse the table id
@@ -78,7 +78,7 @@ static zmsg_t* handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHel
  * @param helper
  * @param headerFrame
  */
-static zmsg_t* handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, LogSource& log, zframe_t* headerFrame, bool noResponse) {
+static zmsg_t* handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, zframe_t* headerFrame, bool noResponse) {
     //Parse the table ID
     zframe_t* tableIdFrame = zmsg_next(msg);
     uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
@@ -106,7 +106,7 @@ static zmsg_t* handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHe
     return response;
 }
 
-static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, LogSource& log, zframe_t* headerFrame, bool noResponse) {
+static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, zframe_t* headerFrame, bool noResponse) {
     //Parse the table ID
     uint32_t tableId = extractBinary<uint32_t>(zmsg_next(msg));
     //
@@ -127,7 +127,7 @@ static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpen
     return response;
 }
 
-static zmsg_t* handleTableCloseRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, LogSource& log, zframe_t* headerFrame, bool noResponse) {
+static zmsg_t* handleTableCloseRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, zframe_t* headerFrame, bool noResponse) {
     uint32_t tableId = extractBinary<uint32_t>(zmsg_next(msg));
     //Close the table
     tables.closeTable(tableId);
@@ -140,7 +140,7 @@ static zmsg_t* handleTableCloseRequest(Tablespace& tables, zmsg_t* msg, TableOpe
     return response;
 }
 
-static zmsg_t* handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, LogSource& log, bool synchronousWrite, bool noResponse) {
+static zmsg_t* handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, bool synchronousWrite, bool noResponse) {
     leveldb::WriteOptions writeOptions;
     writeOptions.sync = synchronousWrite;
     //Parse the table id
@@ -199,7 +199,7 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     //Create the table open helper (creates a socket that sends table open requests)
     TableOpenHelper tableOpenHelper(ctx);
     //Create a thread local log source
-    LogSource logSource(ctx, "Update worker");
+    Logger logSource(ctx, "Update worker");
     //Create the data structure with all info for the poll handler
     while (true) {
         zmsg_t* msg = zmsg_recv(workPullSocket);

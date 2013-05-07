@@ -1,6 +1,3 @@
-
-#include <zmq.h>
-
 #include <leveldb/db.h>
 #include <czmq.h>
 #include <string>

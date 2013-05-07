@@ -23,21 +23,58 @@
 #define DEFAULT_LOG_ENDPOINT "inproc://defaultLog"
 
 enum class LogLevel : uint8_t {
-    Error = 0,
-            Warn = 1,
-            Info = 2,
-            Debug = 3,
-            Trace = 4
+    /**
+     * Critical: Use this for errors that prevent correct program execution
+     * that can't be recovered from
+     */
+    Critical = 0,
+            /**
+             * Error: Use  this for errors that prevent normal execution
+             * of a well-defined part of the application, if the application
+             * is able to recover from these errors without user interaction
+             */
+            Error = 1,
+            /**
+             * Warn: Use this for errors that do not prevent normal execution
+             * of any part of the application, but might yield unexpected or
+             * untested application states that might cause errors during subsequent
+             * program execution.
+             */
+            Warn = 2,
+            /**
+             * Info: Use this log level for messages that do not represent
+             * an unexpected or erroneous application state, but provide
+             * useful information not only for developers, but also
+             * for application users
+             */
+            Info = 3,
+            /**
+             * Debug: Use this log level for messages that do not represent
+             * an unexpected or erroneous application state, but provide
+             * useful information that is not relevant to the application user
+             * but only for debugging purposes
+             */
+            Debug = 4,
+            /**
+             * Info: Use this log level for messages that do not represent
+             * an unexpected or erroneous application state, but provide
+             * fine-grained information about current application state and
+             * execution path that is only relevant for application developers
+             * if debug-level messages do not provide the required information
+             */
+            Trace = 5
 };
 
 /**
- * A log client that connects to the Log server via inproc transport
+ * A log source connecting to a log server.
+ * Message delivery is guaranteed.
  */
-class LogSource {
+class Logger {
 public:
-    LogSource(zctx_t* ctx, const std::string& name, const std::string& endpoint = std::string(DEFAULT_LOG_ENDPOINT));
-    ~LogSource();
+    Logger(zctx_t* ctx, const std::string& name, const std::string& endpoint = std::string(DEFAULT_LOG_ENDPOINT));
+    ~Logger();
     void log(const std::string& message, LogLevel level = LogLevel::Info);
+    void critical(const std::string& message);
     void error(const std::string& message);
     void warn(const std::string& message);
     void info(const std::string& message);
