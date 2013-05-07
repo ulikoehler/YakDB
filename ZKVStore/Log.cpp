@@ -43,18 +43,18 @@ inline static void printDate(std::ostream& stream) {
     //    stream.precision(originalPrecision);
 }
 
-LogSource::LogSource(zctx_t* ctx, const std::string& name, const std::string& endpoint) : ctx(ctx), loggerName(name) {
+Logger::Logger(zctx_t* ctx, const std::string& name, const std::string& endpoint) : ctx(ctx), loggerName(name) {
     socket = zsocket_new(ctx, ZMQ_PUSH);
     if (unlikely(zsocket_connect(socket, endpoint.c_str()))) {
         fprintf(stderr, "Failed to connect log source to endpoint %s", endpoint.c_str());
     }
 }
 
-LogSource::~LogSource() {
+Logger::~Logger() {
     zsocket_destroy(ctx, socket);
 }
 
-void LogSource::log(const std::string& message, LogLevel level) {
+void Logger::log(const std::string& message, LogLevel level) {
     //Send the frames individually so no message needs to be allocated
     zframe_t* frame;
     frame = zframe_new(&level, sizeof (LogLevel));
@@ -65,27 +65,27 @@ void LogSource::log(const std::string& message, LogLevel level) {
     assert(!zframe_send(&frame, socket, 0));
 }
 
-void LogSource::error(const std::string& message) {
+void Logger::error(const std::string& message) {
     log(message, LogLevel::Error);
 }
 
-void LogSource::critical(const std::string& message) {
+void Logger::critical(const std::string& message) {
     log(message, LogLevel::Critical);
 }
 
-void LogSource::warn(const std::string& message) {
+void Logger::warn(const std::string& message) {
     log(message, LogLevel::Warn);
 }
 
-void LogSource::info(const std::string& message) {
+void Logger::info(const std::string& message) {
     log(message, LogLevel::Info);
 }
 
-void LogSource::debug(const std::string& message) {
+void Logger::debug(const std::string& message) {
     log(message, LogLevel::Debug);
 }
 
-void LogSource::trace(const std::string& message) {
+void Logger::trace(const std::string& message) {
     log(message, LogLevel::Trace);
 }
 

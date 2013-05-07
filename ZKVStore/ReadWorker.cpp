@@ -179,7 +179,7 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     zsocket_connect(workPullSocket, readWorkerThreadAddr);
     assert(workPullSocket);
     //Create the log source
-    LogSource logSource(ctx, "Read worker");
+    Logger logger(ctx, "Read worker");
     //Create the table open helper (creates a socket that sends table open requests)
     TableOpenHelper tableOpenHelper(ctx);
     //Create the data structure with all info for the poll handler
@@ -208,7 +208,7 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         } else if (requestType == CountRequest) {
             handleCountRequest(tablespace, msg, headerFrame, tableOpenHelper);
         } else {
-            logSource.error(std::string("Internal routing error: request type ") + std::to_string(requestType) + " routed to read worker thread!");
+            logger.error("Internal routing error: request type " + std::to_string(requestType) + " routed to read worker thread!");
         }
         //Send reply (the handler function rewrote the original message to contain the reply)
         assert(msg);
@@ -216,7 +216,7 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
 
         zmsg_send(&msg, replyProxySocket);
     }
-    printf("Stopping update processor\n");
+    logger.info("Read worker thread terminating...");
     zsocket_destroy(ctx, workPullSocket);
     zsocket_destroy(ctx, replyProxySocket);
 }

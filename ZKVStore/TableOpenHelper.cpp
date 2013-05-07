@@ -28,7 +28,7 @@ using namespace std;
  *          - A 1-byte frame with content \x00 for open table and \x01 for close table
  *          - A 4-byte frame containing the binary ID
  */
-static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) {
+static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) {
     Logger logger(context, "Table open server");
     while (true) {
         zmsg_t* msg = zmsg_recv(repSocket);
@@ -56,22 +56,22 @@ static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<
         }
         //If it's not null, it must have the appropriate size
         assert(frameSize == sizeof (TableOpenHelper::IndexType));
-        TableOpenHelper::IndexType index = *((TableOpenHelper::IndexType*)zframe_data(tableIdFrame));
+        TableOpenHelper::IndexType tableIndex = *((TableOpenHelper::IndexType*)zframe_data(tableIdFrame));
         if (msgType == 0x00) { //Open table
             //Resize if neccessary
-            if (databases.size() <= index) {
-                databases.reserve(index + 16); //Avoid large vectors
+            if (databases.size() <= tableIndex) {
+                databases.reserve(tableIndex + 16); //Avoid large vectors
             }
             //Create the table only if it hasn't been created yet, else just ignore the request
-            if (databases[index] == NULL) {
-                logger.info("Creating/opening table " + std::to_string(index));
+            if (databases[tableIndex] == NULL) {
+                logger.info("Creating/opening table #" + std::to_string(tableIndex));
                 leveldb::Options options;
                 options.create_if_missing = true;
                 options.compression = (dbCompressionEnabled ? leveldb::kSnappyCompression : leveldb::kNoCompression);
-                std::string tableName = "tables/" + std::to_string(index);
-                leveldb::Status status = leveldb::DB::Open(options, tableName.c_str(), &databases[index]);
+                std::string tableName = "tables/" + std::to_string(tableIndex);
+                leveldb::Status status = leveldb::DB::Open(options, tableName.c_str(), &databases[tableIndex]);
                 if (unlikely(!status.ok())) {
-                    logger.error("Error while trying to open database in " + tableName + ": " + status.ToString());
+                    logger.error("Error while trying to open table #" + std::to_string(tableIndex) + " in directory " + tableName + ": " + status.ToString());
                 }
             }
             //In order to improve performance, we reuse the existing frame, we only modify the first byte (additional bytes shall be ignored)
@@ -80,11 +80,11 @@ static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<
                 logger.error("Communication error while trying to send table open reply: " + std::string(zmq_strerror(errno)));
             }
         } else if (msgType == 0x01) { //Close table
-            if (databases.size() <= index || databases[index] == NULL) {
+            if (databases.size() <= tableIndex || databases[tableIndex] == NULL) {
                 zframe_data(tableIdFrame)[0] = 0x01; //0x01 == Table already closed
             } else {
-                leveldb::DB* db = databases[index];
-                databases[index] = NULL;
+                leveldb::DB* db = databases[tableIndex];
+                databases[tableIndex] = NULL;
                 delete db;
                 zframe_data(tableIdFrame)[0] = 0x00; //0x00 == acknowledge, no error
             }
@@ -100,19 +100,19 @@ static void tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<
     zsocket_destroy(context, repSocket);
 }
 
-TableOpenServer::TableOpenServer(zctx_t* context, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) : context(context) {
+COLD TableOpenServer::TableOpenServer(zctx_t* context, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) : context(context) {
     //We need to bind the inproc transport synchronously in the main thread because zmq_connect required that the endpoint has already been bound
     assert(context);
     void* repSocket = zsocket_new(context, ZMQ_REP);
     assert(repSocket);
     if (unlikely(zmq_bind(repSocket, tableOpenEndpoint))) {
         Logger logger(context, "Table open server");
-        logger.critical("Table open server REP socket bind failed: " + std::to_string(zmq_strerror(errno)));
+        logger.critical("Table open server REP socket bind failed: " + std::string(zmq_strerror(errno)));
     }
     workerThread = new std::thread(tableOpenWorkerThread, context, repSocket, std::ref(databases), dbCompressionEnabled);
 }
 
-TableOpenServer::~TableOpenServer() {
+COLD TableOpenServer::~TableOpenServer() {
     //Create a temporary socket
     void* tempSocket = zsocket_new(context, ZMQ_REQ);
     zsocket_connect(tempSocket, tableOpenEndpoint);
@@ -135,39 +135,39 @@ TableOpenServer::~TableOpenServer() {
     delete workerThread;
 }
 
-TableOpenHelper::TableOpenHelper(zctx_t* context) {
+COLD TableOpenHelper::TableOpenHelper(zctx_t* context) : context(context), logger(context, "Table open client") {
     this->context = context;
     reqSocket = zsocket_new(context, ZMQ_REQ);
-    if (!reqSocket) {
-        debugZMQError("Create table opener request socket", errno);
+    if (unlikely(!reqSocket)) {
+        logger.critical("Table open client REQ socket initialization failed: " + std::string(zmq_strerror(errno)));
     }
-    if (zmq_connect(reqSocket, tableOpenEndpoint)) {
-        debugZMQError("Connect table opener request socket", errno);
+    if (unlikely(zmq_connect(reqSocket, tableOpenEndpoint))) {
+        logger.critical("Table open client REQ socket connect failed: " + std::string(zmq_strerror(errno)));
     }
 }
 
-void TableOpenHelper::openTable(TableOpenHelper::IndexType index) {
+void HOT TableOpenHelper::openTable(TableOpenHelper::IndexType index) {
     //Just send a message containing the table index to the opener thread
     zmsg_t* msg = zmsg_new();
     zmsg_addmem(msg, "\x00", 1);
     zmsg_addmem(msg, &index, sizeof (TableOpenHelper::IndexType));
     if (unlikely(zmsg_send(&msg, reqSocket) == -1)) {
-        debugZMQError("Sending table open request msg", errno);
+        logger.critical("Open table message send failed: " + std::string(zmq_strerror(errno)));
     }
-    //Wait for the reply (it's empty but that does not matter)
+    //Wait for the reply (reply content is ignored)
     msg = zmsg_recv(reqSocket); //Blocks until reply received
     if (msg != NULL) {
         zmsg_destroy(&msg);
     }
 }
 
-void TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {
+void COLD TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {
     //Just send a message containing the table index to the opener thread
     zmsg_t* msg = zmsg_new();
     zmsg_addmem(msg, "\x01", 1);
     zmsg_addmem(msg, &index, sizeof (TableOpenHelper::IndexType));
-    if (zmsg_send(&msg, reqSocket) == -1) {
-        debugZMQError("Sending table close request msg", errno);
+    if (unlikely(zmsg_send(&msg, reqSocket) == -1)) {
+        logger.critical("Close table message send failed: " + std::string(zmq_strerror(errno)));
     }
     //Wait for the reply (it's empty but that does not matter)
     msg = zmsg_recv(reqSocket); //Blocks until reply received
@@ -177,6 +177,6 @@ void TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {
     zmsg_destroy(&msg);
 }
 
-TableOpenHelper::~TableOpenHelper() {
+COLD TableOpenHelper::~TableOpenHelper() {
     zsocket_destroy(context, reqSocket);
 }
