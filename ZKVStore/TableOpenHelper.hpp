@@ -11,7 +11,7 @@
 #include <thread>
 #include <leveldb/db.h>
 #include <vector>
-#include "Log.hpp"
+#include "Logger.hpp"
 
 /**
  * This class starts a single thread in the background that shall receive an

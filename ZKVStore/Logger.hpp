@@ -8,6 +8,7 @@
 #ifndef LOG_HPP
 #define	LOG_HPP
 #include <string>
+#include <vector>
 #include <czmq.h>
 #include <thread>
 
@@ -86,42 +87,6 @@ private:
     std::string loggerName;
 };
 
-/**
- * A log server that proxies inproc pattern to external PUB/SUB
- * 
- * A PULL-like socket is bound to the endpoint supplied at construction time.
- * 
- * The proxy is started in a separate thread that can be stopped
- * using a specific message 
- * 
- * Log message format specification:
- *      Frame 1: 1 byte log level
- *      Frame 2: Name of sender
- *      Frame 3: Log message
- * 
- * To stop the log, send a message with one zero-sized frame
- */
-class LogServer {
-public:
-    LogServer(zctx_t* ctx, LogLevel logLevel = LogLevel::Debug, const std::string& endpoint = std::string(DEFAULT_LOG_ENDPOINT));
-    ~LogServer();
-    /**
-     * Start the log server message handler in the current thread.
-     * Blocks until a stop message is received
-     */
-    void start();
-    /**
-     * Starts a new thread that executes the start() function
-     */
-    void startInNewThread();
-    void setLogLevel(LogLevel logLevel);
-    LogLevel getLogLevel();
-private:
-    void* internalSocket;
-    LogLevel logLevel;
-    zctx_t* ctx;
-    std::thread* thread;
-};
 
 
 #endif	/* LOG_HPP */

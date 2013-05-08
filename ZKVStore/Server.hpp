@@ -9,7 +9,7 @@
 #define SERVER_HPP_
 #include "UpdateWorker.hpp"
 #include "ReadWorker.hpp"
-#include "Log.hpp"
+#include "Logger.hpp"
 
 class KeyValueServer {
 public:

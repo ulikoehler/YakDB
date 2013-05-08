@@ -13,7 +13,7 @@
 #include <leveldb/write_batch.h>
 #include <functional>
 #include "Tablespace.hpp"
-#include "Log.hpp"
+#include "Logger.hpp"
 #include "zutil.hpp"
 #include "protocol.hpp"
 #include "endpoints.hpp"

@@ -15,7 +15,7 @@
 #include "endpoints.hpp"
 #include "macros.hpp"
 #include "Tablespace.hpp"
-#include "Log.hpp"
+#include "Logger.hpp"
 
 using namespace std;
 
