@@ -121,7 +121,7 @@ using namespace std;
 LogServer::~LogServer() {
     if (thread) {
         //Send the STOP message (single empty frame);
-        zframe_t* frame = zframe_new("", 0);
+        zframe_t* frame = zframe_new("\x55\x01\xFF", 3);
         assert(!zframe_send(&frame, internalSocket, 0));
         thread->join(); //Wait until it exits
         delete thread;
@@ -142,13 +142,12 @@ void LogServer::start() {
             break;
         }
         size_t msgSize = zmsg_size(msg);
-        if(unlikely(msgSize != 1 && msgSize != 5)) {
+        if (unlikely(msgSize != 1 && msgSize != 5)) {
             logger.warn("Received log message of illegal size: " + std::to_string(msgSize));
             zmsg_destroy(&msg);
             continue;
         }
-        assert( == 1 || zmsg_size(msg) == 5);
-        zframe_t headerFrame = zmsg_first(msg);
+        zframe_t* headerFrame = zmsg_first(msg);
         assert(headerFrame);
         if (unlikely(isStopServerMessage(headerFrame))) {
             //Log a message that the server is exiting, to all sinks
@@ -159,7 +158,7 @@ void LogServer::start() {
                 struct timeval tv;
                 gettimeofday(&tv, NULL);
                 uint64_t timestamp = ((uint64_t) tv.tv_sec)*1000 + (tv.tv_usec / 1000);
-                for (const LogSink* sink : logSinks) {
+                for (LogSink* sink : logSinks) {
                     sink->log(LogLevel::Info, timestamp, "Log server", "Log server stopping");
                 }
             }
@@ -170,24 +169,22 @@ void LogServer::start() {
         // log a warning if an illegal message has been received
         byte* headerData = zframe_data(headerFrame);
         if (unlikely(headerData[0] != '\x55')) {
-            logger.warn("Received log message with illegal magic byte: " + std::to_string((uint8_t) headerData[0]))
+            logger.warn("Received log message with illegal magic byte: " + std::to_string((uint8_t) headerData[0]));
             zmsg_destroy(&msg);
             continue;
         }
         if (unlikely(headerData[1] != '\x01')) {
-            logger.warn("Received log message with illegal protocol version: " + std::to_string((uint8_t) headerData[1]))
+            logger.warn("Received log message with illegal protocol version: " + std::to_string((uint8_t) headerData[1]));
             zmsg_destroy(&msg);
             continue;
         }
-        //Parse the data
+        //Parse the log information from the frames
         LogLevel logLevel = extractBinary<LogLevel>(zmsg_next(msg));
-        uint64_t logTimestamp = extractBinary<uint64_t>(zmsg_next(msg));
+        uint64_t timestamp = extractBinary<uint64_t>(zmsg_next(msg));
         std::string senderName = frameToString(zmsg_next(msg));
         std::string logMessage = frameToString(zmsg_next(msg));
-        //Parse the frames
-        LogLevel logLevel = extractBinary<LogLevel>(logLevelFrame);
         //Pass the log message to the log sinks
-        for (const LogSink* sink : logSinks) {
+        for (LogSink* sink : logSinks) {
             sink->log(logLevel, timestamp, senderName, logMessage);
         }
         //Cleanup

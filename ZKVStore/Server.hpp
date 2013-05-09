@@ -10,6 +10,7 @@
 #include "UpdateWorker.hpp"
 #include "ReadWorker.hpp"
 #include "Logger.hpp"
+#include "LogServer.hpp"
 
 class KeyValueServer {
 public:

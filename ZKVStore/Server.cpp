@@ -176,6 +176,7 @@ logSource(ctx, "Main router") {
     const char* writeSubscriptionUrl = "tcp://*:7101";
     const char* errorPubUrl = "tcp://*:7102";
     //Start the log server
+    logServer.addLogSink(new StderrLogSink());
     logServer.startInNewThread();
     //Initialize the sockets that run on the main thread
     externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
