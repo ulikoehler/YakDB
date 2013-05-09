@@ -24,7 +24,7 @@ public:
     typedef leveldb::DB* TableType;
     typedef typename std::vector<TableType> TableCollectionType;
 
-    Tablespace(zctx_t* ctx, IndexType defaultTablespaceSize = 16);
+    Tablespace(IndexType defaultTablespaceSize = 16);
     Tablespace(const Tablespace& other) = delete;
 
     /**
@@ -72,7 +72,6 @@ private:
      */
     TableCollectionType databases; //Indexed by table num
     uint32_t databasesSize;
-    Logger logger;
 };
 
 #endif	/* TABLESPACE_HPP */

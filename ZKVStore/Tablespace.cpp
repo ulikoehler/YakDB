@@ -7,7 +7,7 @@
 
 #include "Tablespace.hpp"
 
-Tablespace::Tablespace(zctx_t* ctx, IndexType defaultTablespaceSize) : databases(defaultTablespaceSize), logger(ctx, "Tablespace") {
+Tablespace::Tablespace(IndexType defaultTablespaceSize) : databases(defaultTablespaceSize) {
     //Initialize the table array with 16 tables.
     //This avoids early re-allocation
     databasesSize = defaultTablespaceSize;
@@ -19,7 +19,6 @@ Tablespace::Tablespace(zctx_t* ctx, IndexType defaultTablespaceSize) : databases
 }
 
 void Tablespace::cleanup() {
-    logger.info("Flushing and closing tables");
     //Flush & delete all databases
     for (int i = 0; i < databasesSize; i++) {
         if (databases[i] != nullptr) {

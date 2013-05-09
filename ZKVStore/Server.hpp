@@ -30,7 +30,7 @@ public:
     UpdateWorkerController updateWorkerController;
     ReadWorkerController readWorkerController;
     LogServer logServer;
-    Logger logSource; //The log source of the server itself, only to be used from the main thread
+    Logger logger; //The log source of the server itself, only to be used from the main thread
 };
 
 

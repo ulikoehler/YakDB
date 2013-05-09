@@ -68,7 +68,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
     string errorString;
     char* headerData = (char*) zframe_data(headerFrame);
     if (!checkProtocolVersion(headerData, zframe_size(headerFrame), errorString)) {
-        server->logSource.error("Got illegal message (unmatching protocol version / magic bytes) from client");
+        server->logger.error("Got illegal message (unmatching protocol version / magic bytes) from client");
         return 1;
     }
     RequestType requestType = (RequestType) (uint8_t) headerData[2];
@@ -116,7 +116,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         zframe_reset(headerFrame, serverInfoData, responseSize);
         zmsg_send(&msg, server->externalRepSocket);
     } else {
-        server->logSource.error("Unknown message type " + std::to_string(requestType) + "from client\n");
+        server->logger.error("Unknown message type " + std::to_string(requestType) + "from client\n");
     }
     return 0;
 }
@@ -139,7 +139,7 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     string errorString;
     char* headerData = (char*) zframe_data(headerFrame);
     if (unlikely(!checkProtocolVersion(headerData, zframe_size(headerFrame), errorString))) {
-        server->logSource.error("Got illegal message (unmatching protocol version / magic bytes) from client");
+        server->logger.error("Got illegal message (unmatching protocol version / magic bytes) from client");
         return 1;
     }
     RequestType requestType = (RequestType) (uint8_t) headerData[2];
@@ -158,20 +158,20 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         //TODO Use the logger
         cerr << "Error: Received read/count/server info request over PULL/SUB socket (you need to use REQ/REP sockets for read/count requests)" << endl;
     } else {
-        server->logSource.error("Unknown message type " + std::to_string(requestType) + " from client");
+        server->logger.error("Unknown message type " + std::to_string(requestType) + " from client");
     }
     return 0;
 }
 
 KeyValueServer::KeyValueServer(bool dbCompressionEnabled) : ctx(zctx_new()),
-tables(ctx),
+tables(),
 tableOpenServer(ctx, tables.getDatabases(), dbCompressionEnabled),
 externalPullSocket(NULL),
 externalSubSocket(NULL),
 updateWorkerController(ctx, tables),
 readWorkerController(ctx, tables),
 logServer(ctx),
-logSource(ctx, "Main router") {
+logger(ctx, "Main router") {
     const char* reqRepUrl = "tcp://*:7100";
     const char* writeSubscriptionUrl = "tcp://*:7101";
     const char* errorPubUrl = "tcp://*:7102";
@@ -202,7 +202,7 @@ KeyValueServer::~KeyValueServer() {
         zsocket_destroy(ctx, externalPullSocket);
     }
     zsocket_destroy(ctx, responseProxySocket);
-    logSource.info("Gracefully closed tables, exiting...");
+    logger.info("Gracefully closed tables, exiting...");
     zctx_destroy(&ctx);
 }
 
