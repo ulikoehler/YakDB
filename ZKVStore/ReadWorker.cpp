@@ -13,7 +13,7 @@
 #include "Tablespace.hpp"
 #include "protocol.hpp"
 #include "zutil.hpp"
-#include "Log.hpp"
+#include "Logger.hpp"
 #include "endpoints.hpp"
 #include "macros.hpp"
 

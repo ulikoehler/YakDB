@@ -5,14 +5,23 @@
  * Created on 24. April 2013, 04:29
  */
 
-#include "Log.hpp"
+#include "Logger.hpp"
 #include "endpoints.hpp" //#defines the endpoint string
 #include "zutil.hpp"
 #include "macros.hpp"
 #include <cstdio>
 #include <functional>
 #include <iostream>
-#include <iomanip>
+#include <ctime>
+
+/**
+ * Get the 64-bit log time: epoch (secs) * 1000 + epoch-millisecs
+ */
+static inline uint64_t HOT getCurrentLogTime() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return ((uint64_t) tv.tv_sec)*1000 + (tv.tv_usec / 1000);
+}
 
 Logger::Logger(zctx_t* ctx, const std::string& name, const std::string& endpoint) : ctx(ctx), loggerName(name) {
     socket = zsocket_new(ctx, ZMQ_PUSH);
@@ -29,6 +38,9 @@ void Logger::log(const std::string& message, LogLevel level) {
     //Send the frames individually so no message needs to be allocated
     zframe_t* frame;
     frame = zframe_new(&level, sizeof (LogLevel));
+    assert(!zframe_send(&frame, socket, ZFRAME_MORE));
+    uint64_t currentLogTime = getCurrentLogTime();
+    frame = zframe_new(&currentLogTime, sizeof (uint64_t));
     assert(!zframe_send(&frame, socket, ZFRAME_MORE));
     frame = zframe_new(loggerName.c_str(), loggerName.size());
     assert(!zframe_send(&frame, socket, ZFRAME_MORE));

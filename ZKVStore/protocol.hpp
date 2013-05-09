@@ -23,6 +23,7 @@ const uint8_t protocolVersion = 0x01;
 
 template<typename T>
 inline static T extractBinary(zframe_t* frame) {
+    assert(frame);
     assert(zframe_size(frame) == sizeof (T));
     return *((T*) zframe_data(frame));
 }

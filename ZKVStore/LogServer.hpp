@@ -15,13 +15,13 @@
  */
 class LogSink {
 public:
-    virtual void log(LogLevel logLevel, uint64_t timestamp, std::string senderName, std::string& logMessage) = 0;
+    virtual void log(LogLevel logLevel, uint64_t timestamp, const std::string& senderName, const std::string& logMessage) = 0;
 };
 
 class StderrLogSink : public LogSink {
 public:
     StderrLogSink();
-    void log(LogLevel logLevel, uint64_t timestamp, std::string senderName, std::string& logMessage);
+    void log(LogLevel logLevel, uint64_t timestamp, const std::string& senderName, const std::string& logMessage);
 };
 
 /**
@@ -32,7 +32,15 @@ public:
  * The proxy is started in a separate thread that can be stopped
  * using a specific message 
  * 
- * To stop the log, send a message with one zero-sized frame
+ * Protocol specification (messages from logger to server):
+ * Frame 0: Header: Magic byte + protocol version + request type - \x55\x01\x00
+ * Frame 1: Log level (1 byte, as defined in the LogLevel enum)
+ * Frame 2: uint64_t timestamp, localized = 1000 * epoch seconds + milliseconds
+ * Frame 3: UTF8-encoded sender name
+ * Frame 4: UTF8-encoded log message
+ * 
+ * To stop the log server, send this message:
+ * Frame 0: \x55\x01\xFF
  */
 class LogServer {
 public:
