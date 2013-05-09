@@ -141,7 +141,15 @@ void LogServer::start() {
         if (unlikely(!msg)) { //Terminated
             break;
         }
+        size_t msgSize = zmsg_size(msg);
+        if(unlikely(msgSize != 1 && msgSize != 5)) {
+            logger.warn("Received log message of illegal size: " + std::to_string(msgSize));
+            zmsg_destroy(&msg);
+            continue;
+        }
+        assert( == 1 || zmsg_size(msg) == 5);
         zframe_t headerFrame = zmsg_first(msg);
+        assert(headerFrame);
         if (unlikely(isStopServerMessage(headerFrame))) {
             //Log a message that the server is exiting, to all sinks
             //We can't use the logger here because the log message

@@ -37,6 +37,8 @@ Logger::~Logger() {
 void Logger::log(const std::string& message, LogLevel level) {
     //Send the frames individually so no message needs to be allocated
     zframe_t* frame;
+    frame = zframe_new("\x55\x01\x00", 3);
+    assert(!zframe_send(&frame, socket, ZFRAME_MORE));
     frame = zframe_new(&level, sizeof (LogLevel));
     assert(!zframe_send(&frame, socket, ZFRAME_MORE));
     uint64_t currentLogTime = getCurrentLogTime();
