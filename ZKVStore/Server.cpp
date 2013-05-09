@@ -164,7 +164,7 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
 }
 
 KeyValueServer::KeyValueServer(bool dbCompressionEnabled) : ctx(zctx_new()),
-tables(),
+tables(ctx),
 tableOpenServer(ctx, tables.getDatabases(), dbCompressionEnabled),
 externalPullSocket(NULL),
 externalSubSocket(NULL),
