@@ -15,7 +15,7 @@
 #include <ctime>
 
 //This macro checks a zframe_send msg for errors and prints a verbose error message on stderr if any occur
-#define GUARDED_LOGSEND(expr) if(unlikely((expr) != 0)) {fprintf(stderr, "\x1B[31;1m[Error] Logger '%s' failed to send log message '%s' to server, reason: '%s'\x1B[0;30m\n", loggerName.c_str(), message.c_str(), zmq_strerror(errno));}
+#define GUARDED_LOGSEND(expr) if(unlikely((expr) != 0)) {fprintf(stderr, "\x1B[31;1m[Error] Logger '%s' failed to send log message '%s' to log server, reason: '%s'\x1B[0;30m\n", loggerName.c_str(), message.c_str(), zmq_strerror(errno));}
 
 /**
  * Get the 64-bit log time: epoch (secs) * 1000 + epoch-millisecs

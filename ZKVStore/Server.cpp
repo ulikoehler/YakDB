@@ -171,7 +171,7 @@ externalSubSocket(NULL),
 logServer(ctx),
 updateWorkerController(ctx, tables),
 readWorkerController(ctx, tables),
-logger(ctx, "Request router") {
+logger(ctx, "Request     router") {
     const char* reqRepUrl = "tcp://*:7100";
     const char* writeSubscriptionUrl = "tcp://*:7101";
     const char* errorPubUrl = "tcp://*:7102";
