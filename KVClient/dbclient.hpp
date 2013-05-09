@@ -15,13 +15,26 @@
 #include "client.hpp"
 
 /**
+ * The socket type a DKVClient class is currently connected to.
+ * 
+ * Depending on the socket type, different features are supported,
+ * e.g. read requests are only supported on the ReqRep socket type
+ */
+enum class SocketType {
+    None,
+    ReqRep,
+    PushPull,
+    PubSub
+};
+
+/**
  * Macro that checks a Status object. If the status doesn't indicate success, it throws an exception.
  * Useful if you want to shrink your codebase or you don't want to do too much error handling.
  * 
  * Keep in mind, however, that using this macro might have a negative impact on your performance, depending on how your
  * compiler handles exceptions.
  * 
- * Note that some functions throw exceptions independently of this macro
+ * Note that some functions might throw exceptions independently of this macro
  */
 #define checkStatus(expr) {Status macroStatus1415/*Hopefully avoids collisions*/ = expr;if(!status.ok()) {throw new KVDBException(status.getErrorMessage());}}
 
@@ -50,12 +63,23 @@ public:
     /**
      * Connect to a request/reply host.
      * This allows both read and write access, but write requests need to wait for an acknowledge reply.
-     * Therefore the effective (especially burst) transfer rate is a bit lower
+     * Therefore the effective (especially burst) transfer rate is                                                                                                    a bit lower
      * 
-     * @param host
-     * @param port
+     * @param host The host URI, e.g. "tcp://10.10.1.1:7100"
      */
     void connectRequestReply(const char* host) noexcept;
+    /**
+     * Connect to a pull host.
+     * This connection method only allows write requests, but is able to achieve
+     * higher performance than req/rep (with basically unlimited write rate),
+     * but doesn't provide any hard guarantees that the remote server won't be overloaded
+     * by a massive amount of requests or when (and, more importantly, in which order)
+     * requests will be received.
+     * 
+     * void connectRequestReply(const char* host) noexcept;
+     * @param port
+     */
+    void connectPushPull(const char* host) noexcept;
     /**
      * Get the current context in use by this instance.
      * @return 
@@ -129,6 +153,7 @@ private:
     void* socket;
     bool destroyContextOnExit;
     uint64_t writeBatchSize;
+    SocketType socketType;
 };
 
 #endif	/* DBCLIENT_HPP */
