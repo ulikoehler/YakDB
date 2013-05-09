@@ -1,8 +1,8 @@
 Logging:
-	- Logging protocol definition (simple)
 	- Logging to file
-Request receiving over PULL sockets
-Request receiving over SUB sockets
+Request receiving over PULL sockets (client code + testing)
+Request receiving over SUB sockets:
+	- Protocol definition (we need a prefixed message to be able to define server groups via multicast)
 Advanced options for table opening, especially n-bits-per-key bloom filters
 Dynamic spawning of update/read threads
 Post-office-style read-and-update queues, but check performance beforehand
