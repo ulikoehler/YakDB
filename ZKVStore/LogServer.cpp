@@ -155,9 +155,7 @@ void HOT LogServer::start() {
             //won't be received any more
             if (logLevel >= LogLevel::Info) {
                 //Get the current log time
-                struct timeval tv;
-                gettimeofday(&tv, NULL);
-                uint64_t timestamp = ((uint64_t) tv.tv_sec)*1000 + (tv.tv_usec / 1000);
+                uint64_t timestamp = zclock_gettime();
                 for (LogSink* sink : logSinks) {
                     sink->log(LogLevel::Info, timestamp, "Log server", "Log server stopping");
                 }

@@ -21,14 +21,12 @@
  * Get the 64-bit log time: epoch (secs) * 1000 + epoch-millisecs
  */
 static inline uint64_t HOT getCurrentLogTime() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return ((uint64_t) tv.tv_sec)*1000 + (tv.tv_usec / 1000);
+    return zclock_time();
 }
 
 Logger::Logger(zctx_t* ctx, const std::string& name, const std::string& endpoint) : ctx(ctx), loggerName(name) {
     socket = zsocket_new(ctx, ZMQ_PUSH);
-    if(unlikely(socket == nullptr)) {
+    if (unlikely(socket == nullptr)) {
         fprintf(stderr, "\x1B[31;1m[Critical] Failed to create log socket while initializing logger with sender name '%s'\x1B[0;30m\n", loggerName.c_str());
         fflush(stderr);
     }

@@ -17,7 +17,6 @@ public:
     KeyValueServer(bool dbCompressionEnabled = true);
 
     void start();
-
     ~KeyValueServer();
     zctx_t* ctx;
     LogServer logServer;

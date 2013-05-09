@@ -36,7 +36,7 @@ public:
  * Protocol specification (messages from logger to server):
  * Frame 0: Header: Magic byte + protocol version + request type - \x55\x01\x00
  * Frame 1: Log level (1 byte, as defined in the LogLevel enum)
- * Frame 2: uint64_t timestamp, localized = 1000 * epoch seconds + milliseconds
+ * Frame 2: uint64_t timestamp, localized = 1000 * epoch seconds + milliseconds = zclock_gettime()
  * Frame 3: UTF8-encoded sender name
  * Frame 4: UTF8-encoded log message
  * 

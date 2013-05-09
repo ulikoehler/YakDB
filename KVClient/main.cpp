@@ -16,7 +16,8 @@ int main() {
     srand(time(0));
     printf("Starting client...\n");
     DKVClient client;
-    client.connectRequestReply("tcp://localhost:7100");
+//    client.connectRequestReply("tcp://localhost:7100");
+    client.connectPushPull("tcp://localhost:7101");
     //Write some random data
     printErr(client.put(0, "testkey", "testvalue"), "Write testdata");
     for(int i = 0; i < 10000; i++) {
@@ -26,10 +27,10 @@ int main() {
     //
     //Read
     //
-    cout << "Sending read request..." << endl;
-    string readResult = client.read(0, "testkey");
-    //Receive the reply
-    cout << "Got read result: " << readResult << endl;
+//    cout << "Sending read request..." << endl;
+//    string readResult = client.read(0, "testkey");
+//    //Receive the reply
+//    cout << "Got read result: " << readResult << endl;
     //
     //Count
     //
