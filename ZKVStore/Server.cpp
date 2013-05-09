@@ -168,10 +168,10 @@ tables(),
 tableOpenServer(ctx, tables.getDatabases(), dbCompressionEnabled),
 externalPullSocket(NULL),
 externalSubSocket(NULL),
+logServer(ctx),
 updateWorkerController(ctx, tables),
 readWorkerController(ctx, tables),
-logServer(ctx),
-logger(ctx, "Main router") {
+logger(ctx, "Request router") {
     const char* reqRepUrl = "tcp://*:7100";
     const char* writeSubscriptionUrl = "tcp://*:7101";
     const char* errorPubUrl = "tcp://*:7102";
@@ -187,6 +187,8 @@ logger(ctx, "Main router") {
     //(before starting the worker threads the response sockets need to be bound)
     updateWorkerController.start();
     readWorkerController.start();
+    //Notify the user that the server has been started successfully
+    logger.info("Server startup completed");
 }
 
 KeyValueServer::~KeyValueServer() {
