@@ -15,7 +15,7 @@
 #include <ctime>
 
 //This macro checks a zframe_send msg for errors and prints a verbose error message on stderr if any occur
-#define GUARDED_LOGSEND(expr) if(unlikely((expr) != 0)) {fprintf(stderr, "\x1B[31;1m[Error] Logger '%s' failed to send log message '%s' to log server, reason: '%s'\x1B[0;30m\n", loggerName.c_str(), message.c_str(), zmq_strerror(errno));}
+#define GUARDED_LOGSEND(expr) if(unlikely((expr) != 0)) {fprintf(stderr, "\x1B[31;1m[Error] Logger '%s' failed to send log message '%s' to log server, reason: '%s'\x1B[0;30m\n", loggerName.c_str(), message.c_str(), zmq_strerror(errno));fflush(stderr);}
 
 /**
  * Get the 64-bit log time: epoch (secs) * 1000 + epoch-millisecs
@@ -28,14 +28,21 @@ static inline uint64_t HOT getCurrentLogTime() {
 
 Logger::Logger(zctx_t* ctx, const std::string& name, const std::string& endpoint) : ctx(ctx), loggerName(name) {
     socket = zsocket_new(ctx, ZMQ_PUSH);
+    if(unlikely(socket == nullptr)) {
+        fprintf(stderr, "\x1B[31;1m[Critical] Failed to create log socket while initializing logger with sender name '%s'\x1B[0;30m\n", loggerName.c_str());
+        fflush(stderr);
+    }
     if (unlikely(zsocket_connect(socket, endpoint.c_str()))) {
         //All logging will fail if the connect fails,
         // so this is really a critical error. Log it in bold red.
         fprintf(stderr, "\x1B[31;1m[Critical] Failed to connect log source to endpoint '%s' while initializing logger with sender name '%s'\x1B[0;30m\n", endpoint.c_str(), loggerName.c_str());
+        fflush(stderr);
     }
 }
 
 Logger::~Logger() {
+    fprintf(stderr, "Destructing logger '%s'\n", loggerName.c_str());
+    fflush(stderr);
     zsocket_destroy(ctx, socket);
 }
 

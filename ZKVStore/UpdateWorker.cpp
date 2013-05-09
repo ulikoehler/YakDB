@@ -199,7 +199,8 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     //Create the table open helper (creates a socket that sends table open requests)
     TableOpenHelper tableOpenHelper(ctx);
     //Create a thread local log source
-    Logger logSource(ctx, "Update worker");
+    Logger logger(ctx, "Update worker");
+    logger.debug("Update worker thread starting");
     //Create the data structure with all info for the poll handler
     while (true) {
         zmsg_t* msg = zmsg_recv(workPullSocket);
@@ -242,23 +243,23 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         //Process the rest of the frame
         zmsg_t* response;
         if (requestType == PutRequest) {
-            response = handleUpdateRequest(tablespace, msg, tableOpenHelper, logSource, fullsync, responseUnsupported);
+            response = handleUpdateRequest(tablespace, msg, tableOpenHelper, logger, fullsync, responseUnsupported);
         } else if (requestType == DeleteRequest) {
-            response = handleDeleteRequest(tablespace, msg, tableOpenHelper, logSource, fullsync, responseUnsupported);
+            response = handleDeleteRequest(tablespace, msg, tableOpenHelper, logger, fullsync, responseUnsupported);
         } else if (requestType == OpenTableRequest) {
-            response = handleTableOpenRequest(tablespace, msg, tableOpenHelper, logSource, headerFrame, responseUnsupported);
+            response = handleTableOpenRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, responseUnsupported);
             //Set partsync to force the program to respond after finished
             partsync = true;
         } else if (requestType == CloseTableRequest) {
-            response = handleTableCloseRequest(tablespace, msg, tableOpenHelper, logSource, headerFrame, responseUnsupported);
+            response = handleTableCloseRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, responseUnsupported);
             //Set partsync to force the program to respond after finished
             partsync = true;
         } else if (requestType == CompactTableRequest) {
-            response = handleCompactRequest(tablespace, msg, tableOpenHelper, logSource, headerFrame, responseUnsupported);
+            response = handleCompactRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, responseUnsupported);
             //Set partsync to force the code to respond after finishing
             partsync = true;
         } else {
-            logSource.error(std::string("Internal routing error: request type ") + std::to_string(requestType) + " routed to update worker thread!");
+            logger.error(std::string("Internal routing error: request type ") + std::to_string(requestType) + " routed to update worker thread!");
             continue;
         }
         //Cleanup
@@ -282,7 +283,7 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         //Destroy the original message (after replying, reduces delay, even if only by microseconds)
         zmsg_destroy(&msg);
     }
-    logSource.info("Stopping update processor");
+    logger.debug("Stopping update processor");
     zsocket_destroy(ctx, workPullSocket);
     zsocket_destroy(ctx, replyProxySocket);
 }

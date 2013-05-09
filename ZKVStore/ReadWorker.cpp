@@ -180,6 +180,7 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     assert(workPullSocket);
     //Create the log source
     Logger logger(ctx, "Read worker");
+    logger.debug("Read worker thread starting");
     //Create the table open helper (creates a socket that sends table open requests)
     TableOpenHelper tableOpenHelper(ctx);
     //Create the data structure with all info for the poll handler
@@ -216,7 +217,7 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
 
         zmsg_send(&msg, replyProxySocket);
     }
-    logger.info("Read worker thread terminating...");
+    logger.debug("Worker thread terminating");
     zsocket_destroy(ctx, workPullSocket);
     zsocket_destroy(ctx, replyProxySocket);
 }

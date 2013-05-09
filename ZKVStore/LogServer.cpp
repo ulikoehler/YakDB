@@ -119,6 +119,8 @@ LogServer::LogServer(zctx_t* ctx, LogLevel logLevel, const std::string& endpoint
 using namespace std;
 
 LogServer::~LogServer() {
+    fprintf(stderr, "GADGADGQE$QWREZAF\n");
+    fflush(stderr);
     if (thread) {
         //Send the STOP message (single empty frame);
         zframe_t* frame = zframe_new("\x55\x01\xFF", 3);
@@ -126,20 +128,18 @@ LogServer::~LogServer() {
         thread->join(); //Wait until it exits
         delete thread;
     }
-    //Destroy the listening socket
-    zsocket_destroy(ctx, internalSocket);
-    //Destroy all log sinks
-    for (const LogSink* sink : logSinks) {
-        delete sink;
-    }
 }
 
-void LogServer::start() {
+void HOT LogServer::start() {
     Logger logger(ctx, "Log server");
     while (true) {
         zmsg_t* msg = zmsg_recv(internalSocket);
-        if (unlikely(!msg)) { //Terminated
-            break;
+        if (unlikely(!msg)) {
+            //Interrupted (e.g. by SIGINT), but loggers might still want to log something
+            // so we can't exit yet.
+            fprintf(stderr, "-----------------Stopping log server--------------- %s\n", zmq_strerror(errno));
+            fflush(stderr);
+            continue;
         }
         size_t msgSize = zmsg_size(msg);
         if (unlikely(msgSize != 1 && msgSize != 5)) {
@@ -153,7 +153,7 @@ void LogServer::start() {
             //Log a message that the server is exiting, to all sinks
             //We can't use the logger here because the log message
             //won't be received any more
-            if (logLevel <= LogLevel::Info) {
+            if (logLevel >= LogLevel::Info) {
                 //Get the current log time
                 struct timeval tv;
                 gettimeofday(&tv, NULL);
@@ -190,13 +190,18 @@ void LogServer::start() {
         //Cleanup
         zmsg_destroy(&msg);
     }
+    //Cleanup the socket and the sinks
+    zsocket_destroy(ctx, internalSocket);
+    for (const LogSink* sink : logSinks) {
+        delete sink;
+    }
 }
 
 /**
  * Starts a new thread that executes the start() function
  */
 void LogServer::startInNewThread() {
-    thread = new std::thread(std::mem_fun(&LogServer::start), this);
+    this->thread = new std::thread(std::mem_fun(&LogServer::start), this);
 }
 
 void COLD LogServer::setLogLevel(LogLevel logLevel) {

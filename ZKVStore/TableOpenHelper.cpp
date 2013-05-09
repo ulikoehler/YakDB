@@ -76,7 +76,7 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
             }
             //In order to improve performance, we reuse the existing frame, we only modify the first byte (additional bytes shall be ignored)
             zframe_data(tableIdFrame)[0] = 0x00; //0x00 == acknowledge, no error
-            if (unlikely(zmsg_send(&msg, repSocket) == -1)) {
+            if (unlikely(zmsg_send(&msg, repSocket) == -1)) {   
                 logger.error("Communication error while trying to send table open reply: " + std::string(zmq_strerror(errno)));
             }
         } else if (msgType == 0x01) { //Close table
@@ -88,14 +88,14 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
                 delete db;
                 zframe_data(tableIdFrame)[0] = 0x00; //0x00 == acknowledge, no error
             }
-            if (zmsg_send(&msg, repSocket) == -1) {
+            if (unlikely(zmsg_send(&msg, repSocket) == -1)) {
                 logger.error("Communication error while trying to send table open reply: " + std::string(zmq_strerror(errno)));
             }
         } else {
             logger.error("Internal protocol error: Table open server received unkown request type " + std::to_string(msgType));
         }
     }
-    cout << "Stopping table open server" << endl;
+    logger.debug("Stopping table open server");
     //We received an exit msg, cleanup
     zsocket_destroy(context, repSocket);
 }
