@@ -27,9 +27,7 @@ void initializeDirectoryStructure() {
 int main() {
     //Ensure the tables directory exists
     initializeDirectoryStructure();
-    //Create the ZMQ context
-    //Create the object that will be shared between the threadsloop
-    printf("Starting server...\n");
+    //Create & start
     KeyValueServer server;
-    server.start(); //Blocks until interrupt
+    server.start(); //Blocks until interrupted or forced to exit
 }

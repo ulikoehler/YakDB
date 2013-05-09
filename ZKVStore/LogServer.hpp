@@ -8,6 +8,7 @@
 #ifndef LOGSERVER_HPP
 #define	LOGSERVER_HPP
 #include "Logger.hpp"
+#include <thread>
 
 /**
  * A LogSink instance represents the final destination of a log message,
