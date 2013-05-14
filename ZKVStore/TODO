@@ -17,7 +17,7 @@ Map-Reduce Kernel:
 		* Any ZMQ PULL socket (especially multiple ones)
 		* Directly to LLVM (probably over inproc:// PUSH/PULL)
 Graph Kernel:
-	- Re-use code from LevelOSM
+	- Re-use adjacency list code from LevelOSM
 	- Model: Directed graph with arbitrary node IDs
 	- Probably it is better not to use binary node IDs, because escaping tends to cause reallocations
 	- 
