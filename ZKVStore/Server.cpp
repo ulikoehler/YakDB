@@ -14,6 +14,7 @@
 #include "protocol.hpp"
 #include "endpoints.hpp"
 #include "macros.hpp"
+#include "../build/autoconfig.h"
 
 using namespace std;
 
@@ -114,7 +115,10 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         memcpy(serverInfoData + 3, &serverFlags, sizeof (uint64_t));
         //Re-use the header frame and the original message and send the response
         zframe_reset(headerFrame, serverInfoData, responseSize);
-        zmsg_send(&msg, server->externalRepSocket);
+        zframe_send(&headerFrame, server->externalRepSocket, ZFRAME_MORE);
+        //Send the server version info frame
+        zframe_t* infoFrame = zframe_new_zero_copy((void*)SERVER_VERSION, strlen(SERVER_VERSION), doNothingFree, nullptr);
+        zframe_send(&infoFrame, server->externalRepSocket, 0);
     } else {
         server->logger.error("Unknown message type " + std::to_string(requestType) + "from client\n");
     }

@@ -1,6 +1,9 @@
 import os
 import subprocess
 
+#Create the autoconfig header with git revision etc
+#TODO: Find a better place for autoconfig
+
 config = {}
 config["git_rev"] = subprocess.check_output(["git", "rev-parse", "HEAD"]).strip()
 is_clean = subprocess.call(["git", "diff-index", "--quiet", config["git_rev"]]) == 0
