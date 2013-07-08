@@ -4,3 +4,4 @@ tables
 zkv
 *~
 .sconsign.dblite
+autoconfig.h

@@ -11,6 +11,7 @@
 #include "zutil.hpp"
 #include <iostream>
 #include <ctime>
+#include <czmq.h>
 
 static const char* const ESCAPE_BOLD = "\x1B[1m";
 static const char* const ESCAPE_NORMALFONT = "\x1B[0m";
@@ -155,7 +156,7 @@ void HOT LogServer::start() {
             //won't be received any more
             if (logLevel >= LogLevel::Info) {
                 //Get the current log time
-                uint64_t timestamp = zclock_gettime();
+                uint64_t timestamp = zclock_time();
                 for (LogSink* sink : logSinks) {
                     sink->log(LogLevel::Info, timestamp, "Log server", "Log server stopping");
                 }

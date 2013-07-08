@@ -39,7 +39,7 @@ void DKVClient::connectRequestReply(const char* url) noexcept {
     socketType = SocketType::ReqRep;
 }
 
-void DKVClient::connectPushPull(const char* host) noexcept {
+void DKVClient::connectPushPull(const char* url) noexcept {
     socket = zsocket_new(context, ZMQ_PUSH);
     zsocket_connect(socket, url);
     socketType = SocketType::PushPull;
