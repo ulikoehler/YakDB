@@ -184,35 +184,35 @@ Frame 1-n (even numbers): Next value
 Response codes:
     0x00 Success (--> frame 1 contains first value)
     0x10 Error (--> frame 1 contains error description cstring)
-    
--------------------------------
---------Write requests---------
--------------------------------
 
---------------
-Write flags: These flags can optionally be supplied with write requests (bitwise-OR different flags to get the flag bytes
+--------------------------------
+    
+### Write requests
+
+#### Write flags
+
+These flags can optionally be supplied with write requests (bitwise-OR different flags to get the flag bytes)
 
 0x01 PARTSYNC: Hand request to database backend before acknowledging. Does not imply synchronous disk writes.
 0x02 FULLSYNC: Force synchronous write to database
 
 Requests that are not flagged PARTSYNC are called ASYNC.
 The server shall acknowledge as soon as feasible after receiving the message.
-ASYNC replies do not require that the request has been checked for errors before acknowledging.
+ASYNC replies do not guarantee that the request has been checked for errors before acknowledging.
 Using the PARTSYNC flag guarantees any subsequent write request yields the newly written value.
 
 PARTSYNC may not be sent for non-REQ-REP sockets. Sending PARTSYNC over other sockets may lead to undefined behaviour.
 
---------------
-Put request:
+##### Put request
 
 Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 Request type (Put request)] [Optional: Write flags, defaults to 0x00]
-Frame 1-n (odd frame numbers): Key to write to. The next frame specifies the value to write
-Frame 2-n (even frame numbers): Value to write. The previous frame specifies the corresponding key.
+Frame 1: Table number, as 32-bit little-endian unsigned integer
+Frame 2-n (even frame numbers): Key to write to. The next frame specifies the value to write
+Frame 3-n (odd frame numbers): Value to write. The previous frame specifies the corresponding key.
 
 None of the frames may be empty under any circumstances. Empty frames may lead to undefined behaviour.
 
---------------
-Delete request:
+##### Delete request
 
 Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x21 Request type (Delete request)] [Optional: Write flags, defaults to 0x00]
 Frame 1-n: Key to delete (may contain arbitrary byte sequence)

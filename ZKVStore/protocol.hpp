@@ -16,6 +16,7 @@
 #include <iostream>
 #include <string>
 #include <czmq.h>
+#include "macros.hpp"
 using namespace std;
 
 const uint8_t magicByte = 0x31;
@@ -41,7 +42,7 @@ inline static T extractBinary(zframe_t* frame) {
  * @param errorDescription A string reference that is set to an error description if false is returned
  * @return true if and only if the magic byte and the protocol version matches
  */
-inline static bool checkProtocolVersion(const char* data, size_t size, std::string& errorDescription) {
+inline static bool COLD checkProtocolVersion(const char* data, size_t size, std::string& errorDescription) {
     if (size < 3) {
         errorDescription = "Protocol error: Header frame size too small: " + size;
         return false;
