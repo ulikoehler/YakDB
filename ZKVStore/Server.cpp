@@ -56,6 +56,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
     KeyValueServer* server = (KeyValueServer*) arg;
     //Initialize a scoped lock
     zmsg_t *msg = zmsg_recv(server->externalRepSocket);
+    server->logger.trace("Got message");
     if (unlikely(!msg)) {
         return -1;
     }
@@ -117,10 +118,14 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         zframe_reset(headerFrame, serverInfoData, responseSize);
         zframe_send(&headerFrame, server->externalRepSocket, ZFRAME_MORE);
         //Send the server version info frame
-        zframe_t* infoFrame = zframe_new_zero_copy((void*)SERVER_VERSION, strlen(SERVER_VERSION), doNothingFree, nullptr);
+        zframe_t* infoFrame = zframe_new_zero_copy((void*) SERVER_VERSION, strlen(SERVER_VERSION), doNothingFree, nullptr);
         zframe_send(&infoFrame, server->externalRepSocket, 0);
     } else {
-        server->logger.error("Unknown message type " + std::to_string(requestType) + "from client\n");
+        server->logger.error("Unknown message type " + std::to_string(requestType) + " from client\n");
+        //Send a protocol error back to the client
+        //TODO detailed error message frame (see protocol specs)
+        zframe_t* errorFrame = zframe_new("\x31\x01\xFF", 3);
+        zframe_send(&errorFrame, server->externalRepSocket);
     }
     return 0;
 }

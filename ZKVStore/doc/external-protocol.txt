@@ -1,5 +1,13 @@
 # ZeroDB external protocol specification
 
+### Protocol error response
+
+For request/reply sockets, the server uses this response if the
+message type is not recognized by the server.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0xFF Response type (protocol error)]
+* Frame 1 (Optional): NUL-terminated protocol error description
+
 ### Initialization/utility requests
 
 ##### Server info request:
@@ -14,6 +22,9 @@ You can use this to test if a server is online and if it's compatible.
 Frame structure:
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x00 Response type (info response)][8 bytes Supported Features]
 * Frame 1: NUL-Terminated server software info
+
+Supported features size might be expanded in future versions without protocol version change.
+Clients shall therefore ignore additional bytes in the first response frame.
 
 [Supported Features]: 64-bit field, Little-Endian, with bitwise-OR-concatenated flags:
 * 0x01: Server supports on-the-fly table open
@@ -36,9 +47,8 @@ Frame 4: [8 bytes little-endian unsigned integer write buffer size (in bytes) or
 *[Table open flags]*: 8-bit-field, with bitwise-OR-concatenated flags.
 * 0x01: NOCOMPRESSION: If this flag is set the table shall be opened with compression disabled
     
---------------
 
-Table Open response (sent after table has been opened):
+###### Table Open response (sent after table has been opened):
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x01 Response type (open table response)] [1-byte response code]
 * Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded

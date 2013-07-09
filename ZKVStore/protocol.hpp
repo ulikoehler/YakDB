@@ -21,6 +21,12 @@ using namespace std;
 const uint8_t magicByte = 0x31;
 const uint8_t protocolVersion = 0x01;
 
+/**
+ * Utility function to convert frame data to a struct-like type
+ * by casting (no explicit deserialization)s
+ * @param frame
+ * @return 
+ */
 template<typename T>
 inline static T extractBinary(zframe_t* frame) {
     assert(frame);
