@@ -138,7 +138,7 @@ class ZeroDBConnection:
             #Send the value from the last loop iteration
             if nextToSend is not None: self.socket.send(nextToSend, zmq.SNDMORE)
             #Map key to binary data if neccessary
-            value = _convertToBinary(valueDict[key])
+            value = self._convertToBinary(valueDict[key])
             #Send the key and enqueue the value
             self.socket.send(key, zmq.SNDMORE)
             nextToSend = value
@@ -175,17 +175,14 @@ class ZeroDBConnection:
             for value in keys:
                 if value is None:
                     raise ParameterException("Key list contains 'None' value, not mappable to binary")
-                convertedKeys.append(_convertToBinary(value))
-        elif (type(keys) is string) or (type(keys) is int) or (type(keys) is float):
+                convertedKeys.append(self._convertToBinary(value))
+        elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
             #We only have a single value
-            convertedKeys.append(_convertToBinary(value))
+            convertedKeys.append(self._convertToBinary(keys))
         #Check if this connection instance is setup correctly
         self._checkRequestReply()
         #Send header frame
-        flags = 0
-        if partsync: flags |= 1
-        if fullsync: flags |= 2
-        headerStr = "\x31\x01\x10" + chr(flags)
+        headerStr = "\x31\x01\x10"
         self.socket.send(headerStr, zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)

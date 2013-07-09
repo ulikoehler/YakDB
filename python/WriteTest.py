@@ -11,6 +11,3 @@ conn = zerodb.ZeroDBConnection()
 conn.connect("tcp://localhost:7100")
 
 conn.put(1, data)
-
-
-print conn.serverInfo()
