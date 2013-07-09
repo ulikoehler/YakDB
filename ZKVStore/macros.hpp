@@ -37,13 +37,6 @@
 #define likely(x) (x)
 #define unlikely(x) (x)
 #endif
-//TODO Redefine for clang
-#ifdef __clang__
-#undef HOT
-#undef COLD
-#define HOT
-#define COLD
-#endif
 
 #endif
 

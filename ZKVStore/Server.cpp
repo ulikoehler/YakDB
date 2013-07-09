@@ -73,16 +73,20 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         server->logger.error("Got illegal message (unmatching protocol version / magic bytes) from client");
         return 1;
     }
+    server->logger.trace("Got message 2");
     RequestType requestType = (RequestType) (uint8_t) headerData[2];
     if (requestType == RequestType::ReadRequest || requestType == RequestType::CountRequest) {
         //Forward the message to the read worker controller, the response is sent asynchronously
         server->readWorkerController.send(&msg);
+        server->logger.trace("Got message 3");
     } else if (requestType == RequestType::OpenTableRequest
             || requestType == RequestType::CloseTableRequest
             || requestType == RequestType::CompactTableRequest) {
         //Send the message to the update worker (--> processed async)
         server->updateWorkerController.send(&msg);
+        server->logger.trace("Got message 4");
     } else if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
+        server->logger.trace("Got message 5");
         //We reuse the header frame and the routing information to send the acknowledge message
         //The rest of the msg (the table id + data) is directly forwarded to one of the handler threads
         //Get the routing information
@@ -106,6 +110,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
             zmsg_send(&msg, server->externalRepSocket);
         }
     } else if (requestType == RequestType::ServerInfoRequest) {
+        server->logger.trace("Got message 6");
         //Server info requests are answered in the main thread
         const uint64_t serverFlags = SupportOnTheFlyTableOpen | SupportPARTSYNC | SupportFULLSYNC;
         const size_t responseSize = 3/*Metadata*/ + sizeof (uint64_t)/*Flags*/;
@@ -114,18 +119,23 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         serverInfoData[1] = protocolVersion;
         serverInfoData[2] = ServerInfoResponse;
         memcpy(serverInfoData + 3, &serverFlags, sizeof (uint64_t));
-        //Re-use the header frame and the original message and send the response
+        //Send the routing information
+        zframe_send(&addrFrame, server->externalRepSocket, ZFRAME_MORE);
+        zframe_send(&delimiterFrame, server->externalRepSocket, ZFRAME_MORE);
+        //Send response header
         zframe_reset(headerFrame, serverInfoData, responseSize);
         zframe_send(&headerFrame, server->externalRepSocket, ZFRAME_MORE);
-        //Send the server version info frame
+        //Send the server version info frame (declared in autoconfig.h)
         zframe_t* infoFrame = zframe_new_zero_copy((void*) SERVER_VERSION, strlen(SERVER_VERSION), doNothingFree, nullptr);
         zframe_send(&infoFrame, server->externalRepSocket, 0);
     } else {
         server->logger.error("Unknown message type " + std::to_string(requestType) + " from client\n");
         //Send a protocol error back to the client
         //TODO detailed error message frame (see protocol specs)
-        zframe_t* errorFrame = zframe_new("\x31\x01\xFF", 3);
-        zframe_send(&errorFrame, server->externalRepSocket);
+        zframe_send(&addrFrame, server->externalRepSocket, ZFRAME_MORE);
+        zframe_send(&delimiterFrame, server->externalRepSocket, ZFRAME_MORE);
+        zframe_t* errorHeaderFrame = zframe_new((void*) "\x31\x01\xFF", 3);
+        zframe_send(&errorHeaderFrame, server->externalRepSocket, 0);
     }
     return 0;
 }
