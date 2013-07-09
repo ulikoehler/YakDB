@@ -10,6 +10,7 @@ for i in range(1,10000):
 conn = zerodb.ZeroDBConnection()
 conn.connect("tcp://localhost:7100")
 
-conn.writeDict(0, data)
+conn.put(1, data)
+
 
 print conn.serverInfo()

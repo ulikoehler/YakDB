@@ -59,6 +59,22 @@ class ZeroDBConnection:
         if type(value) is not int:
             raise Exception("Can't format object of non-integer type as binary integer")
         self.socket.send(struct.pack('<I', value), zmq.SNDMORE)
+    def _convertToBinary(self, value):
+        """
+        Given a string, float or int value, convert it to binary and return the converted value.
+        Ints are converted to 32-bit little-endian signed integers (uint32_t).
+        Floats are converted to 64-bit little-endian IEEE754 values (double).
+        Numeric values are assumed to be signed.
+        For other types, raise an exception
+        """
+        if type(value) is int:
+            return struct.pack('<i', value)
+        elif type(value) is float:
+            return struct.pack('<d', value)
+        elif type(value) is str:
+            return value
+        else:
+            raise ParameterException("Value '%s' is neither int nor float nor str-type -- not mappable to binary. Please use a binary string for custom types." % value)
     def serverInfo(self):
         """
         Send a server info request to the client
@@ -75,7 +91,7 @@ class ZeroDBConnection:
             raise Exception("Response header frame contains invalid header: %d %d %d" % (ord(responseHeader[0]), ord(responseHeader[1]), ord(responseHeader[2])))
         #Return the server version string
         return replyParts[1]
-    def writeDict(self, tableNo, valueDict, partsync=False, fullsync=False):
+    def put(self, tableNo, valueDict, partsync=False, fullsync=False):
         """
         Write a dictionary of key-value pairs to the connected servers
         
@@ -92,6 +108,7 @@ class ZeroDBConnection:
         #Check parameters
         if type(tableNo) is not int:
             raise ParameterException("Table number parameter is not an integer!")
+        if type(
         #Check if this connection instance is setup correctly
         self._checkConnection()
         #Before sending any frames, check the value dictionary for validity
@@ -118,13 +135,9 @@ class ZeroDBConnection:
         nextToSend = None #Needed because the last value shall be sent w/out SNDMORE
         for key in valueDict.iterkeys():
             #Send the value from the last loop iteration
-            if nextToSend is not None: self.socket.send(value, zmq.SNDMORE)
+            if nextToSend is not None: self.socket.send(nextToSend, zmq.SNDMORE)
             #Map key to binary data if neccessary
-            value = valueDict[key]
-            if type(value) is int:
-                value = struct.pack('<i', value)
-            if type(value) is float:
-                value = struct.pack('<d', value)
+            value = _convertToBinary(valueDict[key])
             #Send the key and enqueue the value
             self.socket.send(key, zmq.SNDMORE)
             nextToSend = value
@@ -141,6 +154,57 @@ class ZeroDBConnection:
             if msgParts[0][3] != '\x00':
                 raise ZeroDBProtocolException("Put response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
         return True
+    def read(self, tableNo, keys):
+        """
+        Read one or multiples values, identified by their keys, from a table.
+        
+        @param tableNo The table number to read from
+        @param keys A list, tuple or single value.
+                        Must only contain strings, ints or floats.
+                        integral types are automatically mapped to signed 32-bit little-endian binary,
+                        floating point types are mapped to signed little-endian 64-bit IEEE754 values.
+                        If you'd like to use another binary representation, use a binary string instead.
+        @return A list of values, correspondent to the key order
+        """
+        #Check parameters and create binary-string only key list
+        if type(tableNo) is not int:
+            raise ParameterException("Table number parameter is not an integer!")
+        convertedKeys = []
+        if type(keys) is list of type(keys) is tuple:
+            for value in keys:
+                if value is None:
+                    raise ParameterException("Key list contains 'None' value, not mappable to binary")
+                convertedKeys.append(_convertToBinary(value)
+        elif type(keys) is string or type(keys) is int or type(keys) is float:
+            #We only have a single value
+            convertedKeys.append(_convertToBinary(value))
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply()
+        #Send header frame
+        flags = 0
+        if partsync: flags |= 1
+        if fullsync: flags |= 2
+        headerStr = "\x31\x01\x10" + chr(flags)
+        self.socket.send(headerStr, zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo)
+        #Send key list
+        nextToSend = None #Needed because the last value shall be sent w/out SNDMORE
+        for key in convertedKeys:
+            #Send the value from the last loop iteration
+            if nextToSend is not None: self.socket.send(nextToSend, zmq.SNDMORE)
+            #Send the key and enqueue the value
+            nextToSend = key
+        #Send last key, without SNDMORE flag
+        self.socket.send(nextToSend)
+        #Wait for reply
+        msgParts = self.socket.recv_multipart(copy=True)
+        if len(msgParts) == 0:
+            raise ZeroDBProtocolException("Received empty reply message")
+        if msgParts[0][2] != '\x10':
+            raise ZeroDBProtocolException("Read response code was %d instead of 0x20" % msgParts[0][2])
+        if msgParts[0][3] != '\x00':
+            raise ZeroDBProtocolException("Read response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
     def __del__(self):
         """Cleanup ZMQ resources. Auto-destroys context if none was given"""
         if self.socket is not None:
