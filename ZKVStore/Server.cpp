@@ -14,7 +14,7 @@
 #include "protocol.hpp"
 #include "endpoints.hpp"
 #include "macros.hpp"
-#include "../build/autoconfig.h"
+#include "../include/autoconfig.h"
 
 using namespace std;
 

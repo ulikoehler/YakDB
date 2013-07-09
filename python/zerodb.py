@@ -108,12 +108,13 @@ class ZeroDBConnection:
         #Check parameters
         if type(tableNo) is not int:
             raise ParameterException("Table number parameter is not an integer!")
-        if type(
+        if type(valueDict) is not dict:
+            raise ParameterException("valueDict parameter must be a dictionary")
         #Check if this connection instance is setup correctly
         self._checkConnection()
         #Before sending any frames, check the value dictionary for validity
         #Else, the socket could be left in an inconsistent state
-        if len(valueDict) is 0:
+        if len(valueDict) == 0:
             raise ParameterException("Dictionary to be written did not contain any valid data!")
         for key in valueDict.iterkeys():
             value = valueDict[key]
@@ -148,7 +149,7 @@ class ZeroDBConnection:
         if self.mode is zmq.REQ:
             msgParts = self.socket.recv_multipart(copy=True)
             if len(msgParts) == 0:
-                raise ZeroDBProtocolException("Received empty reply message")
+                raise ZeroDBProtocolException("Received empty put reply message")
             if msgParts[0][2] != '\x20':
                 raise ZeroDBProtocolException("Put response code was %d instead of 0x20" % msgParts[0][2])
             if msgParts[0][3] != '\x00':
@@ -170,12 +171,12 @@ class ZeroDBConnection:
         if type(tableNo) is not int:
             raise ParameterException("Table number parameter is not an integer!")
         convertedKeys = []
-        if type(keys) is list of type(keys) is tuple:
+        if type(keys) is list or type(keys) is tuple:
             for value in keys:
                 if value is None:
                     raise ParameterException("Key list contains 'None' value, not mappable to binary")
-                convertedKeys.append(_convertToBinary(value)
-        elif type(keys) is string or type(keys) is int or type(keys) is float:
+                convertedKeys.append(_convertToBinary(value))
+        elif (type(keys) is string) or (type(keys) is int) or (type(keys) is float):
             #We only have a single value
             convertedKeys.append(_convertToBinary(value))
         #Check if this connection instance is setup correctly
@@ -200,11 +201,13 @@ class ZeroDBConnection:
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         if len(msgParts) == 0:
-            raise ZeroDBProtocolException("Received empty reply message")
+            raise ZeroDBProtocolException("Received empty read reply message")
         if msgParts[0][2] != '\x10':
             raise ZeroDBProtocolException("Read response code was %d instead of 0x20" % msgParts[0][2])
         if msgParts[0][3] != '\x00':
             raise ZeroDBProtocolException("Read response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
+        #Return the data frames
+        return msgParts[1:]
     def __del__(self):
         """Cleanup ZMQ resources. Auto-destroys context if none was given"""
         if self.socket is not None:
