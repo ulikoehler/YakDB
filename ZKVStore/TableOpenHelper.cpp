@@ -11,6 +11,8 @@
 #include <iostream>
 #include <leveldb/db.h>
 #include <exception>
+#include <dirent.h>
+#include <unistd.h>
 #include "zutil.hpp"
 #include "endpoints.hpp"
 #include "macros.hpp"
@@ -25,7 +27,10 @@ using namespace std;
  * Msg format:c
  *      - STOP THREAD msg: One empty frame
  *      - OPEN/CLOSE TABLE msg:
- *          - A 1-byte frame with content \x00 for open table and \x01 for close table
+ *          - A 1-byte frame with content:
+ *              \x00 for open table,
+ *              \x01 for close table
+ *              \x02 for close & truncate (--> rm -r) table
  *          - A 4-byte frame containing the binary ID
  */
 static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) {
@@ -76,7 +81,7 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
             }
             //In order to improve performance, we reuse the existing frame, we only modify the first byte (additional bytes shall be ignored)
             zframe_data(tableIdFrame)[0] = 0x00; //0x00 == acknowledge, no error
-            if (unlikely(zmsg_send(&msg, repSocket) == -1)) {   
+            if (unlikely(zmsg_send(&msg, repSocket) == -1)) {
                 logger.error("Communication error while trying to send table open reply: " + std::string(zmq_strerror(errno)));
             }
         } else if (msgType == 0x01) { //Close table
@@ -91,8 +96,45 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
             if (unlikely(zmsg_send(&msg, repSocket) == -1)) {
                 logger.error("Communication error while trying to send table open reply: " + std::string(zmq_strerror(errno)));
             }
+        } else if (msgType == 0x02) { //Close & truncate
+            //Close
+            if (databases.size() <= tableIndex || databases[tableIndex] == NULL) {
+                zframe_data(tableIdFrame)[0] = 0x01; //0x01 == Table already closed
+            } else {
+                leveldb::DB* db = databases[tableIndex];
+                databases[tableIndex] = NULL;
+                delete db;
+                zframe_data(tableIdFrame)[0] = 0x00; //0x00 == acknowledge, no error
+            }
+            /**
+             * Truncate, based on the assumption LevelDB only creates files,
+             * but no subdirectories
+             */
+            DIR *dir;
+            string dirname = "tables/" + std::to_string(tableId);
+            struct dirent *ent;
+            if ((dir = opendir (dirname)) != NULL) {
+              while ((ent = readdir (dir)) != NULL) {
+                  string fullFileName = dirname + "/" + std::string(ent->d_name);
+                  logger.trace(fullFileName);
+                  unlink(fullFileName.c_str());
+              }
+              closedir (dir);
+            } else {
+                logger.error("Failed to open dir for truncation: " + dirname);
+                return EXIT_FAILURE;
+            }
+            //Now remove the table directory itself
+            rmdir(dirname.c_str());
+            if (unlikely(zmsg_send(&msg, repSocket) == -1)) {
+                logger.error("Communication error while trying to send table truncate reply: " + std::string(zmq_strerror(errno)));
+            }
         } else {
             logger.error("Internal protocol error: Table open server received unkown request type " + std::to_string(msgType));
+            //Reply anyway
+            if (unlikely(zmsg_send(&msg, repSocket) == -1)) {
+                logger.error("Communication error while trying to send table opener protocol error reply: " + std::string(zmq_strerror(errno)));
+            }
         }
     }
     logger.debug("Stopping table open server");
