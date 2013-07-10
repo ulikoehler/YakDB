@@ -26,8 +26,8 @@ public:
      * Start the worker threads
      */
     void start();
+    void* workerPushSocket; //inproc PUSH socket to communicate to the workers
 private:
-    void* workerPushSocket; //inproc PUSH socket to communicate over
     std::thread** threads;
     Tablespace& tablespace;
     size_t numThreads; //size of this->threads

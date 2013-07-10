@@ -53,7 +53,7 @@ static inline void logZMQError(int error, const char* action, Logger& logger) {
 static inline int receiveLogError(zmq_msg_t* msg, void* sock, Logger& logger) {
     int rc = zmq_msg_recv(msg, sock, 0);
     if(unlikely(rc != 0)) {
-        logger.warn(std::string("Error while receiving message part: " + zmq_strerror(zmq_errno())));
+        logger.warn(std::string("Error while receiving message part: " + std::string(zmq_strerror(zmq_errno()))));
         return 1;
     }
     return 0;
@@ -196,7 +196,7 @@ static inline void recvAndIgnore(void* socket) {
  * 
  * This also works if the message has already been partially read.
  */
-static inline void proxySingleMessage(void* srcSocket, void* dstSocket) {
+static inline void proxyMultipartMessage(void* srcSocket, void* dstSocket) {
     //TODO check errs
     zmq_msg_t msg;
     int rcvmore = 0;
@@ -208,7 +208,7 @@ static inline void proxySingleMessage(void* srcSocket, void* dstSocket) {
         }
         zmq_msg_recv(&msg, srcSocket, 0);
         zmq_getsockopt(srcSocket, ZMQ_RCVMORE, &rcvmore, &rcvmore_size);
-        zmq_msg_send(msg, dstSocket, (rcvmore ? ZMQ_SNDMORE : 0));
+        zmq_msg_send(&msg, dstSocket, (rcvmore ? ZMQ_SNDMORE : 0));
     }
 }
 

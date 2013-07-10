@@ -58,6 +58,7 @@ int proxyWorkerThreadResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) 
 inline static void COLD sendProtocolError(zmq_msg_t* addrFrame, zmq_msg_t* delimiterFrame, void* sock, const std::string& errmsg) {
     zmq_msg_send(addrFrame, sock, ZMQ_SNDMORE);
     zmq_msg_send(delimiterFrame, sock, ZMQ_SNDMORE);
+    sendConstFrame("\x31\x01\xFF", 3, sock, ZMQ_SNDMORE); //Send protocol error header
     sendFrame(errmsg, sock);
 }
 
@@ -72,14 +73,14 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
     //Receive the routing info and the ZeroDB header frame
     zmq_msg_t addrFrame, delimiterFrame, headerFrame;
     if (unlikely(receiveExpectMore(&addrFrame, sock, server->logger))) {
-        logger.error("Frame envelope could not be received correctly");
+        server->logger.error("Frame envelope could not be received correctly");
         //We can't even send back an error message, because the address can't be correct,
         // considering the envelope is missing
         return 0;
     }
     if (!receiveExpectMore(&delimiterFrame, sock, server->logger)) {
         sendProtocolError(&addrFrame, &delimiterFrame, sock, "Received empty message (no ZeroDB header frame)");
-        logger.warn("Client sent empty message (no header frame");
+        server->logger.warn("Client sent empty message (no header frame");
         return 0;
     }
     receiveLogError(&headerFrame, sock, server->logger);
@@ -87,27 +88,23 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         sendProtocolError(&addrFrame, &delimiterFrame, sock,
                 "Received malformed message, header format is not correct: " +
                 describeMalformedHeaderFrame(&headerFrame));
-        logger.warn("Client sent invalid header frame");
+        server->logger.warn("Client sent invalid header frame");
         zmq_msg_close(&headerFrame);
         return 0;
     }
     //Check the header -- send error message if invalid
-    char* headerData = (char*) zmq_msg_data(headerFrame);
-    size_t headerSize = zmq_msg_size(headerFrame);
+    char* headerData = (char*) zmq_msg_data(&headerFrame);
+    size_t headerSize = zmq_msg_size(&headerFrame);
     std::string errmsg; //The error message, if any, will be stored here
-    if (!checkProtocolVersion(headerData, headerSize, errmsg)) {
-        server->logger.warn("Got illegal message (unmatching protocol version / magic bytes) from client");
-        //Send the error message to the client
-        zframe_send(&addrFrame, server->externalRepSocket, ZFRAME_MORE);
-        zframe_send(&delimiterFrame, server->externalRepSocket, ZFRAME_MORE);
-        sendConstFrame("\x31\x01\xFF", 3, server->externalRepSocket, ZMQ_SNDMORE);
-        sendFrame(errmsg, server->externalRepSocket);
-        return -1;
-    }
+
     RequestType requestType = (RequestType) (uint8_t) headerData[2];
     if (requestType == RequestType::ReadRequest || requestType == RequestType::CountRequest) {
         //Forward the message to the read worker controller, the response is sent asynchronously
-        server->readWorkerController.send(&msg);
+        void* dstSocket = server->readWorkerController.workerPushSocket;
+        zmq_msg_send(&addrFrame, dstSocket, ZMQ_SNDMORE);
+        zmq_msg_send(&delimiterFrame, dstSocket, ZMQ_SNDMORE);
+        zmq_msg_send(&headerFrame, dstSocket, ZMQ_SNDMORE);
+        proxyMultipartMessage(sock, dstSocket);
     } else if (requestType == RequestType::OpenTableRequest
             || requestType == RequestType::CloseTableRequest
             || requestType == RequestType::CompactTableRequest
@@ -139,29 +136,32 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         //        }
         //        cout << "F2x " << zframe_size(secondFrame) << endl;
         //        cout << "YYYY" << endl;
-        server->updateWorkerController.send(&msg);
+        void* dstSocket = server->updateWorkerController.workerPushSocket;
+        zmq_msg_send(&addrFrame, dstSocket, ZMQ_SNDMORE);
+        zmq_msg_send(&delimiterFrame, dstSocket, ZMQ_SNDMORE);
+        zmq_msg_send(&headerFrame, dstSocket, ZMQ_SNDMORE);
+        proxyMultipartMessage(sock, dstSocket);
     } else if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
-        //We reuse the header frame and the routing information to send the acknowledge message
-        //The rest of the msg (the table id + data) is directly forwarded to one of the handler threads
-        //Get the routing information
-        zframe_t* routingFrame = zmsg_first(msg);
-        zframe_t* delimiterFrame = zmsg_next(msg);
-        zframe_t* headerFrame = zmsg_next(msg);
-        uint8_t writeFlags = getWriteFlags(headerFrame);
-        //Duplicate the routing frame if we need it later
-        //If partsync is not set (--> immediate reply)
-        // the downstream processor doesn't need the update informatio
-        if (!isPartsync(writeFlags)) {
-            routingFrame = zmsg_unwrap(msg);
+        void* workerSocket = server->updateWorkerController.workerPushSocket;
+        /**
+         * Only for partsync messages the routing info (addr + delim frame)
+         * is forwarded downstream.
+         * For Async messages, the routing info is not forwarded downstream,
+         * just as for PULL/SUB external connections
+         */
+        uint8_t writeFlags = getWriteFlags(&headerFrame);
+        if (isPartsync(writeFlags)) {
+            zmq_msg_send(&addrFrame, workerSocket, ZMQ_SNDMORE);
+            zmq_msg_send(&delimiterFrame, workerSocket, ZMQ_SNDMORE);
         }
         //Send the message to the update worker (--> processed async)
-        server->updateWorkerController.send(&msg);
+        zmq_msg_send(&headerFrame, workerSocket, ZMQ_SNDMORE);
+        proxyMultipartMessage(sock, workerSocket);
         //Send acknowledge message unless PARTSYNC is set (in which case it is sent in the update worker thread)
         if (!isPartsync(writeFlags)) {
-            msg = zmsg_new();
-            zmsg_wrap(msg, routingFrame);
-            zmsg_addmem(msg, "\x31\x01\x20\x00", 4); //Send response code 0x00 (ack)
-            zmsg_send(&msg, server->externalRepSocket);
+            zmq_msg_send(&addrFrame, sock, ZMQ_SNDMORE);
+            zmq_msg_send(&delimiterFrame, sock, ZMQ_SNDMORE);
+            sendConstFrame("\x31\x01\x20\x00", 4, sock); //Send response code 0x00 (ack)
         }
     } else if (requestType == RequestType::ServerInfoRequest) {
         //Server info requests are answered in the main thread
@@ -173,22 +173,24 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         serverInfoData[2] = ServerInfoResponse;
         memcpy(serverInfoData + 3, &serverFlags, sizeof (uint64_t));
         //Send the routing information
-        zframe_send(&addrFrame, server->externalRepSocket, ZFRAME_MORE);
-        zframe_send(&delimiterFrame, server->externalRepSocket, ZFRAME_MORE);
+        zmq_msg_send(&addrFrame, sock, ZMQ_SNDMORE);
+        zmq_msg_send(&delimiterFrame, sock, ZMQ_SNDMORE);
         //Send response header
-        zframe_reset(headerFrame, serverInfoData, responseSize);
-        zframe_send(&headerFrame, server->externalRepSocket, ZFRAME_MORE);
+        sendFrame(serverInfoData, responseSize, sock, ZMQ_SNDMORE);
         //Send the server version info frame (declared in autoconfig.h)
-        zframe_t* infoFrame = zframe_new_zero_copy((void*) SERVER_VERSION, strlen(SERVER_VERSION), doNothingFree, nullptr);
-        zframe_send(&infoFrame, server->externalRepSocket, 0);
+        sendConstFrame(SERVER_VERSION, strlen(SERVER_VERSION), sock);
+        //Dispose non-reused messages
+        zmq_msg_close(&headerFrame);
     } else {
-        server->logger.error("Unknown message type " + std::to_string(requestType) + " from client\n");
+        server->logger.warn("Unknown message type " + std::to_string(requestType) + " from client\n");
         //Send a protocol error back to the client
         //TODO detailed error message frame (see protocol specs)
-        zframe_send(&addrFrame, server->externalRepSocket, ZFRAME_MORE);
-        zframe_send(&delimiterFrame, server->externalRepSocket, ZFRAME_MORE);
-        zframe_t* errorHeaderFrame = zframe_new((void*) "\x31\x01\xFF", 3);
-        zframe_send(&errorHeaderFrame, server->externalRepSocket, 0);
+        sendProtocolError(&addrFrame, &delimiterFrame, sock, "Unknown message type");
+        //Dispose non-reused frames
+        zmq_msg_close(&headerFrame);
+        //There might be more frames of the current msg that clog up the queue
+        // and would lead to nasty bugs. Clear them, if any.
+        recvAndIgnore(sock);
     }
     return 0;
 }

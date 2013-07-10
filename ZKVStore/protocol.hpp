@@ -120,7 +120,7 @@ static inline bool HOT isHeaderFrame(zmq_msg_t* frame) {
     if (size < 3) {
         return false;
     }
-    byte* data = zmq_msg_data(frame);
+    uint8_t* data = (uint8_t*)zmq_msg_data(frame);
     return (data[0] == magicByte && data[1] == protocolVersion);
 }
 
@@ -132,7 +132,7 @@ static inline std::string COLD describeMalformedHeaderFrame(zmq_msg_t* frame) {
     if (size < 3) {
         return "Frame contains " + std::to_string(size) + " characters, but at least 3 are required";
     }
-    byte* data = zmq_msg_data(frame);
+    uint8_t* data = (uint8_t*)zmq_msg_data(frame);
     if (data[0] != magicByte) {
         return "Magic byte should be 0x31 but it is " + std::to_string((int) data[0]);
     }
@@ -142,21 +142,26 @@ static inline std::string COLD describeMalformedHeaderFrame(zmq_msg_t* frame) {
     return "";
 }
 
-inline RequestType getRequestType(zframe_t* frame) {
+static inline RequestType getRequestType(zframe_t* frame) {
     assert(zframe_size(frame) >= 3);
     return (RequestType) zframe_data(frame)[2];
 }
 
-inline uint8_t getWriteFlags(zframe_t* frame) {
+static inline uint8_t getWriteFlags(zframe_t* frame) {
     //Write flags are optional and default to 0x00
     return (zframe_size(frame) >= 4 ? zframe_data(frame)[3] : 0x00);
 }
 
-inline bool isPartsync(uint8_t writeFlags) {
+static inline uint8_t getWriteFlags(zmq_msg_t* frame) {
+    //Write flags are optional and default to 0x00
+    return (zmq_msg_size(frame) >= 4 ? ((uint8_t*)zmq_msg_data(frame))[3] : 0x00);
+}
+
+static inline bool isPartsync(uint8_t writeFlags) {
     return (writeFlags & WriteFlagPARTSYNC);
 }
 
-inline bool isFullsync(uint8_t writeFlags) {
+static inline bool isFullsync(uint8_t writeFlags) {
     return (writeFlags & WriteFlagFULLSYNC);
 }
 
