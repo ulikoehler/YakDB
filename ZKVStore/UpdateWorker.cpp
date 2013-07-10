@@ -111,17 +111,23 @@ static zmsg_t* handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHe
 }
 
 static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, zframe_t* headerFrame, bool noResponse) {
-    //Parse the table ID 
+    //Parse the table ID and advanced parameter frames and check their length
+    //TODO convert asserts to protocol errors
     zframe_t* tableIdFrame = zmsg_next(msg);
     assert(tableIdFrame);
+    assert(zframe_size(tableIdFrame) == 4);
     zframe_t* lruCacheSizeFrame = zmsg_next(msg);
     assert(lruCacheSizeFrame);
+    assert(zframe_size(lruCacheSizeFrame) == 0 || zframe_size(lruCacheSizeFrame) == 8);
     zframe_t* blockSizeFrame = zmsg_next(msg);
     assert(blockSizeFrame);
+    assert(zframe_size(blockSizeFrame) == 0 || zframe_size(blockSizeFrame) == 8);
     zframe_t* writeBufferSizeFrame = zmsg_next(msg);
     assert(writeBufferSizeFrame);
+    assert(zframe_size(writeBufferSizeFrame) == 0 || zframe_size(writeBufferSizeFrame) == 8);
     zframe_t* bloomFilterBitsPerKeyFrame = zmsg_next(msg);
     assert(bloomFilterBitsPerKeyFrame);
+    assert(zframe_size(bloomFilterBitsPerKeyFrame) == 0 || zframe_size(bloomFilterBitsPerKeyFrame) == 8);
     //In order to reuse the frames, the must not be deallocated
     //when the msg parameter is deallocated, so we need to remove it
     zmsg_remove(msg, tableIdFrame);
@@ -249,9 +255,16 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
         // request types processed by the update worker threads, we can distiguish these cases
         zframe_t* firstFrame = zmsg_first(msg);
         zframe_t* secondFrame = zmsg_next(msg);
+        cout << "F1 " << zframe_size(firstFrame) << endl;
+        if(true || zframe_size(firstFrame) != 5) {
+            for (int i = 0; i < zframe_size(firstFrame); i++) {
+                cout << "\t" << i << ":" << (int)zframe_data(firstFrame)[i] << endl;
+            }
+        }
+        cout << "F2 " << zframe_size(secondFrame) << endl;
         zframe_t* headerFrame = nullptr;
         zframe_t* routingFrame = nullptr; //Set to non-null if there is an envelope
-        if (zframe_size(secondFrame) == 0) { //Msg contains envelope
+        if (secondFrame && zframe_size(secondFrame) == 0) { //Msg contains envelope
             headerFrame = zmsg_next(msg);
             routingFrame = firstFrame;
         } else { //No envelope
@@ -314,7 +327,7 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
             //Send the response
             zmsg_send(&responseMsg, replyProxySocket);
         }
-        //Destroy the original message (after replying, reduces delay, even if only by microseconds)
+        //Destroy the original message
         zmsg_destroy(&msg);
     }
     logger.debug("Stopping update processor");

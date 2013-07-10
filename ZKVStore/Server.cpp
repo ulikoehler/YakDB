@@ -50,34 +50,58 @@ int proxyWorkerThreadResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) 
 }
 
 /**
+ * Sends a protocol error message over the given socket.
+ * 
+ * This function is marked COLD, which also affects branch predictions.
+ * Branches that call this function are marked unlikely automatically.
+ */
+inline static void COLD sendProtocolError(zmq_msg_t* addrFrame, zmq_msg_t* delimiterFrame, void* sock, const std::string& errmsg) {
+    zmq_msg_send(addrFrame, sock, ZMQ_SNDMORE);
+    zmq_msg_send(delimiterFrame, sock, ZMQ_SNDMORE);
+    sendFrame(errmsg, sock);
+}
+
+/**
  * Poll handler for the main request/response socket
  */
 static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     KeyValueServer* server = (KeyValueServer*) arg;
-    //Initialize a scoped lock
-    zmsg_t *msg = zmsg_recv(server->externalRepSocket);
-    if (unlikely(!msg)) {
-        return -1;
-    }
+    //In the REQ/REP handler we only use one socket
+    void* sock = server->externalRepSocket;
     //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
-    assert(zmsg_size(msg) >= 3); //return addr + empty delimiter + protocol header [+ data frames]
-    //Extract the frames
-    zframe_t* addrFrame = zmsg_first(msg);
-    zframe_t* delimiterFrame = zmsg_next(msg);
-    zframe_t* headerFrame = zmsg_next(msg);
+    //Receive the routing info and the ZeroDB header frame
+    zmq_msg_t addrFrame, delimiterFrame, headerFrame;
+    if (unlikely(receiveExpectMore(&addrFrame, sock, server->logger))) {
+        logger.error("Frame envelope could not be received correctly");
+        //We can't even send back an error message, because the address can't be correct,
+        // considering the envelope is missing
+        return 0;
+    }
+    if (!receiveExpectMore(&delimiterFrame, sock, server->logger)) {
+        sendProtocolError(&addrFrame, &delimiterFrame, sock, "Received empty message (no ZeroDB header frame)");
+        logger.warn("Client sent empty message (no header frame");
+        return 0;
+    }
+    receiveLogError(&headerFrame, sock, server->logger);
+    if (!isHeaderFrame(&headerFrame)) {
+        sendProtocolError(&addrFrame, &delimiterFrame, sock,
+                "Received malformed message, header format is not correct: " +
+                describeMalformedHeaderFrame(&headerFrame));
+        logger.warn("Client sent invalid header frame");
+        zmq_msg_close(&headerFrame);
+        return 0;
+    }
     //Check the header -- send error message if invalid
-    char* headerData = (char*) zframe_data(headerFrame);
-    size_t headerSize = zframe_size(headerFrame);
+    char* headerData = (char*) zmq_msg_data(headerFrame);
+    size_t headerSize = zmq_msg_size(headerFrame);
     std::string errmsg; //The error message, if any, will be stored here
-    if(!checkProtocolVersion(headerData, headerSize, errmsg)) {
-        server->logger.error("Got illegal message (unmatching protocol version / magic bytes) from client");
+    if (!checkProtocolVersion(headerData, headerSize, errmsg)) {
+        server->logger.warn("Got illegal message (unmatching protocol version / magic bytes) from client");
         //Send the error message to the client
         zframe_send(&addrFrame, server->externalRepSocket, ZFRAME_MORE);
         zframe_send(&delimiterFrame, server->externalRepSocket, ZFRAME_MORE);
-        zframe_t* errorHeaderFrame = zframe_new((void*) "\x31\x01\xFF", 3);
-        zframe_send(&errorHeaderFrame, server->externalRepSocket, ZFRAME_MORE);
-        zframe_t* errorMsgFrame = zframe_new((void*)errmsg.c_str(), errmsg.size());
-        zframe_send(&errorHeaderFrame, server->externalRepSocket, 0);
+        sendConstFrame("\x31\x01\xFF", 3, server->externalRepSocket, ZMQ_SNDMORE);
+        sendFrame(errmsg, server->externalRepSocket);
         return -1;
     }
     RequestType requestType = (RequestType) (uint8_t) headerData[2];
@@ -104,6 +128,17 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
          * In the future, this might be avoided by different worker scheduling
          * algorithms (post office style)
          */
+        //        cout << "XXXX" << endl;
+        //        zframe_t* firstFrame = zmsg_first(msg);
+        //        zframe_t* secondFrame = zmsg_next(msg);
+        //        cout << "F1x " << zframe_size(firstFrame) << endl;
+        //        if(true || zframe_size(firstFrame) != 5) {
+        //            for (int i = 0; i < zframe_size(firstFrame); i++) {
+        //                cout << "\t" << i << ":" << (int)zframe_data(firstFrame)[i] << endl;
+        //            }
+        //        }
+        //        cout << "F2x " << zframe_size(secondFrame) << endl;
+        //        cout << "YYYY" << endl;
         server->updateWorkerController.send(&msg);
     } else if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
         //We reuse the header frame and the routing information to send the acknowledge message

@@ -61,6 +61,17 @@ class ZeroDBConnection:
         if type(value) is not int:
             raise Exception("Can't format object of non-integer type as binary integer")
         self.socket.send(struct.pack('<I', value), (zmq.SNDMORE if more else 0))
+    def _sendBinary64(self, value, more=True):
+        """
+        Send a given int as 64-bit little-endian unsigned integer over self.socket.
+        
+        If no second argument is given, SNDMORE is used as flag
+        
+        This is e.g. used to send a table number frame.
+        """
+        if type(value) is not int:
+            raise Exception("Can't format object of non-integer type as binary integer")
+        self.socket.send(struct.pack('<q', value), (zmq.SNDMORE if sndmore else 0))
     def _convertToBinary(self, value):
         """
         Given a string, float or int value, convert it to binary and return the converted value.
@@ -245,13 +256,15 @@ class ZeroDBConnection:
         self._sendBinary32(tableNo)
         #Send LRU, blocksize and write buffer size
         if lruCacheSize is None: self.socket.send("", zmq.SNDMORE)
-        else: self._sendBinary32(lruCacheSize)
+        else: self._sendBinary64(lruCacheSize)
         if tableBlocksize is None: self.socket.send("", zmq.SNDMORE)
-        else: self._sendBinary32(tableBlocksize)
+        else: self._sendBinary64(tableBlocksize)
         if writeBufferSize is None: self.socket.send("", zmq.SNDMORE)
-        else: self._sendBinary32(writeBufferSize)
+        else: self._sendBinary64(writeBufferSize)
         if bloomFilterBitsPerKey is None: self.socket.send("")
-        else: self._sendBinary32(bloomFilterBitsPerKey, more=False)
+        else: self._sendBinary64(bloomFilterBitsPerKey, more=False)
+        #TODO extract response code and return
+        print self.socket.recv_multipart(copy=True)
     def truncateTable(self, tableNo):
         """
         Close & truncate a table.

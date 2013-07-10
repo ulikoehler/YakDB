@@ -110,6 +110,38 @@ inline bool isHeaderFrame(zframe_t* frame) {
     return (data[0] == magicByte && data[1] == protocolVersion);
 }
 
+/**
+ * Check if a given frame is a header frame.
+ * 
+ * For an error-reporting version of this function, check checkProtocolVersion()
+ */
+static inline bool HOT isHeaderFrame(zmq_msg_t* frame) {
+    size_t size = zmq_msg_size(frame);
+    if (size < 3) {
+        return false;
+    }
+    byte* data = zmq_msg_data(frame);
+    return (data[0] == magicByte && data[1] == protocolVersion);
+}
+
+/**
+ * @return A string that describes why the header frame is malformed, or "" if it is not malformed
+ */
+static inline std::string COLD describeMalformedHeaderFrame(zmq_msg_t* frame) {
+    size_t size = zmq_msg_size(frame);
+    if (size < 3) {
+        return "Frame contains " + std::to_string(size) + " characters, but at least 3 are required";
+    }
+    byte* data = zmq_msg_data(frame);
+    if (data[0] != magicByte) {
+        return "Magic byte should be 0x31 but it is " + std::to_string((int) data[0]);
+    }
+    if (data[1] != protocolVersion) {
+        return "Protocol version should be 0x01 but it is " + std::to_string((int) data[1]);
+    }
+    return "";
+}
+
 inline RequestType getRequestType(zframe_t* frame) {
     assert(zframe_size(frame) >= 3);
     return (RequestType) zframe_data(frame)[2];
