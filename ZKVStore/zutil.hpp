@@ -18,9 +18,7 @@
  * @param action What you did before the error happened
  */
 inline void debugZMQError(const char* action, int error) {
-    if (error == 0) {
-        return;
-    } else {
+    if (error == -1) {
         fprintf(stderr, "Error '%s' occured during action '%s'\n", zmq_strerror(error), action);
         fflush(stderr);
     }
@@ -33,9 +31,7 @@ inline void debugZMQError(const char* action, int error) {
  * @param action What you did before the error happened
  */
 static inline void logZMQError(int error, const char* action, Logger& logger) {
-    if (likely(error == 0)) {
-        return;
-    } else {
+    if (unlikely(error == -1)) {
         logger.error(std::string("Error '") + zmq_strerror(error) + "' occured during action '" + action);
     }
 }
@@ -52,7 +48,7 @@ static inline void logZMQError(int error, const char* action, Logger& logger) {
  */
 static inline int receiveLogError(zmq_msg_t* msg, void* sock, Logger& logger) {
     int rc = zmq_msg_recv(msg, sock, 0);
-    if(unlikely(rc != 0)) {
+    if(unlikely(rc == -1)) {
         logger.warn(std::string("Error while receiving message part: " + std::string(zmq_strerror(zmq_errno()))));
         return 1;
     }
@@ -66,19 +62,17 @@ static inline int receiveLogError(zmq_msg_t* msg, void* sock, Logger& logger) {
  * return != 0 and log a warning message on the logger.
  * 
  * Returns 0 on success.
+ * Returns 1 when the received frame is the last frame.
+ * Returns 2 when an error occured
  * 
  * It won't be logged as error because protocol because the server usually
  * can easily recover from protocol errors.
  */
 static inline int receiveExpectMore(zmq_msg_t* msg, void* sock, Logger& logger) {
     if(unlikely(receiveLogError(msg, sock, logger))) {
-        return 1;
+        return 2;
     }
-    //Check rcvmore
-    int rcvmore = 0;
-    size_t rcvmore_size = sizeof(int);
-    zmq_getsockopt(sock, ZMQ_RCVMORE, &rcvmore, &rcvmore_size);
-    if(unlikely(!rcvmore)) {
+    if(unlikely(!zmq_msg_more(msg))) {
         logger.warn("RCVMORE flag is unset, but we've been expecting more message parts!");
         return 1;
     }
@@ -92,19 +86,18 @@ static inline int receiveExpectMore(zmq_msg_t* msg, void* sock, Logger& logger) 
  * a warning message on the logger.
  * 
  * Returns 0 on success.
+ * Returns 1 when the received frame is the last frame.
+ * Returns 2 when an error occured
  * 
  * It won't be logged as error because protocol because the server usually
  * can easily recover from protocol errors.
  */
 static inline int receiveExpectNoMore(zmq_msg_t* msg, void* sock, Logger& logger) {
     if(unlikely(receiveLogError(msg, sock, logger))) {
-        return 1;
+        return 2;
     }
     //Check rcvmore
-    int rcvmore = 0;
-    size_t rcvmore_size = sizeof(int);
-    zmq_getsockopt(sock, ZMQ_RCVMORE, &rcvmore, &rcvmore_size);
-    if(unlikely(rcvmore)) {
+    if(unlikely(zmq_msg_more(msg))) {
         logger.warn("RCVMORE flag is set, but we've expected the current message part to be the last one!");
         return 1;
     }
@@ -124,7 +117,6 @@ static inline void sendConstFrame(const void* data, size_t size, void* socket, i
         fprintf(stderr, "Error '%s' while trying to initialize message part\n", zmq_strerror(errno));
         fflush(stderr);
     }
-    memcpy(zmq_msg_data(&msg), data, size);
     if(unlikely(zmq_msg_send(&msg, socket, flags) != 0)) {
         fprintf(stderr, "Error '%s' while trying to send message part\n", zmq_strerror(errno));
         fflush(stderr);
@@ -174,6 +166,7 @@ static inline void sendFrame(const std::string& msgStr, void* socket, int flags 
 static inline void recvAndIgnore(void* socket) {
     //TODO check errs
     zmq_msg_t msg;
+    zmq_msg_init(&msg);
     int rcvmore = 0;
     size_t rcvmore_size = sizeof(int);
     while(true) {
@@ -199,6 +192,7 @@ static inline void recvAndIgnore(void* socket) {
 static inline void proxyMultipartMessage(void* srcSocket, void* dstSocket) {
     //TODO check errs
     zmq_msg_t msg;
+    zmq_msg_init(&msg);
     int rcvmore = 0;
     size_t rcvmore_size = sizeof(int);
     zmq_getsockopt(srcSocket, ZMQ_RCVMORE, &rcvmore, &rcvmore_size);
