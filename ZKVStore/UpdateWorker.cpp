@@ -120,12 +120,15 @@ static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpen
     assert(blockSizeFrame);
     zframe_t* writeBufferSizeFrame = zmsg_next(msg);
     assert(writeBufferSizeFrame);
+    zframe_t* bloomFilterBitsPerKeyFrame = zmsg_next(msg);
+    assert(bloomFilterBitsPerKeyFrame);
     //In order to reuse the frames, the must not be deallocated
     //when the msg parameter is deallocated, so we need to remove it
     zmsg_remove(msg, tableIdFrame);
     zmsg_remove(msg, lruCacheSizeFrame);
     zmsg_remove(msg, blockSizeFrame);
     zmsg_remove(msg, writeBufferSizeFrame);
+    zmsg_remove(msg, bloomFilterBitsPerKeyFrame);
     //
     //Parse the flags from the header frame
     //

@@ -206,7 +206,7 @@ class ZeroDBConnection:
             raise ZeroDBProtocolException("Read response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
         #Return the data frames
         return msgParts[1:]
-    def openTable(self, tableNo, compression=True, lruCacheSize=None, tableBlocksize=None, writeBufferSize=None):
+    def openTable(self, tableNo, compression=True, lruCacheSize=None, tableBlocksize=None, writeBufferSize=None, bloomFilterBitsPerKey=None):
         """
         Open a table.
         
@@ -223,6 +223,7 @@ class ZeroDBConnection:
         @param lruCacheSize The LRU cache size in bytes, or None to assume default
         @param tableBlocksize The table block size in bytes, or None to assume default
         @param writeBufferSize The table write buffer size, or None to assume defaults
+        @parameter bloomFilterBitsPerKey If this is set to none, no bloom filter is used, else a bloom filter with the given number of bits per key is used.
         """
         #Check parameters and create binary-string only key list
         if type(tableNo) is not int:
@@ -233,6 +234,8 @@ class ZeroDBConnection:
             raise ParameterException("Table block size parameter is not an integer or None!")
         if writeBufferSize is not None and type(writeBufferSize) is not int:
             raise ParameterException("Write buffer size parameter is not an integer or None!")
+        if bloomFilterBitsPerKey is not None and type(bloomFilterBitsPerKey) is not int:
+            raise ParameterException("Bloom filter bits per key parameter is not an integer or None!")
         #Check if this connection instance is setup correctly
         self._checkRequestReply
         #Send header frame

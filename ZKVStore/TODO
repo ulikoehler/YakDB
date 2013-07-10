@@ -3,15 +3,32 @@ Logging:
 Request receiving over PULL sockets (client code + testing)
 Request receiving over SUB sockets:
 	- Protocol definition (we need a prefixed message to be able to define server groups via multicast)
+Benchmark for python and C++ client
+Expand clients to be able to generate all protocol messages
 Advanced options for table opening, especially n-bits-per-key bloom filters
 Dynamic spawning of update/read threads
 Post-office-style read-and-update queues, but check performance beforehand
+	- Basic idea: PULL socket on the main router Thread, threads write a thread identifier to the socket when they are (almost) finished
+	- To avoid clogging up the main router thread with loads of messages maybe scheduling should be moved to a separate thread
+	- Encapsulate in UpdateWorker/ReadWorker classes
+Use Low Level ZMQ API for performance-critical parts, not malloc-intensive CZMQ
+	- Avoid zmsg_t like stuff, using zmq_msg_t on stack is more efficient where feasible
+	- Check for memleaks carefully!
+ZMQ raw socket HTTP API, see http://hintjens.com/blog:42
+	- Should provide easy access, maybe even a rudimentary interface
+	- Libless interactivity with third-party applications, e.g. for statistics
+	- BUT: Uses another port, so it shall be optional to use it
+	- The docs shall really make clear that it's SLOW. REALLY SLOW. It's not even intended to be fast. ZMQ API ist intended to be fast.
 Copying from one table to another (important for PULL-based load balancing)
+Moving table from one ID to another:
+	- Should be implemented on filesystem level
+		- Close, Truncate, Move directory
+	- Faster than copying
 Multitable defragmentation
 Centralized KV controller with keyspace-division (also related to defragmentation)
 Map-Reduce Kernel:
 	- LLVM JIT interface: Receive LLVM BC over ZMQ and execute that in spawned threads
-	- Protocol definitions
+	- Protocol definitions (partially done)
 	- Architectural diagram
 	- Functionality to scan over a KV table (snapshot!) and pipe that into:
 		* Any ZMQ PULL socket (especially multiple ones)
