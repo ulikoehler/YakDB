@@ -18,6 +18,7 @@
 #include "macros.hpp"
 #include "Tablespace.hpp"
 #include "Logger.hpp"
+#include "protocol.hpp"
 
 using namespace std;
 
@@ -26,7 +27,7 @@ using namespace std;
  * 
  * Msg format:c
  *      - STOP THREAD msg: One empty frame
- *      - OPEN/CLOSE TABLE msg:
+ *      - OPEN/CLOSE/TRUNCATE TABLE msg:
  *          - A 1-byte frame with content:
  *              \x00 for open table,
  *              \x01 for close table
@@ -63,6 +64,13 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
         assert(frameSize == sizeof (TableOpenHelper::IndexType));
         TableOpenHelper::IndexType tableIndex = *((TableOpenHelper::IndexType*)zframe_data(tableIdFrame));
         if (msgType == 0x00) { //Open table
+            //Extract parameters (optional, if zerolength, defaults are assumed)
+            zframe_t* lruCacheSizeFrame = zmsg_next(msg);
+            assert(lruCacheSizeFrame);
+            zframe_t* blockSizeFrame = zmsg_next(msg);
+            assert(blockSizeFrame);
+            zframe_t* writeBufferSizeFrame = zmsg_next(msg);
+            assert(writeBufferSizeFrame);
             //Resize if neccessary
             if (databases.size() <= tableIndex) {
                 databases.reserve(tableIndex + 16); //Avoid large vectors
@@ -73,6 +81,17 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
                 leveldb::Options options;
                 options.create_if_missing = true;
                 options.compression = (dbCompressionEnabled ? leveldb::kSnappyCompression : leveldb::kNoCompression);
+                //Set optional parameters
+                if (zframe_size(lruCacheSizeFrame) != 0) {
+                    options.write_buffer_size = extractBinary<uint64_t>(lruCacheSizeFrame);
+                }
+                if (zframe_size(blockSizeFrame) != 0) {
+                    options.write_buffer_size = extractBinary<uint64_t>(blockSizeFrame);
+                }
+                if (zframe_size(writeBufferSizeFrame) != 0) {
+                    options.write_buffer_size = extractBinary<uint64_t>(writeBufferSizeFrame);
+                }
+                //Open the table
                 std::string tableName = "tables/" + std::to_string(tableIndex);
                 leveldb::Status status = leveldb::DB::Open(options, tableName.c_str(), &databases[tableIndex]);
                 if (unlikely(!status.ok())) {
@@ -203,6 +222,28 @@ void HOT TableOpenHelper::openTable(TableOpenHelper::IndexType index) {
     zmsg_t* msg = zmsg_new();
     zmsg_addmem(msg, "\x00", 1);
     zmsg_addmem(msg, &index, sizeof (TableOpenHelper::IndexType));
+    //Assume default for all optional parameters
+    zmsg_add(msg, zframe_new("",0)); //LRU cache size
+    zmsg_add(msg, zframe_new("",0)); //Block size
+    zmsg_add(msg, zframe_new("",0)); //Write buffer size
+    if (unlikely(zmsg_send(&msg, reqSocket) == -1)) {
+        logger.critical("Open table message send failed: " + std::string(zmq_strerror(errno)));
+    }
+    //Wait for the reply (reply content is ignored)
+    msg = zmsg_recv(reqSocket); //Blocks until reply received
+    if (msg != nullptr) {
+        zmsg_destroy(&msg);
+    }
+}
+
+void HOT TableOpenHelper::openTable(zframe_t* tableIdFrame, zframe_t* lruCacheSizeFrame, zframe_t* tableBlockSizeFrame, zframe_t* writeBufferSizeFrame) {
+    //Just send a message containing the table index to the opener thread
+    zmsg_t* msg = zmsg_new();
+    zmsg_addmem(msg, "\x00", 1);
+    zmsg_add(msg, tableIdFrame);
+    zmsg_add(msg, lruCacheSizeFrame);
+    zmsg_add(msg, tableBlockSizeFrame);
+    zmsg_add(msg, writeBufferSizeFrame);
     if (unlikely(zmsg_send(&msg, reqSocket) == -1)) {
         logger.critical("Open table message send failed: " + std::string(zmq_strerror(errno)));
     }

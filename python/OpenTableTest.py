@@ -10,4 +10,4 @@ for i in range(1,10000):
 conn = zerodb.ZeroDBConnection()
 conn.connect("tcp://localhost:7100")
 
-conn.truncateTable(1)
+conn.openTable(128)

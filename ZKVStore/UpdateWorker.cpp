@@ -111,16 +111,26 @@ static zmsg_t* handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHe
 }
 
 static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, zframe_t* headerFrame, bool noResponse) {
-    //Parse the table ID
-    uint32_t tableId = extractBinary<uint32_t>(zmsg_next(msg));
+    //Parse the table ID 
+    zframe_t* tableIdFrame = zmsg_next(msg);
+    assert(tableIdFrame);
+    zframe_t* lruCacheSizeFrame = zmsg_next(msg);
+    assert(lruCacheSizeFrame);
+    zframe_t* blockSizeFrame = zmsg_next(msg);
+    assert(blockSizeFrame);
+    zframe_t* writeBufferSizeFrame = zmsg_next(msg);
+    assert(writeBufferSizeFrame);
+    //In order to reuse the frames, the must not be deallocated
+    //when the msg parameter is deallocated, so we need to remove it
+    zmsg_remove(msg, tableIdFrame);
+    zmsg_remove(msg, lruCacheSizeFrame);
+    zmsg_remove(msg, blockSizeFrame);
+    zmsg_remove(msg, writeBufferSizeFrame);
     //
     //Parse the flags from the header frame
     //
-    uint64_t lruCache = extractBinary<uint64_t>(zmsg_next(msg));
-    uint64_t tableBlocksize = extractBinary<uint64_t>(zmsg_next(msg));
-    uint64_t writeCache = extractBinary<uint64_t>(zmsg_next(msg));
     //Open the table
-    helper.openTable(tableId);
+    helper.openTable(tableIdFrame, lruCacheSizeFrame, blockSizeFrame, writeBufferSizeFrame);
     //Rewrite the header frame for the response
     //Create the response if neccessary
     zmsg_t* response = nullptr;

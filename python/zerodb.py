@@ -50,7 +50,7 @@ class ZeroDBConnection:
             raise Exception("Please connect to server before using serverInfo (use ZeroDBConnection.connect()!")
         if not self.isConnected:
             raise Exception("Current ZeroDBConnection is setup, but not connected. Please connect before usage!")
-    def _sendBinary32(self, value, flags=zmq.SNDMORE):
+    def _sendBinary32(self, value, more=True):
         """
         Send a given int as 32-bit little-endian unsigned integer over self.socket.
         
@@ -60,7 +60,7 @@ class ZeroDBConnection:
         """
         if type(value) is not int:
             raise Exception("Can't format object of non-integer type as binary integer")
-        self.socket.send(struct.pack('<I', value), flags)
+        self.socket.send(struct.pack('<I', value), (zmq.SNDMORE if more else 0))
     def _convertToBinary(self, value):
         """
         Given a string, float or int value, convert it to binary and return the converted value.
@@ -206,7 +206,48 @@ class ZeroDBConnection:
             raise ZeroDBProtocolException("Read response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
         #Return the data frames
         return msgParts[1:]
-    def truncate(self, tableNo):
+    def openTable(self, tableNo, compression=True, lruCacheSize=None, tableBlocksize=None, writeBufferSize=None):
+        """
+        Open a table.
+        
+        This is usually not neccessary, because tables are opened on-the-fly
+        when they are accessed. Opening tables is slow, however,
+        so this decreases latency and counteracts the possibility
+        of work piling up for threads that are waiting for a table to be opened.
+        
+        Additionally, this method of opening tables allows settings all
+        table parameters whereas on-the-fly-open always assumes defaults
+        
+        @param tableNo The table number to truncate
+        @param compression Set this to false to disable blocklevel snappy compression
+        @param lruCacheSize The LRU cache size in bytes, or None to assume default
+        @param tableBlocksize The table block size in bytes, or None to assume default
+        @param writeBufferSize The table write buffer size, or None to assume defaults
+        """
+        #Check parameters and create binary-string only key list
+        if type(tableNo) is not int:
+            raise ParameterException("Table number parameter is not an integer!")
+        if lruCacheSize is not None and type(lruCacheSize) is not int:
+            raise ParameterException("LRU cache size parameter is not an integer or None!")
+        if tableBlocksize is not None and type(tableBlocksize) is not int:
+            raise ParameterException("Table block size parameter is not an integer or None!")
+        if writeBufferSize is not None and type(writeBufferSize) is not int:
+            raise ParameterException("Write buffer size parameter is not an integer or None!")
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply
+        #Send header frame
+        headerFrame = "\x31\x01\x01" + ("\x00" if compression else "\x01")
+        self.socket.send(headerFrame, zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo)
+        #Send LRU, blocksize and write buffer size
+        if lruCacheSize is None: self.socket.send("", zmq.SNDMORE)
+        else: self._sendBinary32(lruCacheSize)
+        if tableBlocksize is None: self.socket.send("", zmq.SNDMORE)
+        else: self._sendBinary32(tableBlocksize)
+        if writeBufferSize is None: self.socket.send("")
+        else: self._sendBinary32(writeBufferSize, more=False)
+    def truncateTable(self, tableNo):
         """
         Close & truncate a table.
         

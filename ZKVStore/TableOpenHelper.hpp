@@ -44,7 +44,21 @@ public:
     //Constructor
     TableOpenHelper(zctx_t* context);
     ~TableOpenHelper();
+    /**
+     * Simple table open without additional parameters
+     * @param index
+     */
     void openTable(IndexType index);
+    /**
+     * Advanced table open with all optional parameters.
+     * Table ID is 32-bit little-endian, other parameters 
+     * must be 64-bit little-endian
+     * @param tableIdFrame: Frame of size 4, must not be empty
+     * @param lruCacheSizeFrame optional parameter, empty if default shall be assumed
+     * @param tableBlockSizeFrame optional parameter, empty if default shall be assumed
+     * @param writeBufferSizeFrame optional parameter, empty if default shall be assumed
+     */
+    void openTable(zframe_t* tableIdFrame, zframe_t* lruCacheSizeFrame, zframe_t* tableBlockSizeFrame, zframe_t* writeBufferSizeFrame);
     void closeTable(IndexType index);
     void truncateTable(IndexType index);
 private:
