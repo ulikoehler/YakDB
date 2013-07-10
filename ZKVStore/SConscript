@@ -5,7 +5,7 @@ env = Environment(CXXFLAGS=["-std=c++0x","-march=core2"],ENV =
                          'TERM' : os.environ['TERM'],
                          'HOME' : os.environ['HOME']})
 
-libraries = ["zmq","czmq","leveldb"]
+libraries = ["zmq","czmq","leveldb","jemalloc"]
 
 zkvSource =  ["zutil.cpp",
     "main.cpp",

@@ -72,7 +72,11 @@ static zmsg_t* handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHel
  * Handle compact requests. Note that, in contrast to Update/Delete requests,
  * performance doesn't really matter here because compacts are incredibly time-consuming.
  * In many cases they need to rewrite almost the entire databases, especially in the common
- * use caseof compacting the entire database
+ * usecas eof compacting the entire database.
+ * 
+ * It also shouldn't matter that the compact request blocks the thread (at least not for now).
+ * Compact request shouldn't happen too often, in the worst case a lot of work
+ * for the current thread piles up.
  * @param tables
  * @param msg
  * @param helper
@@ -131,6 +135,19 @@ static zmsg_t* handleTableCloseRequest(Tablespace& tables, zmsg_t* msg, TableOpe
     uint32_t tableId = extractBinary<uint32_t>(zmsg_next(msg));
     //Close the table
     tables.closeTable(tableId);
+    //Create the response
+    zmsg_t* response = nullptr;
+    if (!noResponse) {
+        response = zmsg_new();
+        zmsg_addmem(response, "\x31\x01\x20\x01", 4);
+    }
+    return response;
+}
+
+static zmsg_t* handleTableTruncateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, zframe_t* headerFrame, bool noResponse) {
+    uint32_t tableId = extractBinary<uint32_t>(zmsg_next(msg));
+    //Close the table
+    helper.truncateTable(tableId);
     //Create the response
     zmsg_t* response = nullptr;
     if (!noResponse) {
@@ -256,6 +273,10 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
             partsync = true;
         } else if (requestType == CompactTableRequest) {
             response = handleCompactRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, responseUnsupported);
+            //Set partsync to force the code to respond after finishing
+            partsync = true;
+        } else if (requestType == TruncateTableRequest) {
+            response = handleTableTruncateRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, responseUnsupported);
             //Set partsync to force the code to respond after finishing
             partsync = true;
         } else {

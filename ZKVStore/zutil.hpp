@@ -25,6 +25,48 @@ inline void debugZMQError(const char* action, int error) {
 }
 
 
+/**
+ * Send constant data over a socket using zero-copy as far as possible.
+ * Uses ZMQ low-level API 
+ */
+static inline void sendConstFrame(const void* data, size_t size, void* socket, int flags = 0) {
+    //TODO check errs
+    zmq_msg_t msg;
+    zmq_msg_init_data(&msg, (void*)data, size, nullptr, nullptr);
+    zmq_msg_send(&msg, socket, flags);
+}
+
+/**
+ * Send nonconstant data over a socket.
+ * Uses ZMQ low-level API 
+ */
+static inline void sendFrame(const void* data, size_t size, void* socket, int flags = 0) {
+    //TODO check errs
+    zmq_msg_t msg;
+    zmq_msg_init_size(&msg, size);
+    memcpy(zmq_msg_data(&msg), data, size);
+    zmq_msg_send(&msg, socket, flags);
+}
+/**
+ * Receives frames from the given socket until ZMQ_RCVMORE is false.
+ * Releases any received frame immediately
+ */
+static inline void recvAndIgnore(void* socket) {
+    //TODO check errs
+    zmq_msg_t msg;
+    int rcvmore = 0;
+    size_t rcvmore_size = sizeof(int);
+    while(true) {
+        zmq_msg_recv(&msg, socket, 0);
+        zmq_msg_close(&msg);
+        zmq_getsockopt(socket, ZMQ_RCVMORE, &rcvmore, &rcvmore_size);
+        if(!rcvmore) {
+            break;
+        }
+    }
+}
+
+
 
 /**
  * ZMQ zero-copy free function that uses standard C free

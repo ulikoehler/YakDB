@@ -97,44 +97,54 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
                 logger.error("Communication error while trying to send table open reply: " + std::string(zmq_strerror(errno)));
             }
         } else if (msgType == 0x02) { //Close & truncate
-            //Close
-            if (databases.size() <= tableIndex || databases[tableIndex] == NULL) {
-                zframe_data(tableIdFrame)[0] = 0x01; //0x01 == Table already closed
-            } else {
+            uint8_t responseCode = 0x00;
+            //Close if not already closed
+            if (!(databases.size() <= tableIndex || databases[tableIndex] == nullptr)) {
                 leveldb::DB* db = databases[tableIndex];
-                databases[tableIndex] = NULL;
+                databases[tableIndex] = nullptr;
                 delete db;
-                zframe_data(tableIdFrame)[0] = 0x00; //0x00 == acknowledge, no error
             }
             /**
              * Truncate, based on the assumption LevelDB only creates files,
              * but no subdirectories
              */
             DIR *dir;
-            string dirname = "tables/" + std::to_string(tableId);
+            string dirname = "tables/" + std::to_string(tableIndex);
             struct dirent *ent;
-            if ((dir = opendir (dirname)) != NULL) {
-              while ((ent = readdir (dir)) != NULL) {
-                  string fullFileName = dirname + "/" + std::string(ent->d_name);
-                  logger.trace(fullFileName);
-                  unlink(fullFileName.c_str());
-              }
-              closedir (dir);
+            std::string dotDir = ".";
+            std::string dotdotDir = "..";
+            if ((dir = opendir(dirname.c_str())) != NULL) {
+                while ((ent = readdir(dir)) != NULL) {
+                    //Skip . and ..
+                    if (dotDir == ent->d_name || dotdotDir == ent->d_name) {
+                        continue;
+                    }
+                    string fullFileName = dirname + "/" + std::string(ent->d_name);
+                    logger.trace(fullFileName);
+                    unlink(fullFileName.c_str());
+                }
+                closedir(dir);
+                responseCode = 0x00; //0x00 == acknowledge, no error
             } else {
-                logger.error("Failed to open dir for truncation: " + dirname);
-                return EXIT_FAILURE;
+                //For now we just assume, error means it does not exist
+                logger.trace("Tried to truncate " + dirname + " but it does not exist");
+                responseCode = 0x01; //ACK, deletion not neccesary
             }
             //Now remove the table directory itself
+            //Errors (e.g. for nonexistent dirs) do not exist
             rmdir(dirname.c_str());
-            if (unlikely(zmsg_send(&msg, repSocket) == -1)) {
-                logger.error("Communication error while trying to send table truncate reply: " + std::string(zmq_strerror(errno)));
-            }
+            logger.debug("Truncated table in " + dirname);
+            sendConstFrame(&responseCode, 1, repSocket);
         } else {
             logger.error("Internal protocol error: Table open server received unkown request type " + std::to_string(msgType));
             //Reply anyway
             if (unlikely(zmsg_send(&msg, repSocket) == -1)) {
                 logger.error("Communication error while trying to send table opener protocol error reply: " + std::string(zmq_strerror(errno)));
             }
+        }
+        //Destroy the message if it hasn't been sent or destroyed before
+        if (msg != nullptr) {
+            zmsg_destroy(&msg);
         }
     }
     logger.debug("Stopping table open server");
@@ -198,7 +208,7 @@ void HOT TableOpenHelper::openTable(TableOpenHelper::IndexType index) {
     }
     //Wait for the reply (reply content is ignored)
     msg = zmsg_recv(reqSocket); //Blocks until reply received
-    if (msg != NULL) {
+    if (msg != nullptr) {
         zmsg_destroy(&msg);
     }
 }
@@ -217,6 +227,26 @@ void COLD TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {
         debugZMQError("Receive reply from table opener", errno);
     }
     zmsg_destroy(&msg);
+}
+
+void COLD TableOpenHelper::truncateTable(TableOpenHelper::IndexType index) {
+    //Just send a message containing the table index to the opener thread
+    /**
+     * Note: The reason this doesn't use CZMQ even if efficiency does not matter
+     * is that repeated calls using CZMQ API cause SIGSEGV somewhere inside calloc.
+     */
+    sendConstFrame("\x02", 1, reqSocket, ZMQ_SNDMORE);
+    sendFrame(&index, sizeof (IndexType), reqSocket);
+    /*if (unlikely(zmsg_send(&msg, reqSocket) == -1)) {
+        logger.critical("Truncate table message send failed: " + std::string(zmq_strerror(errno)));
+    }*/
+    //Wait for the reply (it's empty but that does not matter)
+    recvAndIgnore(reqSocket);
+    /*zmsg_t* msg = zmsg_recv(reqSocket); //Blocks until reply received
+    if (unlikely(!msg)) {
+        debugZMQError("Receive reply from table opener", errno);
+    }
+    zmsg_destroy(&msg);*/
 }
 
 COLD TableOpenHelper::~TableOpenHelper() {

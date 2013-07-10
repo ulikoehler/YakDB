@@ -50,15 +50,17 @@ class ZeroDBConnection:
             raise Exception("Please connect to server before using serverInfo (use ZeroDBConnection.connect()!")
         if not self.isConnected:
             raise Exception("Current ZeroDBConnection is setup, but not connected. Please connect before usage!")
-    def _sendBinary32(self, value):
+    def _sendBinary32(self, value, flags=zmq.SNDMORE):
         """
-        Send a given int as 32-bit little-endian unsigned integer over self.socket, with SNDMORE
+        Send a given int as 32-bit little-endian unsigned integer over self.socket.
+        
+        If no second argument is given, SNDMORE is used as flag
         
         This is e.g. used to send a table number frame.
         """
         if type(value) is not int:
             raise Exception("Can't format object of non-integer type as binary integer")
-        self.socket.send(struct.pack('<I', value), zmq.SNDMORE)
+        self.socket.send(struct.pack('<I', value), flags)
     def _convertToBinary(self, value):
         """
         Given a string, float or int value, convert it to binary and return the converted value.
@@ -182,8 +184,7 @@ class ZeroDBConnection:
         #Check if this connection instance is setup correctly
         self._checkRequestReply()
         #Send header frame
-        headerStr = "\x31\x01\x10"
-        self.socket.send(headerStr, zmq.SNDMORE)
+        self.socket.send("\x31\x01\x10", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send key list
@@ -205,6 +206,22 @@ class ZeroDBConnection:
             raise ZeroDBProtocolException("Read response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
         #Return the data frames
         return msgParts[1:]
+    def truncate(self, tableNo):
+        """
+        Close & truncate a table.
+        
+        @param tableNo The table number to truncate
+        @return
+        """
+        #Check parameters and create binary-string only key list
+        if type(tableNo) is not int:
+            raise ParameterException("Table number parameter is not an integer!")
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply
+        #Send header frame
+        self.socket.send("\x31\x01\x04", zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo, 0) #No SNDMORE flag
     def __del__(self):
         """Cleanup ZMQ resources. Auto-destroys context if none was given"""
         if self.socket is not None:

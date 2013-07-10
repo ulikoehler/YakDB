@@ -46,6 +46,7 @@ public:
     ~TableOpenHelper();
     void openTable(IndexType index);
     void closeTable(IndexType index);
+    void truncateTable(IndexType index);
 private:
     void* reqSocket; //This ZMQ socket is used to send requests
     zctx_t* context;

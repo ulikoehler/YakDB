@@ -86,8 +86,24 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         server->readWorkerController.send(&msg);
     } else if (requestType == RequestType::OpenTableRequest
             || requestType == RequestType::CloseTableRequest
-            || requestType == RequestType::CompactTableRequest) {
-        //Send the message to the update worker (--> processed async)
+            || requestType == RequestType::CompactTableRequest
+            || requestType == RequestType::TruncateTableRequest) {
+        /**
+         * Table open/close/compact/truncate requests are redirected to the table opener
+         *  in the update threads in order to avoid introducing overhead
+         * by starting specific threads.
+         * 
+         * These requests should are not expected to arrive in high-load situations
+         * but merely provide a convenience tool for interactive access.
+         * 
+         * In the worst case, some work piles up for a compacting thread, but
+         * as compacting is not the kind of operation you want to do while
+         * heavily writing to the database anyway, this is considered
+         * a non-bug and improvement only
+         * 
+         * In the future, this might be avoided by different worker scheduling
+         * algorithms (post office style)
+         */
         server->updateWorkerController.send(&msg);
     } else if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
         //We reuse the header frame and the routing information to send the acknowledge message
@@ -171,7 +187,8 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         server->updateWorkerController.send(&msg);
     } else if (requestType == RequestType::OpenTableRequest
             || requestType == RequestType::CloseTableRequest
-            || requestType == RequestType::CompactTableRequest) {
+            || requestType == RequestType::CompactTableRequest
+            || requestType == RequestType::TruncateTableRequest) {
         //Send the message to the update worker (--> processed async)
         server->updateWorkerController.send(&msg);
     } else if (unlikely(requestType == RequestType::ReadRequest || requestType == RequestType::CountRequest)) {

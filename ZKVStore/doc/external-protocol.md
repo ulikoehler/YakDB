@@ -2,7 +2,10 @@
 
 ## General behaviour
 
-For request/reply sockets the server shall
+For request/reply sockets the server shall always send an response.
+The server shall send responses as soon as possible.
+
+If a message isn't recognizable by the server, it shall send this protocol error message.
 
 ### Protocol error response
 
@@ -98,6 +101,17 @@ Response codes:
 * 0x00 Success (--> frame 1 not present)
 * 0x10 Error (--> frame 1 contains error description cstring)
 
+###### Truncate request
+
+Close a table and truncate all its contents.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x04 Request type (truncate request)]
+* Frame 1: 4-byte little-endian unsigned table number
+
+###### Truncate response
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x04 Request type (truncate response)]
+
 -------------------------------
 
 ## Read-only requests
@@ -176,7 +190,7 @@ Response codes:
 
 Read a range of keys at once ("read range request")
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x10 Request type (scan request)]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x13 Request type (scan request)]
 * Frame 1: 4-byte little-endian unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 3: End key (inclusive). If this has zero length, the count ends at the last key
@@ -237,3 +251,29 @@ Response codes:
 * 0x10 Error while processing request (implies Frame 1 being existing)
 
 Note: If not using PARTSYNC or FULLSYNC flags, the server will send a non-error acknowledge code
+
+-------------------------------
+
+## Data processing requests
+
+##### Forward range to socket request
+
+Read a range of keys at once ("read range request")
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x40 Request type (Forward range to socket request)]
+* Frame 1: 4-byte little-endian unsigned table number
+* Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
+* Frame 3: End key (inclusive). If this has zero length, the count ends at the last key
+* Frame 4-n: PULL Endpoints to connect to. Put requests (spec: see above) will be sent to these sockets.
+            Endpoints may not be inproc:// and shall be addressible to the server
+* Frame n+1: Empty delimiter frame
+* Frame (n+2)-n: SUB endpoints to send progress messages to.
+
+No frame, except the delimiter frame, may be empty.
+
+The server may spawn a new thread to serve the request.
+Replying to the request does not indicate any kind of success.
+
+##### Forward range to socket response
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x40 Response type (Forward range to socket response)]
