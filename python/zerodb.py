@@ -248,8 +248,10 @@ class ZeroDBConnection:
         else: self._sendBinary32(lruCacheSize)
         if tableBlocksize is None: self.socket.send("", zmq.SNDMORE)
         else: self._sendBinary32(tableBlocksize)
-        if writeBufferSize is None: self.socket.send("")
-        else: self._sendBinary32(writeBufferSize, more=False)
+        if writeBufferSize is None: self.socket.send("", zmq.SNDMORE)
+        else: self._sendBinary32(writeBufferSize)
+        if bloomFilterBitsPerKey is None: self.socket.send("")
+        else: self._sendBinary32(bloomFilterBitsPerKey, more=False)
     def truncateTable(self, tableNo):
         """
         Close & truncate a table.

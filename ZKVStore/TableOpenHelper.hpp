@@ -57,8 +57,9 @@ public:
      * @param lruCacheSizeFrame optional parameter, empty if default shall be assumed
      * @param tableBlockSizeFrame optional parameter, empty if default shall be assumed
      * @param writeBufferSizeFrame optional parameter, empty if default shall be assumed
+     * @param bloomFilterBitsPerKeyFrame optional parameter, empty if default shall be assumed
      */
-    void openTable(zframe_t* tableIdFrame, zframe_t* lruCacheSizeFrame, zframe_t* tableBlockSizeFrame, zframe_t* writeBufferSizeFrame);
+    void openTable(zframe_t* tableIdFrame, zframe_t* lruCacheSizeFrame, zframe_t* tableBlockSizeFrame, zframe_t* writeBufferSizeFrame, zframe_t* bloomFilterBitsPerKeyFrame);
     void closeTable(IndexType index);
     void truncateTable(IndexType index);
 private:

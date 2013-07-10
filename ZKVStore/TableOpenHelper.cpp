@@ -10,6 +10,8 @@
 #include <cassert>
 #include <iostream>
 #include <leveldb/db.h>
+#include <leveldb/filter_policy.h>
+#include <leveldb/cache.h>
 #include <exception>
 #include <dirent.h>
 #include <unistd.h>
@@ -71,6 +73,8 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
             assert(blockSizeFrame);
             zframe_t* writeBufferSizeFrame = zmsg_next(msg);
             assert(writeBufferSizeFrame);
+            zframe_t* bloomFilterBitsPerKeyFrame = zmsg_next(msg);
+            assert(bloomFilterBitsPerKeyFrame);
             //Resize if neccessary
             if (databases.size() <= tableIndex) {
                 databases.reserve(tableIndex + 16); //Avoid large vectors
@@ -83,13 +87,20 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
                 options.compression = (dbCompressionEnabled ? leveldb::kSnappyCompression : leveldb::kNoCompression);
                 //Set optional parameters
                 if (zframe_size(lruCacheSizeFrame) != 0) {
-                    options.write_buffer_size = extractBinary<uint64_t>(lruCacheSizeFrame);
+                    options.block_cache = leveldb::NewLRUCache(extractBinary<uint64_t>(lruCacheSizeFrame));
+                } else {
+                    //Use a small LRU cache per default, because HDD cache doesn't cache uncompressed data
+                    // , so it's really slow in random-access-mode for uncompressed data
+                    options.block_cache = leveldb::NewLRUCache(1024*1024*10);
                 }
                 if (zframe_size(blockSizeFrame) != 0) {
-                    options.write_buffer_size = extractBinary<uint64_t>(blockSizeFrame);
+                    options.block_size = extractBinary<uint64_t>(blockSizeFrame);
                 }
                 if (zframe_size(writeBufferSizeFrame) != 0) {
                     options.write_buffer_size = extractBinary<uint64_t>(writeBufferSizeFrame);
+                }
+                if (zframe_size(bloomFilterBitsPerKeyFrame) != 0) {
+                    options.filter_policy = leveldb::NewBloomFilterPolicy(extractBinary<uint64_t>(bloomFilterBitsPerKeyFrame));
                 }
                 //Open the table
                 std::string tableName = "tables/" + std::to_string(tableIndex);
@@ -226,24 +237,31 @@ void HOT TableOpenHelper::openTable(TableOpenHelper::IndexType index) {
     zmsg_add(msg, zframe_new("",0)); //LRU cache size
     zmsg_add(msg, zframe_new("",0)); //Block size
     zmsg_add(msg, zframe_new("",0)); //Write buffer size
+    zmsg_add(msg, zframe_new("",0)); //Bloom filter bits per key frame
     if (unlikely(zmsg_send(&msg, reqSocket) == -1)) {
         logger.critical("Open table message send failed: " + std::string(zmq_strerror(errno)));
     }
-    //Wait for the reply (reply content is ignored)
+    //Wait for the reply (reply content is currently ignored)
     msg = zmsg_recv(reqSocket); //Blocks until reply received
     if (msg != nullptr) {
         zmsg_destroy(&msg);
     }
 }
 
-void HOT TableOpenHelper::openTable(zframe_t* tableIdFrame, zframe_t* lruCacheSizeFrame, zframe_t* tableBlockSizeFrame, zframe_t* writeBufferSizeFrame) {
+void HOT TableOpenHelper::openTable(zframe_t* tableIdFrame, zframe_t* lruCacheSizeFrame, zframe_t* tableBlockSizeFrame, zframe_t* writeBufferSizeFrame, zframe_t* bloomFilterBitsPerKeyFrame) {
+    assert(tableIdFrame);
+    assert(lruCacheSizeFrame);
+    assert(tableBlockSizeFrame);
+    assert(writeBufferSizeFrame);
+    assert(bloomFilterBitsPerKeyFrame);
     //Just send a message containing the table index to the opener thread
     zmsg_t* msg = zmsg_new();
-    zmsg_addmem(msg, "\x00", 1);
+    zmsg_addmem(msg, "\x00", 1); //Open table message
     zmsg_add(msg, tableIdFrame);
     zmsg_add(msg, lruCacheSizeFrame);
     zmsg_add(msg, tableBlockSizeFrame);
     zmsg_add(msg, writeBufferSizeFrame);
+    zmsg_add(msg, bloomFilterBitsPerKeyFrame);
     if (unlikely(zmsg_send(&msg, reqSocket) == -1)) {
         logger.critical("Open table message send failed: " + std::string(zmq_strerror(errno)));
     }

@@ -133,7 +133,7 @@ static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpen
     //Parse the flags from the header frame
     //
     //Open the table
-    helper.openTable(tableIdFrame, lruCacheSizeFrame, blockSizeFrame, writeBufferSizeFrame);
+    helper.openTable(tableIdFrame, lruCacheSizeFrame, blockSizeFrame, writeBufferSizeFrame, bloomFilterBitsPerKeyFrame);
     //Rewrite the header frame for the response
     //Create the response if neccessary
     zmsg_t* response = nullptr;
