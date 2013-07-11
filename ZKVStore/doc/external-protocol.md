@@ -7,10 +7,13 @@ The server shall send responses as soon as possible.
 
 If a message isn't recognizable by the server, it shall send this protocol error message.
 
+Additional bytes in the header frame shall always be ignored by both
+client and server.
+
 ### Protocol error response
 
-For request/reply sockets, the server uses this response if the
-message type is not recognized by the server.
+For request/reply sockets, the server uses this response if it can't recognize
+the protocol.
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0xFF Response type (protocol error)]
 * Frame 1 (Optional): NUL-terminated protocol error description
@@ -100,7 +103,7 @@ If only frame 2, but not frame 3 is present, frame 3 is treated as if it was zer
 
 Response codes:
 * 0x00 Success (--> frame 1 not present)
-* 0x10 Error (--> frame 1 contains error description cstring)
+* 0x01 Error (--> frame 1 contains error description cstring)
 
 ###### Truncate request
 
@@ -247,11 +250,19 @@ The response format is identical for put and delete requests
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 Response type (Put/delete reponse)] [1 byte Response code]
 * Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
 
-Response codes:
+Response codes (lower byte counts!):
 * 0x00 Acknowledge (Only acknowledges that the request has been received)
-* 0x10 Error while processing request (implies Frame 1 being existing)
+* 0x01 Protocol error, found key frame without value frame (implies Frame 1 being existing)
+* 0x02 Database error while processing request (implies Frame 1 being existing)
+* 0x10 Protocol error, unspecified
 
-Note: If not using PARTSYNC or FULLSYNC flags, the server will send a non-error acknowledge code
+If the 0x10 bit is set, the server signals that the write has been applied partially
+and can't be rolled back automatically.
+If the 0x10 bit is unset, the server signals none of the updates was applied because
+of an automatic batch rollback.
+
+Note: If not using PARTSYNC flag, the server will always send a non-error acknowledge code,
+because processing has not started when the reply is sent.
 
 -------------------------------
 

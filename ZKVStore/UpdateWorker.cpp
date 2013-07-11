@@ -12,6 +12,7 @@
 #include <string>
 #include <leveldb/write_batch.h>
 #include <functional>
+#include <bitset>
 #include "Tablespace.hpp"
 #include "Logger.hpp"
 #include "zutil.hpp"
@@ -20,95 +21,6 @@
 #include "macros.hpp"
 
 using namespace std;
-
-static zmsg_t* handleUpdateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, bool synchronousWrite, bool noResponse) {
-    leveldb::WriteOptions writeOptions;
-    writeOptions.sync = synchronousWrite;
-    //Parse the table id
-    //This function requires that the given message has the table id in its first frame
-    zframe_t* tableIdFrame = zmsg_next(msg);
-    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
-    //Get the table
-    leveldb::DB* db = tables.getTable(tableId, helper);
-    //The entire update is processed in one batch
-    leveldb::WriteBatch batch;
-    while (true) {
-        //The next two frames contain 
-        zframe_t* keyFrame = zmsg_next(msg);
-        if (!keyFrame) {
-            break;
-        }
-        zframe_t* valueFrame = zmsg_next(msg);
-        assert(valueFrame); //if this fails there is an odd number of data frames --> illegal (see protocol spec)
-
-        leveldb::Slice keySlice((char*) zframe_data(keyFrame), zframe_size(keyFrame));
-        leveldb::Slice valueSlice((char*) zframe_data(valueFrame), zframe_size(valueFrame));
-        batch.Put(keySlice, valueSlice);
-    }
-    //Commit the batch
-    leveldb::Status status = db->Write(writeOptions, &batch);
-    //If something went wrong, send an error response
-    if (unlikely(!status.ok())) {
-        std::string err = status.ToString();
-        log.error("Database error while processing update request: " + err);
-        if (!noResponse) {
-            zmsg_t* response = zmsg_new();
-            zmsg_addmem(response, "\x31\x01\x20\x10", 4);
-            zmsg_addmem(response, err.c_str(), err.size());
-            return response;
-        }
-    }
-    //The memory occupied by the message is free'd in the thread loop
-    //Create the response if neccessary
-    zmsg_t* response = nullptr;
-    if (!noResponse) {
-        response = zmsg_new();
-        zmsg_addmem(response, "\x31\x01\x20\x00", 4);
-    }
-    return response;
-}
-
-/**
- * Handle compact requests. Note that, in contrast to Update/Delete requests,
- * performance doesn't really matter here because compacts are incredibly time-consuming.
- * In many cases they need to rewrite almost the entire databases, especially in the common
- * usecas eof compacting the entire database.
- * 
- * It also shouldn't matter that the compact request blocks the thread (at least not for now).
- * Compact request shouldn't happen too often, in the worst case a lot of work
- * for the current thread piles up.
- * @param tables
- * @param msg
- * @param helper
- * @param headerFrame
- */
-static zmsg_t* handleCompactRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, zframe_t* headerFrame, bool noResponse) {
-    //Parse the table ID
-    zframe_t* tableIdFrame = zmsg_next(msg);
-    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
-    //Get the table
-    leveldb::DB* db = tables.getTable(tableId, helper);
-    //Parse the start/end frame
-    //zmsg_next returns a non-NULL frame when calling zmsg_next after the last frame has been next'ed, so we'll have to perform additional checks here
-    zframe_t* rangeStartFrame = zmsg_next(msg);
-    zframe_t* rangeEndFrame = (rangeStartFrame == NULL ? NULL : zmsg_next(msg));
-    bool haveRangeStart = !(rangeStartFrame == NULL || zframe_size(rangeStartFrame) == 0);
-    bool haveRangeEnd = !(rangeEndFrame == NULL || zframe_size(rangeEndFrame) == 0);
-    leveldb::Slice* rangeStart = (haveRangeStart ? new leveldb::Slice((char*) zframe_data(rangeStartFrame), zframe_size(rangeStartFrame)) : nullptr);
-    leveldb::Slice* rangeEnd = (haveRangeEnd ? new leveldb::Slice((char*) zframe_data(rangeEndFrame), zframe_size(rangeEndFrame)) : nullptr);
-    db->CompactRange(rangeStart, rangeEnd);
-    //Cleanup
-    delete rangeStart;
-    delete rangeEnd;
-    //Remove and destroy the range frames, because they're not used in the response
-    //Create the response if neccessary
-    zmsg_t* response = nullptr;
-    if (!noResponse) {
-        response = zmsg_new();
-        zmsg_addmem(response, "\x31\x01\x03\x00", 4);
-    }
-    return response;
-}
 
 static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, zframe_t* headerFrame, bool noResponse) {
     //Parse the table ID and advanced parameter frames and check their length
@@ -176,163 +88,312 @@ static zmsg_t* handleTableTruncateRequest(Tablespace& tables, zmsg_t* msg, Table
     return response;
 }
 
-static zmsg_t* handleDeleteRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, bool synchronousWrite, bool noResponse) {
-    leveldb::WriteOptions writeOptions;
-    writeOptions.sync = synchronousWrite;
-    //Parse the table id
-    //This function requires that the given message has the table id in its first frame
-    zframe_t* tableIdFrame = zmsg_next(msg);
-    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
-    //Get the table
-    leveldb::DB* db = tables.getTable(tableId, helper);
-    //The entire update is processed in one batch
-    leveldb::WriteBatch batch;
-    while (true) {
-        //The next two frames contain 
-        zframe_t* keyFrame = zmsg_next(msg);
-        if (!keyFrame) { //last key frame already read --> keyFrame == nullptr
-            break;
+UpdateWorker::UpdateWorker(zctx_t* ctx, Tablespace& tablespace) :
+context(ctx),
+replyProxySocket(zsocket_new(ctx, ZMQ_PUSH)),
+workPullSocket(zsocket_new(ctx, ZMQ_PULL)),
+tableOpenHelper(ctx),
+tablespace(tablespace),
+logger(ctx, "Update worker") {
+    //Connect the socket that is used to proxy requests to the external req/rep socket
+    zsocket_connect(replyProxySocket, externalRequestProxyEndpoint);
+    //Connect the socket that is used by the send() member function
+    zsocket_connect(workPullSocket, updateWorkerThreadAddr);
+    logger.debug("Update worker thread starting");
+}
+
+UpdateWorker::~UpdateWorker() {
+    zsocket_destroy(context, replyProxySocket);
+    zsocket_destroy(context, workPullSocket);
+}
+
+bool UpdateWorker::processNextMessage() {
+    /**
+     * Parse the header
+     * At this point it is unknown if
+     *  1) the msg contains an envelope (--> received from the main ROUTER) or
+     *  2) the msg does not contain an envelope (--> received from PULL, SUB etc.)
+     * Case 2) also handles cases where the main router did not request a reply.
+     */
+    zmq_msg_t haveReplyAddrFrame, routingFrame, delimiterFrame, headerFrame;
+    zmq_msg_init(&haveReplyAddrFrame);
+    receiveExpectMore(&haveReplyAddrFrame, workPullSocket, logger);
+    char haveReplyAddrFrameContent = ((char*) zmq_msg_data(haveReplyAddrFrame))[0];
+    zmq_msg_close(haveReplyAddrFrame);
+    if (haveReplyAddrFrameContent == '\xFF') {
+        break;
+    }
+    //OK, it's a processable message, not a stop message
+    bool haveReplyAddr = (haveReplyAddrFrameContent == 0);
+    /**
+     * If there is routing info, there will be an reply.
+     * We can start to write the routing info to the output socket immediately,
+     * the handler function will write the remaining frames, even in case of errors.
+     */
+    if (haveReplyAddr) {
+        //Read routing info
+        zmq_msg_init(&routingFrame);
+        receiveLogError(&routingFrame, workPullSocket, logger);
+        zmq_msg_init(&delimiterFrame);
+        receiveLogError(&delimiterFrame, workPullSocket, logger);
+        //Write routing info
+        zmq_msg_send(&routingFrame, replyProxySocket, ZMQ_SNDMORE);
+        zmq_msg_send(&routingFrame, replyProxySocket, ZMQ_SNDMORE);
+    }
+    //The router ensures the header frame is correct, so a (crashing) assert works here
+    zmq_msg_init(&headerFrame);
+    receiveLogError(&headerFrame, workPullSocket, logger);
+    assert(isHeaderFrame(&headerFrame));
+    //Parse the request type
+    RequestType requestType = getRequestType(headerFrame);
+    /*
+     * Route the request to the appropriate function
+     * 
+     * All functions have the responsibility to destroy the header frame
+     * if not used anymore.
+     * All functions must send at least one frame (without SNDMORE) if the last
+     * argument is true.
+     */
+    if (requestType == PutRequest) {
+        handleUpdateRequest(headerFrame, haveReplyAddr);
+    } else if (requestType == DeleteRequest) {
+        response = handleDeleteRequest(headerFrame, haveReplyAddr);
+    } else if (requestType == OpenTableRequest) {
+        response = handleTableOpenRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, haveReplyAddr);
+        //Set partsync to force the program to respond after finished
+        partsync = true;
+    } else if (requestType == CloseTableRequest) {
+        response = handleTableCloseRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, haveReplyAddr);
+        //Set partsync to force the program to respond after finished
+        partsync = true;
+    } else if (requestType == CompactTableRequest) {
+        response = handleCompactRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, haveReplyAddr);
+        //Set partsync to force the code to respond after finishing
+        partsync = true;
+    } else if (requestType == TruncateTableRequest) {
+        response = handleTableTruncateRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, haveReplyAddr);
+        //Set partsync to force the code to respond after finishing
+        partsync = true;
+    } else {
+        logger.error(std::string("Internal routing error: request type ") + std::to_string(requestType) + " routed to update worker thread!");
+        continue;
+    }
+}
+
+bool UpdateWorker::parseTableId(uint32_t& tableIdDst, bool generateResponse, const char* errorResponseCode) {
+    if (unlikely(!socketHasMoreFrames(workPullSocket))) {
+        logger.warn("Trying to read table ID frame, but no frame was available");
+        if (generateResponse) {
+            sendFrame(errorResponseCode, 4, replyProxySocket, logger, ZMQ_SNDMORE);
+            std::string errmsg = "Protocol error: Did not find table ID frame!";
+            sendFrame(errmsg, replyProxySocket, logger);
         }
+        return false;
+    }
+    //Parse table ID, release frame immediately
+    zmq_msg_t tableIdFrame;
+    zmq_msg_init(&tableIdFrame);
+    receiveLogError(&tableIdFrame, workPullSocket, logger);
+    tableIdDst = extractBinary<uint32_t>(tableIdFrame);
+    zmq_msg_close(&tableIdFrame);
+    return true;
+}
+
+bool UpdateWorker::expectNextFrame(const char* errString, bool generateResponse, const char* errorResponseCode) {
+    if (unlikely(!socketHasMoreFrames(workPullSocket))) {
+        logger.warn(errString);
+        if (generateResponse) {
+            sendFrame(errorResponseCode, 4, replyProxySocket, logger, ZMQ_SNDMORE);
+            sendFrame(errString, strlen(errString), replyProxySocket, logger);
+        }
+        return false;
+    }
+}
+
+bool UpdateWorker::checkLevelDBStatus(const leveldb::Status& status, const char* errString, bool generateResponse, const char* errorResponseCode) {
+    if (unlikely(!status.ok())) {
+        std::string statusErr = status.ToString();
+        std::string completeErrorString = std::string(errString) + statusErr;
+        logger.error(completeErrorString);
+        if (generateResponse) {
+            //Send DB error code
+            sendFrame(errorResponseCode, 4, replyProxySocket, logger, ZMQ_SNDMORE);
+            sendFrame(completeErrorString, replyProxySocket, logger);
+            return;
+        }
+    }
+}
+
+void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool fullsync, bool generateResponse) {
+    //Process the flags
+    uint8_t flags = getWriteFlags(headerFrame);
+    bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
+    //Convert options to LevelDB
+    leveldb::WriteOptions writeOptions;
+    writeOptions.sync = fullsync;
+    //Parse table ID
+    uint32_t tableId;
+    if (!parseTableId(tableId, generateResponse, "\x31\x01\x20\x10")) {
+        return;
+    }
+    //Get the table
+    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    //If this point is reached in the control flow, header frame will not be reused
+    zmq_msg_close(headerFrame);
+    //The entire update is processed in one batch. Empty batches are allowed.
+    bool haveMoreData = socketHasMoreFrames(workPullSocket);
+    zmq_msg_t keyFrame, valueFrame;
+    zmq_msg_init(keyFrame);
+    zmq_msg_init(valueFrame);
+    leveldb::WriteBatch batch;
+    while (haveMoreData) {
+        //The next two frames contain key and value
+        receiveLogError(&keyFrame, workPullSocket, logger);
+        //Check if there is a key but no value
+        if (!expectNextFrame("Protocol error: Found key frame, but no value frame. They must occur in pairs!", generateResponse, "\x31\x01\x20\x01")) {
+            return;
+        }
+        receiveLogError(&valueFrame, workPullSocket, logger);
+        //Convert to LevelDB
         leveldb::Slice keySlice((char*) zframe_data(keyFrame), zframe_size(keyFrame));
-        batch.Delete(keySlice);
+        leveldb::Slice valueSlice((char*) zframe_data(valueFrame), zframe_size(valueFrame));
+        batch.Put(keySlice, valueSlice);
+        //Cleanup
+        zmq_msg_close(keyFrame);
+        zmq_msg_close(valueFrame);
+        //Check if we have more frames
+        haveMoreData = zmq_msg_more(&valueFrame);
     }
     //Commit the batch
     leveldb::Status status = db->Write(writeOptions, &batch);
     //If something went wrong, send an error response
-    if (unlikely(!status.ok())) {
-        std::string err = status.ToString();
-        log.error("Database error while processing delete request: " + err);
-        if (!noResponse) {
-            zmsg_t* response = zmsg_new();
-            zmsg_addmem(response, "\x31\x01\x20\x10", 4);
-            zmsg_addmem(response, err.c_str(), err.size());
-            return response;
-        }
+    if(!checkLevelDBStatus(status,
+            "Database error while processing update request: ",
+            generateResponse,
+            "\x31\x01\x20\x02")) {
+        return;
     }
-    //The memory occupied by the message is free'd in the thread loop
-    //Create the response
+    //Send success code
+    if (generateResponse) {
+        //Send success code
+        sendConstFrame("\x31\x01\x20\x00", 4, replyProxySocket, logger);
+    }
+}
+
+void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    //Process the flags
+    uint8_t flags = getWriteFlags(headerFrame);
+    bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
+    //Convert options to LevelDB
+    leveldb::WriteOptions writeOptions;
+    writeOptions.sync = fullsync;
+    //Parse table ID, release frame immediately
+    zmq_msg_t tableIdFrame;
+    zmq_msg_init(&tableIdFrame);
+    receiveLogError(&tableIdFrame, workPullSocket, logger);
+    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
+    bool haveMoreData = zmq_msg_more(tableIdFrame);
+    zmq_msg_close(&tableIdFrame);
+    //Get the table
+    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    //If this point is reached in the control flow, header frame will not be reused
+    zmq_msg_close(headerFrame);
+    //The entire update is processed in one batch
+    zmq_msg_t keyFrame;
+    zmq_msg_init(keyFrame);
+    leveldb::WriteBatch batch;
+    while (haveMoreData) {
+        //The next two frames contain key and value
+        receiveLogError(&keyFrame, workPullSocket, logger);
+        //Convert to LevelDB
+        leveldb::Slice keySlice((char*) zframe_data(keyFrame), zframe_size(keyFrame));
+        batch.Delete(keySlice);
+        //Cleanup
+        zmq_msg_close(keyFrame);
+        //Check if we have more frames
+        haveMoreData = zmq_msg_more(&keyFrame);
+    }
+    //Commit the batch
+    leveldb::Status status = db->Write(writeOptions, &batch);
+    //If something went wrong, send an error response
+    if(!checkLevelDBStatus(status,
+            "Database error while processing delete request: ",
+            generateResponse,
+            "\x31\x01\x20\x02")) {
+        return;
+    }
+    //Send success code
+    if (generateResponse) {
+        //Send success code
+        sendConstFrame("\x31\x01\x20\x00", 4, replyProxySocket, logger);
+    }
+}
+
+/**
+ * Handle compact requests. Note that, in contrast to Update/Delete requests,
+ * performance doesn't really matter here because compacts are incredibly time-consuming.
+ * In many cases they need to rewrite almost the entire databases, especially in the common
+ * usecas eof compacting the entire database.
+ * 
+ * It also shouldn't matter that the compact request blocks the thread (at least not for now).
+ * Compact request shouldn't happen too often, in the worst case a lot of work
+ * for the current thread piles up.
+ * @param tables
+ * @param msg
+ * @param helper
+ * @param headerFrame
+ */
+void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    //Parse table ID, release frame immediately
+    zmq_msg_t tableIdFrame;
+    zmq_msg_init(&tableIdFrame);
+    receiveLogError(&tableIdFrame, workPullSocket, logger);
+    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
+    bool haveMoreFrames = zmq_msg_more(tableIdFrame);
+    zmq_msg_close(&tableIdFrame);
+    if (!haveMoreFrames) {
+        logger.warn("Compact request has only one frame");
+        if (generateResponse) {
+            //Send DB error code
+            sendConstFrame("\x31\x01\x03\x01", 4, replyProxySocket, logger, ZMQ_SNDMORE);
+            sendFrame("Only header found in compact request, range missing", replyProxySocket, logger, 0);
+            return;
+        }
+        return;
+    }
+    //Get the table
+    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    //Parse the start/end frame
+    //zmsg_next returns a non-NULL frame when calling zmsg_next after the last frame has been next'ed, so we'll have to perform additional checks here
+    zframe_t* rangeStartFrame = zmsg_next(msg);
+    zframe_t* rangeEndFrame = (rangeStartFrame == NULL ? NULL : zmsg_next(msg));
+    bool haveRangeStart = !(rangeStartFrame == NULL || zframe_size(rangeStartFrame) == 0);
+    bool haveRangeEnd = !(rangeEndFrame == NULL || zframe_size(rangeEndFrame) == 0);
+    leveldb::Slice* rangeStart = (haveRangeStart ? new leveldb::Slice((char*) zframe_data(rangeStartFrame), zframe_size(rangeStartFrame)) : nullptr);
+    leveldb::Slice* rangeEnd = (haveRangeEnd ? new leveldb::Slice((char*) zframe_data(rangeEndFrame), zframe_size(rangeEndFrame)) : nullptr);
+    db->CompactRange(rangeStart, rangeEnd);
+    //Cleanup
+    delete rangeStart;
+    delete rangeEnd;
+    //Remove and destroy the range frames, because they're not used in the response
+    //Create the response if neccessary
     zmsg_t* response = nullptr;
     if (!noResponse) {
         response = zmsg_new();
-        zmsg_addmem(response, "\x31\x01\x20\x00", 4);
+        zmsg_addmem(response, "\x31\x01\x03\x00", 4);
     }
     return response;
 }
 
 /**
- * The main function for the update worker thread.
- * 
- * This function parses the header, calls the appropriate handler function
- * and sends the response for PARTSYNC requests
+ * Pretty stubby update thread loop.
+ * This is what should contain the scheduler client code in the future.
  */
 static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
-    //Create the socket that is used to proxy requests to the external req/rep socket
-    void* replyProxySocket = zsocket_new(ctx, ZMQ_PUSH);
-    zsocket_connect(replyProxySocket, externalRequestProxyEndpoint);
-    //Create the socket that is used by the send() member function
-    void* workPullSocket = zsocket_new(ctx, ZMQ_PULL);
-    zsocket_connect(workPullSocket, updateWorkerThreadAddr);
-    //Create the table open helper (creates a socket that sends table open requests)
-    TableOpenHelper tableOpenHelper(ctx);
-    //Create a thread local log source
-    Logger logger(ctx, "Update worker");
-    logger.debug("Update worker thread starting");
-    //Create the data structure with all info for the poll handler
+    UpdateWorker updateWorker(ctx, tablespace);
     while (true) {
-        zmsg_t* msg = zmsg_recv(workPullSocket);
-        if (unlikely(!msg)) {
-            if (errno != ETERM && errno != EINTR) {
-                debugZMQError("Receive TableOpenServer message", errno);
-            }
-            break;
-        }
-        assert(zmsg_size(msg) >= 1);
-        //Parse the header
-        //At this point it is unknown if
-        // 1) the msg contains an envelope (--> received from the main ROUTER) or
-        // 2) the msg does not contain an envelope (--> received from PULL, SUB etc.)
-        //As the frame after the header may not be empty under any circumstances for
-        // request types processed by the update worker threads, we can distiguish these cases
-        zframe_t* firstFrame = zmsg_first(msg);
-        zframe_t* secondFrame = zmsg_next(msg);
-        cout << "F1 " << zframe_size(firstFrame) << endl;
-        if(true || zframe_size(firstFrame) != 5) {
-            for (int i = 0; i < zframe_size(firstFrame); i++) {
-                cout << "\t" << i << ":" << (int)zframe_data(firstFrame)[i] << endl;
-            }
-        }
-        cout << "F2 " << zframe_size(secondFrame) << endl;
-        zframe_t* headerFrame = nullptr;
-        zframe_t* routingFrame = nullptr; //Set to non-null if there is an envelope
-        if (secondFrame && zframe_size(secondFrame) == 0) { //Msg contains envelope
-            headerFrame = zmsg_next(msg);
-            routingFrame = firstFrame;
-        } else { //No envelope
-            //We need to reset the current frame ptr
-            // (because the handlers may call zmsg_next()),
-            // so we can't just use firstFrame as header
-            headerFrame = zmsg_first(msg);
-        }
-        assert(isHeaderFrame(headerFrame));
-        //According to the protocol specs, the magic byte shall be set to 0x00 if the message was received
-        // over a socket that doesn't support responses (PULL and SUB)
-        bool responseUnsupported = (zframe_data(headerFrame)[0] == 0x00);
-        //Get the request type
-        RequestType requestType = getRequestType(headerFrame);
-        //Process the flags
-        uint8_t flags = getWriteFlags(headerFrame);
-        bool partsync = isPartsync(flags); //= Send reply after written to backend
-        bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
-        //Process the rest of the frame
-        zmsg_t* response;
-        if (requestType == PutRequest) {
-            response = handleUpdateRequest(tablespace, msg, tableOpenHelper, logger, fullsync, responseUnsupported);
-        } else if (requestType == DeleteRequest) {
-            response = handleDeleteRequest(tablespace, msg, tableOpenHelper, logger, fullsync, responseUnsupported);
-        } else if (requestType == OpenTableRequest) {
-            response = handleTableOpenRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, responseUnsupported);
-            //Set partsync to force the program to respond after finished
-            partsync = true;
-        } else if (requestType == CloseTableRequest) {
-            response = handleTableCloseRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, responseUnsupported);
-            //Set partsync to force the program to respond after finished
-            partsync = true;
-        } else if (requestType == CompactTableRequest) {
-            response = handleCompactRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, responseUnsupported);
-            //Set partsync to force the code to respond after finishing
-            partsync = true;
-        } else if (requestType == TruncateTableRequest) {
-            response = handleTableTruncateRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, responseUnsupported);
-            //Set partsync to force the code to respond after finishing
-            partsync = true;
-        } else {
-            logger.error(std::string("Internal routing error: request type ") + std::to_string(requestType) + " routed to update worker thread!");
-            continue;
-        }
-        //Cleanup
-        if (routingFrame) { //If there is routing info available, we can reuse the frame (it's always the first, so pop'ing works)
-            routingFrame = zmsg_pop(msg);
-        }
-        //If partsync is disabled, the main thread already sent the response.
-        //Else, we need to create & send the response now.
-        //If no response is desired regardless of the message content (--> PULL or SUB socket),
-        // the first byte of the header message shall be set to 0x00 (instead of the magic byte 0x31)
-        if (partsync && zframe_data(headerFrame)[0] == 0x31) {
-            assert(routingFrame); //If this fails, someone disobeyed the protocol specs and sent PARTSYNC over a non-REQ-REP-cominbation.
-            //Send acknowledge message
-            zmsg_t* responseMsg = zmsg_new();
-            zmsg_wrap(responseMsg, routingFrame);
-            //The handler functions rewrite the header frame to contain the correct response
-            zmsg_add(responseMsg, headerFrame);
-            //Send the response
-            zmsg_send(&responseMsg, replyProxySocket);
-        }
-        //Destroy the original message
-        zmsg_destroy(&msg);
+        updateWorker.processNextMessage();
     }
-    logger.debug("Stopping update processor");
-    zsocket_destroy(ctx, workPullSocket);
-    zsocket_destroy(ctx, replyProxySocket);
 }
 
 UpdateWorkerController::UpdateWorkerController(zctx_t* context, Tablespace& tablespace) : context(context), numThreads(3), tablespace(tablespace) {

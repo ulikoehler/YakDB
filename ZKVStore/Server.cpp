@@ -80,14 +80,10 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         zmq_msg_close(&addrFrame);
         return 0;
     }
-    server->logger.trace("Header frame 0: " + std::to_string((int)((char*)zmq_msg_data(&addrFrame))[0]));
-    server->logger.trace("Header frame 1: " + std::to_string((int)((char*)zmq_msg_data(&addrFrame))[1]));
-    server->logger.trace("Header frame 2: " + std::to_string((int)((char*)zmq_msg_data(&addrFrame))[2]));
-    server->logger.trace("Header frame 3: " + std::to_string((int)((char*)zmq_msg_data(&addrFrame))[3]));
     zmq_msg_init(&delimiterFrame);
     if (receiveExpectMore(&delimiterFrame, sock, server->logger)) {
         sendProtocolError(&addrFrame, &delimiterFrame, sock, "Received empty message (no ZeroDB header frame)");
-        server->logger.warn("Client sent empty message (no header frame)" + std::to_string(zmq_msg_size(&addrFrame)));
+        server->logger.warn("Client sent empty message (no header frame)");
         return 0;
     }
     zmq_msg_init(&headerFrame);
@@ -100,10 +96,6 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         zmq_msg_close(&headerFrame);
         return 0;
     }
-    server->logger.trace("H frame 0: " + std::to_string((int)((char*)zmq_msg_data(&headerFrame))[0]));
-    server->logger.trace("H frame 1: " + std::to_string((int)((char*)zmq_msg_data(&headerFrame))[1]));
-    server->logger.trace("H frame 2: " + std::to_string((int)((char*)zmq_msg_data(&headerFrame))[2]));
-    server->logger.trace("H frame 3: " + std::to_string((int)((char*)zmq_msg_data(&headerFrame))[3]));
     //Check the header -- send error message if invalid
     char* headerData = (char*) zmq_msg_data(&headerFrame);
     size_t headerSize = zmq_msg_size(&headerFrame);
