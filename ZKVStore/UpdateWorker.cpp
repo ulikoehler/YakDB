@@ -55,7 +55,7 @@ bool UpdateWorker::processNextMessage() {
         return false;
     }
     //OK, it's a processable message, not a stop message
-    bool haveReplyAddr = (haveReplyAddrFrameContent == 0);
+    bool haveReplyAddr = (haveReplyAddrFrameContent == 1);
     /**
      * If there is routing info, there will be an reply.
      * We can start to write the routing info to the output socket immediately,
@@ -64,17 +64,18 @@ bool UpdateWorker::processNextMessage() {
     if (haveReplyAddr) {
         //Read routing info
         zmq_msg_init(&routingFrame);
-        receiveLogError(&routingFrame, processorInputSocket, logger);
+        receiveExpectMore(&routingFrame, processorInputSocket, logger);
         zmq_msg_init(&delimiterFrame);
-        receiveLogError(&delimiterFrame, processorInputSocket, logger);
+        receiveExpectMore(&delimiterFrame, processorInputSocket, logger);
         //Write routing info
         zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
-        zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
+        zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE);
     }
     //The router ensures the header frame is correct, so a (crashing) assert works here
     zmq_msg_init(&headerFrame);
     receiveLogError(&headerFrame, processorInputSocket, logger);
-    assert(isHeaderFrame(&headerFrame));
+   //assert(isHeaderFrame(&headerFrame));
+    logger.trace("Z " + std::to_string(haveReplyAddr));
     //Parse the request type
     RequestType requestType = getRequestType(&headerFrame);
     /*
@@ -86,6 +87,7 @@ bool UpdateWorker::processNextMessage() {
      * argument is true.
      */
     if (requestType == PutRequest) {
+        logger.trace("i " + std::to_string(haveReplyAddr));
         handleUpdateRequest(&headerFrame, haveReplyAddr);
     } else if (requestType == DeleteRequest) {
         handleDeleteRequest(&headerFrame, haveReplyAddr);
@@ -99,12 +101,14 @@ bool UpdateWorker::processNextMessage() {
         handleTableTruncateRequest(&headerFrame, haveReplyAddr);
     } else {
         logger.error(std::string("Internal routing error: request type ")
-        + std::to_string(requestType) + " routed to update worker thread!");
+                + std::to_string(requestType) + " routed to update worker thread!");
     }
+    logger.trace("A " + std::to_string(haveReplyAddr));
     return true;
 }
 
 void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    assert(isHeaderFrame(headerFrame));
     //Process the flags
     uint8_t flags = getWriteFlags(headerFrame);
     bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
@@ -123,17 +127,21 @@ void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResp
     //The entire update is processed in one batch. Empty batches are allowed.
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
     zmq_msg_t keyFrame, valueFrame;
-    zmq_msg_init(&keyFrame);
-    zmq_msg_init(&valueFrame);
     leveldb::WriteBatch batch;
+    logger.trace("SU " + std::to_string(haveMoreData) + "  ");
     while (haveMoreData) {
+        zmq_msg_init(&keyFrame);
+        zmq_msg_init(&valueFrame);
         //The next two frames contain key and value
         receiveLogError(&keyFrame, processorInputSocket, logger);
+        logger.trace("L(w) " + std::to_string(zmq_msg_more(&keyFrame)));
+        logger.trace("W " + std::string((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame)));
         //Check if there is a key but no value
         if (!expectNextFrame("Protocol error: Found key frame, but no value frame. They must occur in pairs!", generateResponse, "\x31\x01\x20\x01")) {
             return;
         }
         receiveLogError(&valueFrame, processorInputSocket, logger);
+        logger.trace("V " + std::string((char*) zmq_msg_data(&valueFrame), zmq_msg_size(&valueFrame)));
         //Convert to LevelDB
         leveldb::Slice keySlice((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
         leveldb::Slice valueSlice((char*) zmq_msg_data(&valueFrame), zmq_msg_size(&valueFrame));
@@ -345,7 +353,6 @@ void UpdateWorker::handleTableCloseRequest(zmq_msg_t* headerFrame, bool generate
     }
 }
 
-
 void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool generateResponse) {
     zmq_msg_close(headerFrame);
     uint32_t tableId;
@@ -362,7 +369,6 @@ void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool gener
     }
 }
 
-
 /**
  * Pretty stubby update thread loop.
  * This is what should contain the scheduler client code in the future.
@@ -370,7 +376,7 @@ void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool gener
 static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     UpdateWorker updateWorker(ctx, tablespace);
     while (true) {
-        if(!updateWorker.processNextMessage()) {
+        if (!updateWorker.processNextMessage()) {
             break;
         }
     }

@@ -141,8 +141,14 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         //        cout << "F2x " << zframe_size(secondFrame) << endl;
         //        cout << "YYYY" << endl;
         void* dstSocket = server->updateWorkerController.workerPushSocket;
+        
+            server->logger.trace("NOOOO");
+        //Send the info frame (--> we have addr info)
+        sendConstFrame("\x01", 1, dstSocket, server->logger, ZMQ_SNDMORE);
+        //Send the routing information
         zmq_msg_send(&addrFrame, dstSocket, ZMQ_SNDMORE);
         zmq_msg_send(&delimiterFrame, dstSocket, ZMQ_SNDMORE);
+        //Send header and data
         zmq_msg_send(&headerFrame, dstSocket, ZMQ_SNDMORE);
         proxyMultipartMessage(sock, dstSocket);
     } else if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
@@ -155,8 +161,15 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
          */
         uint8_t writeFlags = getWriteFlags(&headerFrame);
         if (isPartsync(writeFlags)) {
+            server->logger.trace("XBLA 1");
+            //Send the info frame (--> we have addr info)
+            sendConstFrame("\x01", 1, workerSocket, server->logger, ZMQ_SNDMORE);
             zmq_msg_send(&addrFrame, workerSocket, ZMQ_SNDMORE);
             zmq_msg_send(&delimiterFrame, workerSocket, ZMQ_SNDMORE);
+        } else {
+            server->logger.trace("XBLA 2");
+            //Send the info frame (--> we don't have addr info)
+            sendConstFrame("\x00", 1, workerSocket, server->logger, ZMQ_SNDMORE);
         }
         //Send the message to the update worker (--> processed async)
         zmq_msg_send(&headerFrame, workerSocket, ZMQ_SNDMORE);

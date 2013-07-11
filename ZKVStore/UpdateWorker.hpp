@@ -49,7 +49,7 @@ public:
      * This basically receives the unmodified external message, but in any case
      * a 1-byte frame must be prepended.
      * If its one byte is 0, no address and delimiter frame shall be sent.
-     * It its one byte is not 0, an address and delimiter frame must follow.
+     * It its one byte is 1, an address and delimiter frame must follow.
      * If its one byte is 0xFF, the thread shall stop.
      * 
      * This function parses the header, calls the appropriate handler function

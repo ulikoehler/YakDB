@@ -26,7 +26,6 @@
 using namespace std;
 
 struct TableOpenParameters {
-    uint32_t tableId;
     uint64_t lruCacheSize;
     uint64_t tableBlockSize;
     uint64_t writeBufferSize;
@@ -66,21 +65,18 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
         assert(tableIdFrame);
         size_t frameSize = zframe_size(tableIdFrame);
         assert(frameSize == sizeof (TableOpenHelper::IndexType));
+        uint32_t tableIndex = extractBinary<uint32_t>(tableIdFrame);
         //Check for a STOP msg
         if (frameSize == 0) {
             //Send back the message and exit the loop
             zmsg_send(&msg, repSocket);
             break;
         }
-        //If it's not null, it must have the appropriate size
-        assert(frameSize == sizeof (TableOpenHelper::IndexType));
-        TableOpenHelper::IndexType tableIndex = *((TableOpenHelper::IndexType*)zframe_data(tableIdFrame));
         if (msgType == 0x00) { //Open table
             //Extract parameters (optional, if zerolength, defaults are assumed)
             zframe_t* parametersFrame = zmsg_next(msg);
             assert(parametersFrame);
             const TableOpenParameters* parameters = (TableOpenParameters*) zframe_data(parametersFrame);
-            uint32_t tableIndex = parameters->tableId;
             //Resize if neccessary
             if (databases.size() <= tableIndex) {
                 databases.reserve(tableIndex + 16); //Avoid large vectors
@@ -242,14 +238,14 @@ void COLD TableOpenHelper::openTable(uint32_t tableId,
         uint64_t bloomFilterBitsPerKey,
         bool compressionEnabled) {
     TableOpenParameters parameters;
-    parameters.tableId = tableId;
     parameters.lruCacheSize = lruCacheSize;
     parameters.tableBlockSize = tableBlockSizeFrame;
     parameters.writeBufferSize = writeBufferSize;
     parameters.bloomFilterBitsPerKey = bloomFilterBitsPerKey;
     parameters.compressionEnabled = compressionEnabled;
     //Just send a message containing the table index to the opener thread
-    int rc = sendConstFrame("\x00", 1, reqSocket, logger);
+    sendConstFrame("\x00", 1, reqSocket, logger, ZMQ_SNDMORE);
+    sendBinary(tableId, reqSocket, logger, ZMQ_SNDMORE);
     sendFrame(&parameters, sizeof (TableOpenParameters), reqSocket, logger);
     //Wait for the reply (reply content is ignored)
     zmsg_t* msg = zmsg_recv(reqSocket); //Blocks until reply received

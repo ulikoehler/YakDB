@@ -283,11 +283,8 @@ static inline void proxyMultipartMessage(void* srcSocket, void* dstSocket) {
     //TODO check errs
     zmq_msg_t msg;
     zmq_msg_init(&msg);
-    bool rcvmore = true;
-    while (true) {
-        if (!rcvmore) {
-            break;
-        }
+    bool rcvmore = socketHasMoreFrames(srcSocket);
+    while (rcvmore) {
         zmq_msg_recv(&msg, srcSocket, 0);
         rcvmore = zmq_msg_more(&msg);
         zmq_msg_send(&msg, dstSocket, (rcvmore ? ZMQ_SNDMORE : 0));
@@ -307,6 +304,11 @@ inline static T extractBinary(zframe_t* frame) {
     return *((T*) zframe_data(frame));
 }
 
+template<typename T>
+inline static void sendBinary(T value, void* socket, Logger& logger, int flags = 0) {
+    assert(socket);
+    sendFrame((void*)&value, sizeof(T), socket, logger, flags);
+}
 
 /**
  * Utility function to convert frame data to a struct-like type

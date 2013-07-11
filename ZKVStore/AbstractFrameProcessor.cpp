@@ -141,6 +141,7 @@ bool AbstractFrameProcessor::expectNextFrame(const char* errString, bool generat
         }
         return false;
     }
+    return true;
 }
 
 bool AbstractFrameProcessor::checkLevelDBStatus(const leveldb::Status& status, const char* errString, bool generateResponse, const char* errorResponseCode) {
