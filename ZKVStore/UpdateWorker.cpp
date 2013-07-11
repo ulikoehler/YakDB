@@ -75,7 +75,6 @@ bool UpdateWorker::processNextMessage() {
     zmq_msg_init(&headerFrame);
     receiveLogError(&headerFrame, processorInputSocket, logger);
    //assert(isHeaderFrame(&headerFrame));
-    logger.trace("Z " + std::to_string(haveReplyAddr));
     //Parse the request type
     RequestType requestType = getRequestType(&headerFrame);
     /*
@@ -87,7 +86,6 @@ bool UpdateWorker::processNextMessage() {
      * argument is true.
      */
     if (requestType == PutRequest) {
-        logger.trace("i " + std::to_string(haveReplyAddr));
         handleUpdateRequest(&headerFrame, haveReplyAddr);
     } else if (requestType == DeleteRequest) {
         handleDeleteRequest(&headerFrame, haveReplyAddr);
@@ -103,7 +101,6 @@ bool UpdateWorker::processNextMessage() {
         logger.error(std::string("Internal routing error: request type ")
                 + std::to_string(requestType) + " routed to update worker thread!");
     }
-    logger.trace("A " + std::to_string(haveReplyAddr));
     return true;
 }
 
@@ -128,20 +125,16 @@ void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResp
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
     zmq_msg_t keyFrame, valueFrame;
     leveldb::WriteBatch batch;
-    logger.trace("SU " + std::to_string(haveMoreData) + "  ");
     while (haveMoreData) {
         zmq_msg_init(&keyFrame);
         zmq_msg_init(&valueFrame);
         //The next two frames contain key and value
         receiveLogError(&keyFrame, processorInputSocket, logger);
-        logger.trace("L(w) " + std::to_string(zmq_msg_more(&keyFrame)));
-        logger.trace("W " + std::string((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame)));
         //Check if there is a key but no value
         if (!expectNextFrame("Protocol error: Found key frame, but no value frame. They must occur in pairs!", generateResponse, "\x31\x01\x20\x01")) {
             return;
         }
         receiveLogError(&valueFrame, processorInputSocket, logger);
-        logger.trace("V " + std::string((char*) zmq_msg_data(&valueFrame), zmq_msg_size(&valueFrame)));
         //Convert to LevelDB
         leveldb::Slice keySlice((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
         leveldb::Slice valueSlice((char*) zmq_msg_data(&valueFrame), zmq_msg_size(&valueFrame));

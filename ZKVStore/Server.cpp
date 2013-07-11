@@ -161,13 +161,11 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
          */
         uint8_t writeFlags = getWriteFlags(&headerFrame);
         if (isPartsync(writeFlags)) {
-            server->logger.trace("XBLA 1");
             //Send the info frame (--> we have addr info)
             sendConstFrame("\x01", 1, workerSocket, server->logger, ZMQ_SNDMORE);
             zmq_msg_send(&addrFrame, workerSocket, ZMQ_SNDMORE);
             zmq_msg_send(&delimiterFrame, workerSocket, ZMQ_SNDMORE);
         } else {
-            server->logger.trace("XBLA 2");
             //Send the info frame (--> we don't have addr info)
             sendConstFrame("\x00", 1, workerSocket, server->logger, ZMQ_SNDMORE);
         }
