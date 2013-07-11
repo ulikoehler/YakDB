@@ -10,4 +10,4 @@ for i in range(1,1000):
 conn = zerodb.ZeroDBConnection()
 conn.connect("tcp://localhost:7100")
 
-conn.put(128, data)
+conn.put(1, data)
