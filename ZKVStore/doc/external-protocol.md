@@ -93,8 +93,7 @@ Compact a table (clear the log and rebuild immutable table files). Could take so
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 3: End key (inclusive). If this has zero length, the count ends at the last key
 
-If frame 2 and 3 are not present, the full key range (=entire table) is compacted.
-If only frame 2, but not frame 3 is present, frame 3 is treated as if it was zero-length.
+Frame 0-4 must be present under all circumstances.
 
 ##### Compact response:
 

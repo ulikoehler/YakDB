@@ -11,6 +11,7 @@
 #include <thread>
 #include <leveldb/db.h>
 #include <vector>
+#include <climits>
 #include "Logger.hpp"
 
 /**
@@ -45,25 +46,24 @@ public:
     TableOpenHelper(zctx_t* context);
     ~TableOpenHelper();
     /**
-     * Simple table open without additional parameters
-     * @param index
-     */
-    void openTable(IndexType index);
-    /**
-     * Advanced table open with all optional parameters.
-     * Table ID is 32-bit little-endian, other parameters 
-     * must be 64-bit little-endian
+     * Any parameter that is set to the numeric_limits<T>::max() limit,
+     * is assumed default.
      * @param tableIdFrame: Frame of size 4, must not be empty
-     * @param lruCacheSizeFrame optional parameter, empty if default shall be assumed
-     * @param tableBlockSizeFrame optional parameter, empty if default shall be assumed
-     * @param writeBufferSizeFrame optional parameter, empty if default shall be assumed
-     * @param bloomFilterBitsPerKeyFrame optional parameter, empty if default shall be assumed
+     * @param lruCacheSizeFrame LevelDB Block LRU cache size in bytes
+     * @param tableBlockSizeFrame LevelDB bloc size in bytes
+     * @param writeBufferSizeFrame LevelDB write buffer in bytes
+     * @param bloomFilterBitsPerKeyFrame LevelDB bloom filter bits per key
      */
-    void openTable(zframe_t* tableIdFrame, zframe_t* lruCacheSizeFrame, zframe_t* tableBlockSizeFrame, zframe_t* writeBufferSizeFrame, zframe_t* bloomFilterBitsPerKeyFrame);
+    void openTable(IndexType tableId,
+            uint64_t lruCacheSize = UINT64_MAX,
+            uint64_t tableBlockSizeFrame = UINT64_MAX,
+            uint64_t writeBufferSize = UINT64_MAX,
+            uint64_t bloomFilterBitsPerKey = UINT64_MAX,
+            bool compressionEnabled = true);
     void closeTable(IndexType index);
     void truncateTable(IndexType index);
-private:
     void* reqSocket; //This ZMQ socket is used to send requests
+private:
     zctx_t* context;
     Logger logger;
 };

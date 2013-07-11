@@ -107,17 +107,22 @@ static inline int receiveExpectNoMore(zmq_msg_t* msg, void* sock, Logger& logger
  * Uses ZMQ low-level API
  * 
  * Any error is reported on stderr.
+ * 
+ * Returns -1 on error
  */
-static inline void sendConstFrame(const void* data, size_t size, void* socket, int flags = 0) {
+static inline int sendConstFrame(const void* data, size_t size, void* socket, int flags = 0) {
     zmq_msg_t msg;
     if (unlikely(zmq_msg_init_data(&msg, (void*) data, size, nullptr, nullptr) == -1)) {
         fprintf(stderr, "Error '%s' while trying to initialize message part\n", zmq_strerror(errno));
         fflush(stderr);
+        return -1;
     }
     if (unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
         fprintf(stderr, "Error '%s' while trying to send message part\n", zmq_strerror(errno));
         fflush(stderr);
+        return -1;
     }
+    return 0;
 }
 
 /**
@@ -125,15 +130,20 @@ static inline void sendConstFrame(const void* data, size_t size, void* socket, i
  * Uses ZMQ low-level API
  * 
  * Any error is reported on stderr.
+ * 
+ * Returns -1 on error
  */
-static inline void sendConstFrame(const void* data, size_t size, void* socket, Logger& logger, int flags = 0) {
+static inline int sendConstFrame(const void* data, size_t size, void* socket, Logger& logger, int flags = 0) {
     zmq_msg_t msg;
     if (unlikely(zmq_msg_init_data(&msg, (void*) data, size, nullptr, nullptr) == -1)) {
         logger.error("Error '%s' while trying to initialize message part\n", zmq_strerror(errno));
+        return -1;
     }
     if (unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
         logger.error("Error '%s' while trying to send message part\n", zmq_strerror(errno));
+        return -1;
     }
+    return 0;
 }
 
 /**
@@ -141,18 +151,23 @@ static inline void sendConstFrame(const void* data, size_t size, void* socket, L
  * Uses ZMQ low-level API.
  * 
  * Any error is reported on stderr.
+ * 
+ * Returns -1 on error
  */
-static inline void sendFrame(const void* data, size_t size, void* socket, int flags = 0) {
+static inline int sendFrame(const void* data, size_t size, void* socket, int flags = 0) {
     zmq_msg_t msg;
     if (unlikely(zmq_msg_init_size(&msg, size) == -1)) {
         fprintf(stderr, "Error '%s' while trying to initialize message part\n", zmq_strerror(errno));
         fflush(stderr);
+        return -1;
     }
     memcpy(zmq_msg_data(&msg), data, size);
     if (unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
         fprintf(stderr, "Error '%s' while trying to send message part\n", zmq_strerror(errno));
         fflush(stderr);
+        return -1;
     }
+    return 0;
 }
 
 /**
@@ -160,51 +175,62 @@ static inline void sendFrame(const void* data, size_t size, void* socket, int fl
  * Uses ZMQ low-level API.
  * 
  * Any error is reported on stderr.
+ * 
+ * Returns -1 on error
  */
-static inline void sendFrame(const void* data, size_t size, void* socket, Logger& logger, int flags = 0) {
+static inline int sendFrame(const void* data, size_t size, void* socket, Logger& logger, int flags = 0) {
     zmq_msg_t msg;
     if (unlikely(zmq_msg_init_size(&msg, size) == -1)) {
         logger.error("Error '%s' while trying to initialize message part\n", zmq_strerror(errno));
+        return -1;
     }
     memcpy(zmq_msg_data(&msg), data, size);
     if (unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
         logger.error("Error '%s' while trying to send message part\n", zmq_strerror(errno));
+        return -1;
     }
+    return 0;
 }
 
 /**
  * Send nonconstant data over a socket.
  * Logger-based versions
  * Uses ZMQ low-level API 
+ * Returns -1 on error.
  */
-static inline void sendFrame(const std::string& msgStr, void* socket, Logger& logger, int flags = 0) {
+static inline int sendFrame(const std::string& msgStr, void* socket, Logger& logger, int flags = 0) {
     zmq_msg_t msg;
     if (unlikely(zmq_msg_init_size(&msg, msgStr.size()) != 0)) {
         logger.error("Error '%s' while trying to initialize message part\n", zmq_strerror(errno));
+        return -1;
     }
     memcpy(zmq_msg_data(&msg), msgStr.c_str(), msgStr.size());
     if (unlikely(zmq_msg_send(&msg, socket, flags) != 0)) {
         logger.error("Error '%s' while trying to send message part\n", zmq_strerror(errno));
+        return -1;
     }
+    return 0;
 }
-
-
 
 /**
  * Send nonconstant data over a socket.
  * Uses ZMQ low-level API 
+ * Returns -1 on error.
  */
-static inline void sendFrame(const std::string& msgStr, void* socket, int flags = 0) {
+static inline int sendFrame(const std::string& msgStr, void* socket, int flags = 0) {
     zmq_msg_t msg;
     if (unlikely(zmq_msg_init_size(&msg, msgStr.size()) != 0)) {
         fprintf(stderr, "Error '%s' while trying to initialize message part\n", zmq_strerror(errno));
         fflush(stderr);
+        return -1;
     }
     memcpy(zmq_msg_data(&msg), msgStr.c_str(), msgStr.size());
     if (unlikely(zmq_msg_send(&msg, socket, flags) != 0)) {
         fprintf(stderr, "Error '%s' while trying to send message part\n", zmq_strerror(errno));
         fflush(stderr);
+        return -1;
     }
+    return 0;
 }
 
 /**
@@ -218,7 +244,7 @@ static inline void recvAndIgnore(void* socket) {
     while (true) {
         zmq_msg_recv(&msg, socket, 0);
         zmq_msg_close(&msg);
-        if(!socketHasMoreFrames(socket)) {
+        if (!socketHasMoreFrames(socket)) {
             break;
         }
     }
@@ -248,7 +274,6 @@ static inline void proxyMultipartMessage(void* srcSocket, void* dstSocket) {
         zmq_msg_send(&msg, dstSocket, (rcvmore ? ZMQ_SNDMORE : 0));
     }
 }
-
 
 /**
  * Utility function to convert frame data to a struct-like type

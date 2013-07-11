@@ -10,6 +10,7 @@
 #include <thread>
 #include <czmq.h>
 #include "Tablespace.hpp"
+#include "AbstractFrameProcessor.hpp"
 
 class UpdateWorkerController {
 public:
@@ -37,7 +38,7 @@ private:
     zctx_t* context;
 };
 
-class UpdateWorker {
+class UpdateWorker : public AbstractFrameProcessor {
 public:
     UpdateWorker(zctx_t* ctx, Tablespace& tablespace);
     ~UpdateWorker();
@@ -56,45 +57,14 @@ public:
      */
     bool processNextMessage();
 private:
-    zctx_t* context;
-    void* replyProxySocket;
-    void* workPullSocket;
     TableOpenHelper tableOpenHelper;
-    Logger logger;
     Tablespace& tablespace;
-    /**
-     * Parse a table ID, as little endian 32 bit unsigned integer in one frame.
-     * Automatically receives the frame from replyProxySocket.
-     * @param tableIdDst Where the table ID shall be placed
-     * @param generateResponse Set this to true if an error message shall be sent on error.
-     * @param errorResponseCode A 4-long response code to use if generating an error response
-     * @return True on success, false if an error has been handled and the caller shall stop processing.
-     */
-    bool parseTableId(uint32_t& tableIdDst, bool generateResponse, const char* errorResponseCode);
-    /**
-     * Ensure the work pull socket has a next message part in the current message
-     * @param errString A descriptive error string logged and sent to the client
-     * @param generateResponse Set this to true if an error message shall be sent on error.
-     * @param errorResponseCode A 4-long response code to use if generating an error response
-     * @return True on success, false if an error has been handled and the caller shall stop processing.
-     */
-    bool expectNextFrame(const char* errString,
-            bool generateResponse,
-            const char* errorResponseCode);
-    /**
-     * Ensure the given LevelDB status code indicates success
-     * @param errString A descriptive error string logged and sent to the client. status error string will be appended.
-     * @param generateResponse Set this to true if an error message shall be sent on error.
-     * @param errorResponseCode A 4-long response code to use if generating an error response
-     * @return True on success, false if an error has been handled and the caller shall stop processing.
-     */
-    bool checkLevelDBStatus(const leveldb::Status& status,
-            const char* errString,
-            bool generateResponse,
-            const char* errorResponseCode);
     void handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResponse);
     void handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResponse);
     void handleCompactRequest(zmq_msg_t* headerFrame, bool generateResponse);
+    void handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateResponse);
+    void handleTableCloseRequest(zmq_msg_t* headerFrame, bool generateResponse);
+    void handleTableTruncateRequest(zmq_msg_t* headerFrame, bool generateResponse);
 };
 
 #endif	/* UPDATEWORKER_HPP */

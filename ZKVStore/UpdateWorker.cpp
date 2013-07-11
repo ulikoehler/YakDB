@@ -22,89 +22,23 @@
 
 using namespace std;
 
-static zmsg_t* handleTableOpenRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, zframe_t* headerFrame, bool noResponse) {
-    //Parse the table ID and advanced parameter frames and check their length
-    //TODO convert asserts to protocol errors
-    zframe_t* tableIdFrame = zmsg_next(msg);
-    assert(tableIdFrame);
-    assert(zframe_size(tableIdFrame) == 4);
-    zframe_t* lruCacheSizeFrame = zmsg_next(msg);
-    assert(lruCacheSizeFrame);
-    assert(zframe_size(lruCacheSizeFrame) == 0 || zframe_size(lruCacheSizeFrame) == 8);
-    zframe_t* blockSizeFrame = zmsg_next(msg);
-    assert(blockSizeFrame);
-    assert(zframe_size(blockSizeFrame) == 0 || zframe_size(blockSizeFrame) == 8);
-    zframe_t* writeBufferSizeFrame = zmsg_next(msg);
-    assert(writeBufferSizeFrame);
-    assert(zframe_size(writeBufferSizeFrame) == 0 || zframe_size(writeBufferSizeFrame) == 8);
-    zframe_t* bloomFilterBitsPerKeyFrame = zmsg_next(msg);
-    assert(bloomFilterBitsPerKeyFrame);
-    assert(zframe_size(bloomFilterBitsPerKeyFrame) == 0 || zframe_size(bloomFilterBitsPerKeyFrame) == 8);
-    //In order to reuse the frames, the must not be deallocated
-    //when the msg parameter is deallocated, so we need to remove it
-    zmsg_remove(msg, tableIdFrame);
-    zmsg_remove(msg, lruCacheSizeFrame);
-    zmsg_remove(msg, blockSizeFrame);
-    zmsg_remove(msg, writeBufferSizeFrame);
-    zmsg_remove(msg, bloomFilterBitsPerKeyFrame);
-    //
-    //Parse the flags from the header frame
-    //
-    //Open the table
-    helper.openTable(tableIdFrame, lruCacheSizeFrame, blockSizeFrame, writeBufferSizeFrame, bloomFilterBitsPerKeyFrame);
-    //Rewrite the header frame for the response
-    //Create the response if neccessary
-    zmsg_t* response = nullptr;
-    if (!noResponse) {
-        response = zmsg_new();
-        zmsg_addmem(response, "\x31\x01\x20\x01", 4);
-    }
-    return response;
-}
-
-static zmsg_t* handleTableCloseRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, zframe_t* headerFrame, bool noResponse) {
-    uint32_t tableId = extractBinary<uint32_t>(zmsg_next(msg));
-    //Close the table
-    tables.closeTable(tableId);
-    //Create the response
-    zmsg_t* response = nullptr;
-    if (!noResponse) {
-        response = zmsg_new();
-        zmsg_addmem(response, "\x31\x01\x20\x01", 4);
-    }
-    return response;
-}
-
-static zmsg_t* handleTableTruncateRequest(Tablespace& tables, zmsg_t* msg, TableOpenHelper& helper, Logger& log, zframe_t* headerFrame, bool noResponse) {
-    uint32_t tableId = extractBinary<uint32_t>(zmsg_next(msg));
-    //Close the table
-    helper.truncateTable(tableId);
-    //Create the response
-    zmsg_t* response = nullptr;
-    if (!noResponse) {
-        response = zmsg_new();
-        zmsg_addmem(response, "\x31\x01\x20\x01", 4);
-    }
-    return response;
-}
-
 UpdateWorker::UpdateWorker(zctx_t* ctx, Tablespace& tablespace) :
-context(ctx),
-replyProxySocket(zsocket_new(ctx, ZMQ_PUSH)),
-workPullSocket(zsocket_new(ctx, ZMQ_PULL)),
+AbstractFrameProcessor(ctx),
+processorInputSocket(zsocket_new(ctx, ZMQ_PUSH)),
+processorOutputSocket(zsocket_new(ctx, ZMQ_PULL)),
 tableOpenHelper(ctx),
 tablespace(tablespace),
 logger(ctx, "Update worker") {
     //Connect the socket that is used to proxy requests to the external req/rep socket
-    zsocket_connect(replyProxySocket, externalRequestProxyEndpoint);
+    zsocket_connect(processorOutputSocket, externalRequestProxyEndpoint);
     //Connect the socket that is used by the send() member function
-    zsocket_connect(workPullSocket, updateWorkerThreadAddr);
+    zsocket_connect(processorInputSocket, updateWorkerThreadAddr);
     logger.debug("Update worker thread starting");
 }
 
 UpdateWorker::~UpdateWorker() {
-    zsocket_destroy(context, replyProxySocket);
-    zsocket_destroy(context, workPullSocket);
+    zsocket_destroy(context, processorOutputSocket);
+    zsocket_destroy(context, processorInputSocket);
 }
 
 bool UpdateWorker::processNextMessage() {
@@ -117,7 +51,7 @@ bool UpdateWorker::processNextMessage() {
      */
     zmq_msg_t haveReplyAddrFrame, routingFrame, delimiterFrame, headerFrame;
     zmq_msg_init(&haveReplyAddrFrame);
-    receiveExpectMore(&haveReplyAddrFrame, workPullSocket, logger);
+    receiveExpectMore(&haveReplyAddrFrame, processorInputSocket, logger);
     char haveReplyAddrFrameContent = ((char*) zmq_msg_data(haveReplyAddrFrame))[0];
     zmq_msg_close(haveReplyAddrFrame);
     if (haveReplyAddrFrameContent == '\xFF') {
@@ -133,16 +67,16 @@ bool UpdateWorker::processNextMessage() {
     if (haveReplyAddr) {
         //Read routing info
         zmq_msg_init(&routingFrame);
-        receiveLogError(&routingFrame, workPullSocket, logger);
+        receiveLogError(&routingFrame, processorInputSocket, logger);
         zmq_msg_init(&delimiterFrame);
-        receiveLogError(&delimiterFrame, workPullSocket, logger);
+        receiveLogError(&delimiterFrame, processorInputSocket, logger);
         //Write routing info
-        zmq_msg_send(&routingFrame, replyProxySocket, ZMQ_SNDMORE);
-        zmq_msg_send(&routingFrame, replyProxySocket, ZMQ_SNDMORE);
+        zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
+        zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
     }
     //The router ensures the header frame is correct, so a (crashing) assert works here
     zmq_msg_init(&headerFrame);
-    receiveLogError(&headerFrame, workPullSocket, logger);
+    receiveLogError(&headerFrame, processorInputSocket, logger);
     assert(isHeaderFrame(&headerFrame));
     //Parse the request type
     RequestType requestType = getRequestType(headerFrame);
@@ -157,70 +91,19 @@ bool UpdateWorker::processNextMessage() {
     if (requestType == PutRequest) {
         handleUpdateRequest(headerFrame, haveReplyAddr);
     } else if (requestType == DeleteRequest) {
-        response = handleDeleteRequest(headerFrame, haveReplyAddr);
+        handleDeleteRequest(headerFrame, haveReplyAddr);
     } else if (requestType == OpenTableRequest) {
-        response = handleTableOpenRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, haveReplyAddr);
-        //Set partsync to force the program to respond after finished
-        partsync = true;
+        handleTableOpenRequest(headerFrame, haveReplyAddr);
     } else if (requestType == CloseTableRequest) {
-        response = handleTableCloseRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, haveReplyAddr);
-        //Set partsync to force the program to respond after finished
-        partsync = true;
+        handleTableCloseRequest(headerFrame, haveReplyAddr);
     } else if (requestType == CompactTableRequest) {
-        response = handleCompactRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, haveReplyAddr);
-        //Set partsync to force the code to respond after finishing
-        partsync = true;
+        handleCompactRequest(headerFrame, haveReplyAddr);
     } else if (requestType == TruncateTableRequest) {
-        response = handleTableTruncateRequest(tablespace, msg, tableOpenHelper, logger, headerFrame, haveReplyAddr);
-        //Set partsync to force the code to respond after finishing
-        partsync = true;
+        handleTableTruncateRequest(headerFrame, haveReplyAddr);
     } else {
-        logger.error(std::string("Internal routing error: request type ") + std::to_string(requestType) + " routed to update worker thread!");
+        logger.error(std::string("Internal routing error: request type ")
+        + std::to_string(requestType) + " routed to update worker thread!");
         continue;
-    }
-}
-
-bool UpdateWorker::parseTableId(uint32_t& tableIdDst, bool generateResponse, const char* errorResponseCode) {
-    if (unlikely(!socketHasMoreFrames(workPullSocket))) {
-        logger.warn("Trying to read table ID frame, but no frame was available");
-        if (generateResponse) {
-            sendFrame(errorResponseCode, 4, replyProxySocket, logger, ZMQ_SNDMORE);
-            std::string errmsg = "Protocol error: Did not find table ID frame!";
-            sendFrame(errmsg, replyProxySocket, logger);
-        }
-        return false;
-    }
-    //Parse table ID, release frame immediately
-    zmq_msg_t tableIdFrame;
-    zmq_msg_init(&tableIdFrame);
-    receiveLogError(&tableIdFrame, workPullSocket, logger);
-    tableIdDst = extractBinary<uint32_t>(tableIdFrame);
-    zmq_msg_close(&tableIdFrame);
-    return true;
-}
-
-bool UpdateWorker::expectNextFrame(const char* errString, bool generateResponse, const char* errorResponseCode) {
-    if (unlikely(!socketHasMoreFrames(workPullSocket))) {
-        logger.warn(errString);
-        if (generateResponse) {
-            sendFrame(errorResponseCode, 4, replyProxySocket, logger, ZMQ_SNDMORE);
-            sendFrame(errString, strlen(errString), replyProxySocket, logger);
-        }
-        return false;
-    }
-}
-
-bool UpdateWorker::checkLevelDBStatus(const leveldb::Status& status, const char* errString, bool generateResponse, const char* errorResponseCode) {
-    if (unlikely(!status.ok())) {
-        std::string statusErr = status.ToString();
-        std::string completeErrorString = std::string(errString) + statusErr;
-        logger.error(completeErrorString);
-        if (generateResponse) {
-            //Send DB error code
-            sendFrame(errorResponseCode, 4, replyProxySocket, logger, ZMQ_SNDMORE);
-            sendFrame(completeErrorString, replyProxySocket, logger);
-            return;
-        }
     }
 }
 
@@ -233,7 +116,7 @@ void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool fullsync, bo
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
-    if (!parseTableId(tableId, generateResponse, "\x31\x01\x20\x10")) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, "\x31\x01\x20\x10")) {
         return;
     }
     //Get the table
@@ -241,19 +124,19 @@ void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool fullsync, bo
     //If this point is reached in the control flow, header frame will not be reused
     zmq_msg_close(headerFrame);
     //The entire update is processed in one batch. Empty batches are allowed.
-    bool haveMoreData = socketHasMoreFrames(workPullSocket);
+    bool haveMoreData = socketHasMoreFrames(processorInputSocket);
     zmq_msg_t keyFrame, valueFrame;
     zmq_msg_init(keyFrame);
     zmq_msg_init(valueFrame);
     leveldb::WriteBatch batch;
     while (haveMoreData) {
         //The next two frames contain key and value
-        receiveLogError(&keyFrame, workPullSocket, logger);
+        receiveLogError(&keyFrame, processorInputSocket, logger);
         //Check if there is a key but no value
         if (!expectNextFrame("Protocol error: Found key frame, but no value frame. They must occur in pairs!", generateResponse, "\x31\x01\x20\x01")) {
             return;
         }
-        receiveLogError(&valueFrame, workPullSocket, logger);
+        receiveLogError(&valueFrame, processorInputSocket, logger);
         //Convert to LevelDB
         leveldb::Slice keySlice((char*) zframe_data(keyFrame), zframe_size(keyFrame));
         leveldb::Slice valueSlice((char*) zframe_data(valueFrame), zframe_size(valueFrame));
@@ -267,7 +150,7 @@ void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool fullsync, bo
     //Commit the batch
     leveldb::Status status = db->Write(writeOptions, &batch);
     //If something went wrong, send an error response
-    if(!checkLevelDBStatus(status,
+    if (!checkLevelDBStatus(status,
             "Database error while processing update request: ",
             generateResponse,
             "\x31\x01\x20\x02")) {
@@ -276,7 +159,7 @@ void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool fullsync, bo
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendConstFrame("\x31\x01\x20\x00", 4, replyProxySocket, logger);
+        sendConstFrame("\x31\x01\x20\x00", 4, processorOutputSocket, logger);
     }
 }
 
@@ -287,13 +170,12 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     //Convert options to LevelDB
     leveldb::WriteOptions writeOptions;
     writeOptions.sync = fullsync;
-    //Parse table ID, release frame immediately
-    zmq_msg_t tableIdFrame;
-    zmq_msg_init(&tableIdFrame);
-    receiveLogError(&tableIdFrame, workPullSocket, logger);
-    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
-    bool haveMoreData = zmq_msg_more(tableIdFrame);
-    zmq_msg_close(&tableIdFrame);
+    //Parse table ID
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, "\x31\x01\x20\x10")) {
+        return;
+    }
+    bool haveMoreData = socketHasMoreFrames(processorOutputSocket);
     //Get the table
     leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //If this point is reached in the control flow, header frame will not be reused
@@ -304,7 +186,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     leveldb::WriteBatch batch;
     while (haveMoreData) {
         //The next two frames contain key and value
-        receiveLogError(&keyFrame, workPullSocket, logger);
+        receiveLogError(&keyFrame, processorInputSocket, logger);
         //Convert to LevelDB
         leveldb::Slice keySlice((char*) zframe_data(keyFrame), zframe_size(keyFrame));
         batch.Delete(keySlice);
@@ -316,7 +198,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     //Commit the batch
     leveldb::Status status = db->Write(writeOptions, &batch);
     //If something went wrong, send an error response
-    if(!checkLevelDBStatus(status,
+    if (!checkLevelDBStatus(status,
             "Database error while processing delete request: ",
             generateResponse,
             "\x31\x01\x20\x02")) {
@@ -325,7 +207,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendConstFrame("\x31\x01\x20\x00", 4, replyProxySocket, logger);
+        sendConstFrame("\x31\x01\x20\x00", 4, processorOutputSocket, logger);
     }
 }
 
@@ -344,46 +226,151 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
  * @param headerFrame
  */
 void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateResponse) {
-    //Parse table ID, release frame immediately
-    zmq_msg_t tableIdFrame;
-    zmq_msg_init(&tableIdFrame);
-    receiveLogError(&tableIdFrame, workPullSocket, logger);
-    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
-    bool haveMoreFrames = zmq_msg_more(tableIdFrame);
-    zmq_msg_close(&tableIdFrame);
-    if (!haveMoreFrames) {
-        logger.warn("Compact request has only one frame");
-        if (generateResponse) {
-            //Send DB error code
-            sendConstFrame("\x31\x01\x03\x01", 4, replyProxySocket, logger, ZMQ_SNDMORE);
-            sendFrame("Only header found in compact request, range missing", replyProxySocket, logger, 0);
-            return;
-        }
+    zmq_msg_close(headerFrame);
+    //Parse table ID
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, "\x31\x01\x20\x10")) {
+        return;
+    }
+    //Check if there is a range frames
+    if (!expectNextFrame("Only header found in compact request, range missing",
+            generateResponse,
+            "\x31\x01\x03\x01")) {
         return;
     }
     //Get the table
     leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //Parse the start/end frame
-    //zmsg_next returns a non-NULL frame when calling zmsg_next after the last frame has been next'ed, so we'll have to perform additional checks here
-    zframe_t* rangeStartFrame = zmsg_next(msg);
-    zframe_t* rangeEndFrame = (rangeStartFrame == NULL ? NULL : zmsg_next(msg));
-    bool haveRangeStart = !(rangeStartFrame == NULL || zframe_size(rangeStartFrame) == 0);
-    bool haveRangeEnd = !(rangeEndFrame == NULL || zframe_size(rangeEndFrame) == 0);
-    leveldb::Slice* rangeStart = (haveRangeStart ? new leveldb::Slice((char*) zframe_data(rangeStartFrame), zframe_size(rangeStartFrame)) : nullptr);
-    leveldb::Slice* rangeEnd = (haveRangeEnd ? new leveldb::Slice((char*) zframe_data(rangeEndFrame), zframe_size(rangeEndFrame)) : nullptr);
+    zmq_msg_t rangeStartFrame, rangeEndFrame;
+    zmq_msg_init(rangeStartFrame);
+    receiveLogError(rangeStartFrame, processorOutputSocket, logger);
+    if (!expectNextFrame("Only range start frame found in compact request, range end frame missing",
+            generateResponse,
+            "\x31\x01\x03\x01")) {
+        zmq_msg_close(rangeStartFrame);
+        return;
+    }
+    zmq_msg_init(rangeEndFrame);
+    receiveLogError(rangeEndFrame, processorOutputSocket, logger);
+    //Convert frames to slices
+    leveldb::Slice* rangeStart =
+            new leveldb::Slice((char*) zframe_data(rangeStartFrame), zframe_size(rangeStartFrame));
+    leveldb::Slice* rangeEnd =
+            new leveldb::Slice((char*) zframe_data(rangeEndFrame), zframe_size(rangeEndFrame));
+    //Cleanup
+    zmq_msg_close(rangeStartFrame);
+    zmq_msg_close(rangeEndFrame);
+    //Do the compaction (takes LONG)
     db->CompactRange(rangeStart, rangeEnd);
     //Cleanup
     delete rangeStart;
     delete rangeEnd;
     //Remove and destroy the range frames, because they're not used in the response
     //Create the response if neccessary
+    if (generateResponse) {
+        sendConstFrame("\x31\x01\x03\x00", 4, processorOutputSocket, logger);
+    }
+}
+
+void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    zmq_msg_close(headerFrame);
+    /*
+     * This method performs frame correctness check, the table open server
+     * serializes everything in a single struct.
+     */
+    //Extract flags from header
+    uint8_t flags = ((uint8_t*) zmq_msg_data(headerFrame))[3];
+    bool compressionEnabled = (flags & 0x01) == 0;
+    //Extract numeric parameters
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId,
+            "Table ID frame",
+            generateResponse,
+            "\x31\x01\x01\x01")) {
+        return;
+    }
+    uint64_t lruCacheSize;
+    if (!parseUint64FrameOrAssumeDefault(lruCacheSize,
+            UINT64_MAX,
+            "LRU cache size frame",
+            generateResponse,
+            "\x31\x01\x01\x01")) {
+        return;
+    }
+    uint64_t blockSize;
+    if (!parseUint64FrameOrAssumeDefault(blockSize,
+            UINT64_MAX,
+            "Table block size frame",
+            generateResponse,
+            "\x31\x01\x01\x01")) {
+        return;
+    }
+    uint64_t writeBufferSize;
+    if (!parseUint64FrameOrAssumeDefault(writeBufferSize,
+            UINT64_MAX,
+            "Write buffer size frame",
+            generateResponse,
+            "\x31\x01\x01\x01")) {
+        return;
+    }
+    uint64_t bloomFilterBitsPerKey;
+    if (!parseUint64FrameOrAssumeDefault(bloomFilterBitsPerKey,
+            UINT64_MAX,
+            "Bits per key bloom filter size frame",
+            generateResponse,
+            "\x31\x01\x01\x01")) {
+        return;
+    }
+    //
+    //Parse the flags from the header frame
+    //
+    //Open the table
+    tableOpenHelper.openTable(tableId,
+            lruCacheSize,
+            blockSize,
+            writeBufferSize,
+            bloomFilterBitsPerKey,
+            compressionEnabled);
+    //Rewrite the header frame for the response
+    //Create the response if neccessary
+    if (generateResponse) {
+        sendConstFrame("\x31\x01\x01\x00", 4, processorOutputSocket, logger);
+    }
+}
+
+void UpdateWorker::handleTableCloseRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    zmq_msg_close(headerFrame);
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse,
+            "\x31\x01\x02\x01")) {
+        return;
+    }
+    //Close the table
+    tableOpenHelper.closeTable(tableId);
+    //Create the response
+    if (generateResponse) {
+        sendConstFrame("\x31\x01\x02\x00", 4, processorOutputSocket, logger);
+    }
+}
+
+
+void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    zmq_msg_close(headerFrame);
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse,
+            "\x31\x01\x03\x01")) {
+        return;
+    }
+    //Close the table
+    tableOpenHelper.truncateTable(tableId);
+    //Create the response
     zmsg_t* response = nullptr;
-    if (!noResponse) {
-        response = zmsg_new();
-        zmsg_addmem(response, "\x31\x01\x03\x00", 4);
+    if (generateResponse) {
+        sendConstFrame("\x31\x01\x03\x00", 4, processorOutputSocket, logger);
     }
     return response;
 }
+
 
 /**
  * Pretty stubby update thread loop.
