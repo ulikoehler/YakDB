@@ -134,6 +134,12 @@ static inline RequestType getRequestType(zframe_t* frame) {
     return (RequestType) zframe_data(frame)[2];
 }
 
+static inline RequestType getRequestType(zmq_msg_t* frame) {
+    assert(zmq_msg_size(frame) >= 3);
+    return (RequestType) ((char*)zmq_msg_data(frame))[2];
+}
+
+
 static inline uint8_t getWriteFlags(zframe_t* frame) {
     //Write flags are optional and default to 0x00
     return (zframe_size(frame) >= 4 ? zframe_data(frame)[3] : 0x00);

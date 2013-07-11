@@ -15,6 +15,7 @@
 #include <exception>
 #include <dirent.h>
 #include <unistd.h>
+#include <stdint.h>
 #include "zutil.hpp"
 #include "endpoints.hpp"
 #include "macros.hpp"
@@ -24,8 +25,8 @@
 
 using namespace std;
 
-static struct TableOpenParameters {
-    TableOpenHelper::IndexType tableId;
+struct TableOpenParameters {
+    uint32_t tableId;
     uint64_t lruCacheSize;
     uint64_t tableBlockSize;
     uint64_t writeBufferSize;
@@ -92,29 +93,24 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
                 options.compression = (parameters->compressionEnabled ? leveldb::kSnappyCompression : leveldb::kNoCompression);
                 //Set optional parameters
                 if (parameters->lruCacheSize != UINT64_MAX) {
-                    options.block_cache =
-                            leveldb::NewLRUCache(extractBinary<uint64_t>(parameters->lruCacheSize));
+                    options.block_cache = leveldb::NewLRUCache(parameters->lruCacheSize);
                 } else {
                     //Use a small LRU cache per default, because OS cache doesn't cache uncompressed data
                     // , so it's really slow in random-access-mode for uncompressed data
                     options.block_cache = leveldb::NewLRUCache(1024 * 1024 * 10);
                 }
                 if (parameters->tableBlockSize != UINT64_MAX) {
-                    options.block_size
-                            = extractBinary<uint64_t>(parameters->tableBlockSize);
+                    options.block_size = parameters->tableBlockSize;
                 }
                 if (parameters->writeBufferSize != UINT64_MAX) {
-                    options.write_buffer_size
-                            = extractBinary<uint64_t>(writeBufferSize);
+                    options.write_buffer_size = parameters->writeBufferSize;
                 }
                 if (parameters->bloomFilterBitsPerKey != UINT64_MAX) {
                     options.filter_policy
-                            = leveldb::NewBloomFilterPolicy(
-                            extractBinary<uint64_t>(parameters->bloomFilterBitsPerKeyFrame)
-                            );
+                            = leveldb::NewBloomFilterPolicy(parameters->bloomFilterBitsPerKey);
                 }
-                //Open the table
                 std::string tableName = "tables/" + std::to_string(tableIndex);
+                //Open the table
                 leveldb::Status status = leveldb::DB::Open(options, tableName.c_str(), &databases[tableIndex]);
                 if (unlikely(!status.ok())) {
                     logger.error("Error while trying to open table #" + std::to_string(tableIndex) + " in directory " + tableName + ": " + status.ToString());
@@ -256,7 +252,7 @@ void COLD TableOpenHelper::openTable(uint32_t tableId,
     int rc = sendConstFrame("\x00", 1, reqSocket, logger);
     sendFrame(&parameters, sizeof (TableOpenParameters), reqSocket, logger);
     //Wait for the reply (reply content is ignored)
-    msg = zmsg_recv(reqSocket); //Blocks until reply received
+    zmsg_t* msg = zmsg_recv(reqSocket); //Blocks until reply received
     if (msg != nullptr) {
         zmsg_destroy(&msg);
     }

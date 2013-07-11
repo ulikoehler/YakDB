@@ -7,12 +7,17 @@
 
 #ifndef TABLEOPENHELPER_HPP
 #define	TABLEOPENHELPER_HPP
+#include <cstdint>
+#include <limits>
 #include <czmq.h>
 #include <thread>
 #include <leveldb/db.h>
 #include <vector>
-#include <climits>
 #include "Logger.hpp"
+
+#ifndef UINT64_MAX
+#define UINT64_MAX (std::numeric_limits<uint64_t>::max())
+#endif
 
 /**
  * This class starts a single thread in the background that shall receive an

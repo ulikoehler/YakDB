@@ -7,8 +7,10 @@
 
 #ifndef ABSTRACTFRAMEPROCESSOR_HPP
 #define	ABSTRACTFRAMEPROCESSOR_HPP
-#include <zmq.h>
+#include <czmq.h>
 #include <string>
+#include "Logger.hpp"
+#include <leveldb/status.h>
 
 /**
  * An abstract class that provides basic parsing
@@ -17,11 +19,15 @@
  */
 class AbstractFrameProcessor {
 public:
-    AbstractFrameProcessor(zctx_t* ctx);
+    AbstractFrameProcessor(zctx_t* ctx,
+            int inputSocketType,
+            int outputSocketType,
+            const std::string& loggerName);
+    ~AbstractFrameProcessor();
 protected:
     zctx_t* context;
-    void* processorOutputSocket;
     void* processorInputSocket;
+    void* processorOutputSocket;
     Logger logger;
     /**
      * Parse a table ID frame, as little endian 32 bit unsigned integer in one frame.

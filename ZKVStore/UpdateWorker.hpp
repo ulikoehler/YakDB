@@ -38,7 +38,7 @@ private:
     zctx_t* context;
 };
 
-class UpdateWorker : public AbstractFrameProcessor {
+class UpdateWorker : private AbstractFrameProcessor {
 public:
     UpdateWorker(zctx_t* ctx, Tablespace& tablespace);
     ~UpdateWorker();
@@ -54,6 +54,8 @@ public:
      * 
      * This function parses the header, calls the appropriate handler function
      * and sends the response for PARTSYNC requests
+     * 
+     * @return false if a stop message was received, true else
      */
     bool processNextMessage();
 private:

@@ -136,11 +136,11 @@ static inline int sendConstFrame(const void* data, size_t size, void* socket, in
 static inline int sendConstFrame(const void* data, size_t size, void* socket, Logger& logger, int flags = 0) {
     zmq_msg_t msg;
     if (unlikely(zmq_msg_init_data(&msg, (void*) data, size, nullptr, nullptr) == -1)) {
-        logger.error("Error '%s' while trying to initialize message part\n", zmq_strerror(errno));
+        logger.error("Error '" + std::string(zmq_strerror(errno)) + "' while trying to initialize message part\n");
         return -1;
     }
     if (unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
-        logger.error("Error '%s' while trying to send message part\n", zmq_strerror(errno));
+        logger.error("Error '" + std::string(zmq_strerror(errno)) + "' while trying to send message part\n");
         return -1;
     }
     return 0;
@@ -181,12 +181,16 @@ static inline int sendFrame(const void* data, size_t size, void* socket, int fla
 static inline int sendFrame(const void* data, size_t size, void* socket, Logger& logger, int flags = 0) {
     zmq_msg_t msg;
     if (unlikely(zmq_msg_init_size(&msg, size) == -1)) {
-        logger.error("Error '%s' while trying to initialize message part\n", zmq_strerror(errno));
+        logger.error("Error '"
+                + std::string(zmq_strerror(errno))
+                + "' while trying to initialize message part\n");
         return -1;
     }
     memcpy(zmq_msg_data(&msg), data, size);
     if (unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
-        logger.error("Error '%s' while trying to send message part\n", zmq_strerror(errno));
+        logger.error("Error '"
+                + std::string(zmq_strerror(errno))
+                + "' while trying to send message part\n");
         return -1;
     }
     return 0;
@@ -201,12 +205,16 @@ static inline int sendFrame(const void* data, size_t size, void* socket, Logger&
 static inline int sendFrame(const std::string& msgStr, void* socket, Logger& logger, int flags = 0) {
     zmq_msg_t msg;
     if (unlikely(zmq_msg_init_size(&msg, msgStr.size()) != 0)) {
-        logger.error("Error '%s' while trying to initialize message part\n", zmq_strerror(errno));
+        logger.error("Error '"
+                + std::string(zmq_strerror(errno))
+                + "' while trying to initialize message part\n");
         return -1;
     }
     memcpy(zmq_msg_data(&msg), msgStr.c_str(), msgStr.size());
     if (unlikely(zmq_msg_send(&msg, socket, flags) != 0)) {
-        logger.error("Error '%s' while trying to send message part\n", zmq_strerror(errno));
+        logger.error("Error '"
+                + std::string(zmq_strerror(errno))
+                + "' while trying to send message part\n");
         return -1;
     }
     return 0;
@@ -231,6 +239,17 @@ static inline int sendFrame(const std::string& msgStr, void* socket, int flags =
         return -1;
     }
     return 0;
+}
+
+/**
+ * For a given socket, return true only if there are more
+ * message parts in the current message.
+ */
+inline static bool socketHasMoreFrames(void* socket) {
+    int rcvmore = 0;
+    size_t rcvmore_size = sizeof (int);
+    zmq_getsockopt(socket, ZMQ_RCVMORE, &rcvmore, &rcvmore_size);
+    return rcvmore != 0;
 }
 
 /**
@@ -270,7 +289,7 @@ static inline void proxyMultipartMessage(void* srcSocket, void* dstSocket) {
             break;
         }
         zmq_msg_recv(&msg, srcSocket, 0);
-        rcvmore = zmq_msg_more(rcvmore);
+        rcvmore = zmq_msg_more(&msg);
         zmq_msg_send(&msg, dstSocket, (rcvmore ? ZMQ_SNDMORE : 0));
     }
 }
@@ -288,15 +307,18 @@ inline static T extractBinary(zframe_t* frame) {
     return *((T*) zframe_data(frame));
 }
 
+
 /**
- * For a given socket, return true only if there are more
- * message parts in the current message.
+ * Utility function to convert frame data to a struct-like type
+ * by casting (no explicit deserialization)s
+ * @param frame
+ * @return 
  */
-inline static bool socketHasMoreFrames(void* socket) {
-    int rcvmore = 0;
-    size_t rcvmore_size = sizeof (int);
-    zmq_getsockopt(socket, ZMQ_RCVMORE, &rcvmore, &rcvmore_size);
-    return rcvmore != 0;
+template<typename T>
+inline static T extractBinary(zmq_msg_t* frame) {
+    assert(frame);
+    assert(zmq_msg_size(frame) == sizeof (T));
+    return *((T*) zmq_msg_data(frame));
 }
 
 /**
