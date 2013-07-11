@@ -141,8 +141,6 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         //        cout << "F2x " << zframe_size(secondFrame) << endl;
         //        cout << "YYYY" << endl;
         void* dstSocket = server->updateWorkerController.workerPushSocket;
-        
-            server->logger.trace("NOOOO");
         //Send the info frame (--> we have addr info)
         sendConstFrame("\x01", 1, dstSocket, server->logger, ZMQ_SNDMORE);
         //Send the routing information

@@ -34,6 +34,7 @@ tablespace(tablespace) {
 }
 
 UpdateWorker::~UpdateWorker() {
+    logger.debug("Update worker thread stopping...");
     zsocket_destroy(context, processorOutputSocket);
     zsocket_destroy(context, processorInputSocket);
 }
@@ -266,7 +267,6 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
 }
 
 void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateResponse) {
-    zmq_msg_close(headerFrame);
     /*
      * This method performs frame correctness check, the table open server
      * serializes everything in a single struct.
@@ -274,6 +274,8 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
     //Extract flags from header
     uint8_t flags = ((uint8_t*) zmq_msg_data(headerFrame))[3];
     bool compressionEnabled = (flags & 0x01) == 0;
+    //Cleanup header frame
+    zmq_msg_close(headerFrame);
     //Extract numeric parameters
     uint32_t tableId;
     if (!parseUint32Frame(tableId,
