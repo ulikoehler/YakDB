@@ -7,6 +7,31 @@ class ConnectMode:
     pushPull = 1
     pubSub = 2
 
+def exists(db, tableNo, keys):
+    output = db.exists(tableNo, keys)
+    #Convert value-only to key-->value map
+    outMap = {}
+    for index, inval in enumerate(keys):
+        outMap[inval] = output[index]
+    print outMap
+
+def read(db, tableNo, keys):
+    output = db.read(tableNo, keys)
+    #Convert value-only to key-->value map
+    outMap = {}
+    for index, inval in enumerate(keys):
+        outMap[inval] = output[index]
+    print outMap
+
+def put(db, tableNo, key, value):
+    db.put(tableNo, {key: value})
+    #Convert value-only to key-->value map
+    print "Put '%s' --> '%s'" % (key, value)
+
+def delete(db, tableNo, keys):
+    db.delete(tableNo, keys)
+    print "Deleted [%s]" % ", ".join(keys)
+
 if __name__ == "__main__":
     parser = optparse.OptionParser()
     #Server options
@@ -49,29 +74,12 @@ if __name__ == "__main__":
     else: #Single-command mode
         tableNo = opts.tableNo
         cmd = args[0]
-        commands = ["read","exists","put"]
+        commands = ["read","exists","put","delete"]
         if cmd not in commands:
             print "Command '%s' not available - available commands: %s" % (cmd, ", ".join(commands))
             sys.exit(1)
-        elif cmd == "exists":
-            existsInput = args[1:]
-            output = db.exists(tableNo, existsInput)
-            #Convert value-only to key-->value map
-            outMap = {}
-            for index, inval in enumerate(existsInput):
-                outMap[inval] = output[index]
-            print outMap
-        elif cmd == "read":
-            readInput = args[1:]
-            output = db.read(tableNo, readInput)
-            #Convert value-only to key-->value map
-            outMap = {}
-            for index, inval in enumerate(readInput):
-                outMap[inval] = output[index]
-            print outMap
-        elif cmd == "put":
-            key = args[1]
-            value = args[2]
-            output = db.put(tableNo, {key: value})
-            #Convert value-only to key-->value map
-            print "Put '%s' --> '%s'" % (key, value)
+        elif cmd == "exists": exists(db, tableNo, args[1:])
+        elif cmd == "read": read(db, tableNo, args[1:])
+        elif cmd == "put": put(db, tableNo, args[1], args[2])
+        elif cmd == "delete": delete(db, tableNo, args[1:])
+            

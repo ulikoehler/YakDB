@@ -259,6 +259,9 @@ inline static bool socketHasMoreFrames(void* socket) {
 static inline void recvAndIgnore(void* socket) {
     //TODO check errs
     zmq_msg_t msg;
+    if (!socketHasMoreFrames(socket)) {
+        return;
+    }
     zmq_msg_init(&msg);
     while (true) {
         zmq_msg_recv(&msg, socket, 0);

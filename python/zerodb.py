@@ -169,6 +169,51 @@ class ZeroDBConnection:
             if msgParts[0][3] != '\x00':
                 raise ZeroDBProtocolException("Put response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
         return True
+    def delete(self, tableNo, keys):
+        """
+        Delete one or multiples values, identified by their keys, from a table.
+        
+        @param tableNo The table number to delete in
+        @param keys A list, tuple or single value.
+                        Must only contain strings, ints or floats.
+                        integral types are automatically mapped to signed 32-bit little-endian binary,
+                        floating point types are mapped to signed little-endian 64-bit IEEE754 values.
+                        If you'd like to use another binary representation, use a binary string instead.
+        """
+        #Check parameters and create binary-string only key list
+        self._checkParameterType(tableNo, int, "tableNo")
+        convertedKeys = []
+        if type(keys) is list or type(keys) is tuple:
+            for value in keys:
+                if value is None:
+                    raise ParameterException("Key list contains 'None' value, not mappable to binary")
+                convertedKeys.append(self._convertToBinary(value))
+        elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
+            #We only have a single value
+            convertedKeys.append(self._convertToBinary(keys))
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send("\x31\x01\x21", zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo)
+        #Send key list
+        nextToSend = None #Needed because the last value shall be sent w/out SNDMORE
+        for key in convertedKeys:
+            #Send the value from the last loop iteration
+            if nextToSend is not None: self.socket.send(nextToSend, zmq.SNDMORE)
+            #Send the key and enqueue the value
+            nextToSend = key
+        #Send last key, without SNDMORE flag
+        self.socket.send(nextToSend)
+        #Wait for reply
+        msgParts = self.socket.recv_multipart(copy=True)
+        if len(msgParts) == 0:
+            raise ZeroDBProtocolException("Received empty delete reply message")
+        if msgParts[0][2] != '\x21':
+            raise ZeroDBProtocolException("Delete response type was %d instead of 33" % msgParts[0][2])
+        if msgParts[0][3] != '\x00':
+            raise ZeroDBProtocolException("Delete response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
     def read(self, tableNo, keys):
         """
         Read one or multiples values, identified by their keys, from a table.
@@ -258,11 +303,11 @@ class ZeroDBConnection:
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         if len(msgParts) == 0:
-            raise ZeroDBProtocolException("Received empty read reply message")
+            raise ZeroDBProtocolException("Received empty exists reply message")
         if msgParts[0][2] != '\x12':
-            raise ZeroDBProtocolException("Read response code was %d instead of 18" % ord(msgParts[0][2]))
+            raise ZeroDBProtocolException("Exists response code was %d instead of 18" % ord(msgParts[0][2]))
         if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Read response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
+            raise ZeroDBProtocolException("Exists response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
         #Return the data frames after mapping them to bools
         processedValues = []
         for msgPart in msgParts[1:]:

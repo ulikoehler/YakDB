@@ -245,3 +245,22 @@ bool AbstractFrameProcessor::sendMsgHandleError(zmq_msg_t* msg,
     }
     return true;
 }
+
+void AbstractFrameProcessor::disposeRemainingMsgParts() {
+    int numErrors = 0;
+    const int errorLimit = 5; //After this number of errors the function exits
+    zmq_msg_t msg;
+    zmq_msg_init(&msg);
+    while (socketHasMoreFrames(processorInputSocket)) {
+        if(unlikely((&msg, processorInputSocket, 0) == -1)) {
+            logger.warn("ZMQ error while trying to clear remaining messages from queue: "
+                        + std::string(zmq_strerror(zmq_errno())));
+            numErrors++;
+            if(numErrors >= errorLimit) {
+                logger.debug("Exiting disposeRemainingMsgParts() because error limit has been reached");
+                break;
+            }
+        }
+        zmq_msg_close(&msg);
+    }
+}

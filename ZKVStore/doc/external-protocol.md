@@ -244,9 +244,9 @@ None of the frames may be empty under any circumstances. Empty frames may lead t
 
 ##### Put/Delete response
 
-The response format is identical for put and delete requests
+The response format is identical for put and delete requests, besides the response type.
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 Response type (Put/delete reponse)] [1 byte Response code]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 or 0x21 Response type (Put/delete reponse)] [1 byte Response code]
 * Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
 
 Response codes (lower byte counts!):

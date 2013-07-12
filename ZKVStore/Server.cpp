@@ -99,8 +99,8 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
     //Check the header -- send error message if invalid
     char* headerData = (char*) zmq_msg_data(&headerFrame);
     size_t headerSize = zmq_msg_size(&headerFrame);
+    
     std::string errmsg; //The error message, if any, will be stored here
-
     RequestType requestType = (RequestType) (uint8_t) headerData[2];
     if (requestType == RequestType::ReadRequest
             || requestType == RequestType::CountRequest
@@ -152,7 +152,8 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         //Send header and data
         zmq_msg_send(&headerFrame, dstSocket, ZMQ_SNDMORE);
         proxyMultipartMessage(sock, dstSocket);
-    } else if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
+    } else if (requestType == RequestType::PutRequest
+            || requestType == RequestType::DeleteRequest) {
         void* workerSocket = server->updateWorkerController.workerPushSocket;
         /**
          * Only for partsync messages the routing info (addr + delim frame)
@@ -177,7 +178,9 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         if (!isPartsync(writeFlags)) {
             zmq_msg_send(&addrFrame, sock, ZMQ_SNDMORE);
             zmq_msg_send(&delimiterFrame, sock, ZMQ_SNDMORE);
-            sendConstFrame("\x31\x01\x20\x00", 4, sock); //Send response code 0x00 (ack)
+            char data[] = "\x31\x01\x20\x00";
+            data[2] = requestType;
+            sendFrame(data, 4, sock); //Send response code 0x00 (ack)
         }
     } else if (requestType == RequestType::ServerInfoRequest) {
         //Server info requests are answered in the main thread

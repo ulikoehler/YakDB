@@ -46,7 +46,9 @@ void ReadWorkerController::start() {
 }
 
 void ReadWorkerController::stopAll() {
-    
+    for (int i = 0; i < numThreads; i++) {
+        
+    }
 }
 
 ReadWorkerController::~ReadWorkerController() {
@@ -411,5 +413,11 @@ bool ReadWorker::processNextRequest() {
         sendConstFrame("\x31\x01\xFF", 3, processorOutputSocket, ZMQ_SNDMORE);
         sendFrame(errstr, processorOutputSocket);
     }
+    /**
+     * In some cases (especially errors) the msg part input queue is clogged
+     * up with frames that have not yet been processed.
+     * Clear them
+     */
+    disposeRemainingMsgParts();
     return true;
 }

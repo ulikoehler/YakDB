@@ -140,6 +140,18 @@ protected:
             const char* errName,
             const char* errorResponse,
             bool generateResponse=true);
+    /**
+     * If the input socket has any remaining msg parts in the current message,
+     * read and dispose them.
+     * 
+     * Never reads a message part if the RCVMORE flag is not set on the socket.
+     * 
+     * This method has a builtin error limit that prevents it from going
+     * to infinite loop because of repeated errors.
+     * 
+     * Automatically logs errors if neccessary
+     */
+    void disposeRemainingMsgParts();
 };
 
 #endif	/* ABSTRACTFRAMEPROCESSOR_HPP */

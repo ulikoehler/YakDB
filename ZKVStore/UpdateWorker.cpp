@@ -77,7 +77,15 @@ bool UpdateWorker::processNextMessage() {
     if (unlikely(!receiveMsgHandleError(&headerFrame, "Receive header frame in update worker thread", "\x31\x01\xFF", haveReplyAddr))) {
         return true;
     }
-    //assert(isHeaderFrame(&headerFrame));
+    //The header-ness of the header frame shall be checked by the main router
+    if(unlikely(!isHeaderFrame(&headerFrame))) {
+        logger.error("Internal malfunction: Frame of size "
+                + std::to_string(zmq_msg_size(&headerFrame))
+                + ", which was expected to be a header frame, is none: "
+                + describeMalformedHeaderFrame(&headerFrame));
+        disposeRemainingMsgParts();
+        return true;
+    }
     //Parse the request type
     RequestType requestType = getRequestType(&headerFrame);
     /*
@@ -91,6 +99,7 @@ bool UpdateWorker::processNextMessage() {
     if (requestType == PutRequest) {
         handleUpdateRequest(&headerFrame, haveReplyAddr);
     } else if (requestType == DeleteRequest) {
+        logger.trace("DR");
         handleDeleteRequest(&headerFrame, haveReplyAddr);
     } else if (requestType == OpenTableRequest) {
         handleTableOpenRequest(&headerFrame, haveReplyAddr);
@@ -104,6 +113,12 @@ bool UpdateWorker::processNextMessage() {
         logger.error(std::string("Internal routing error: request type ")
                 + std::to_string(requestType) + " routed to update worker thread!");
     }
+    /**
+     * In some cases (especially errors) the msg part input queue is clogged
+     * up with frames that have not yet been processed.
+     * Clear them
+     */
+    disposeRemainingMsgParts();
     return true;
 }
 
@@ -176,21 +191,25 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, "\x31\x01\x20\x10")) {
         return;
     }
-    bool haveMoreData = socketHasMoreFrames(processorOutputSocket);
+    bool haveMoreData = socketHasMoreFrames(processorInputSocket);
     //Get the table
     leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //If this point is reached in the control flow, header frame will not be reused
     zmq_msg_close(headerFrame);
     //The entire update is processed in one batch
     zmq_msg_t keyFrame;
-    zmq_msg_init(&keyFrame);
     leveldb::WriteBatch batch;
     while (haveMoreData) {
+    zmq_msg_init(&keyFrame);
         //The next two frames contain key and value
-        receiveLogError(&keyFrame, processorInputSocket, logger);
+            if (unlikely(!receiveMsgHandleError(&keyFrame,
+                    "Receive deletion key frame", "\x31\x01\x21\x01", generateResponse))) {
+                return;
+        }
         //Convert to LevelDB
         leveldb::Slice keySlice((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
         batch.Delete(keySlice);
+        logger.trace(keySlice.ToString());
         //Check if we have more frames
         haveMoreData = zmq_msg_more(&keyFrame);
         //Cleanup

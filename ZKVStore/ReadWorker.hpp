@@ -36,6 +36,12 @@ private:
     zctx_t* context;
 };
 
+/**
+ * A single read worker instance.
+ * Represents a thread that receives read work msgs.
+ * 
+ * This thread assumes an envelope always prefixes a frame.
+ */
 class ReadWorker : private AbstractFrameProcessor {
 public:
     ReadWorker(zctx_t* ctx, Tablespace& tablespace);
