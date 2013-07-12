@@ -88,6 +88,58 @@ protected:
             const char* errString,
             bool generateResponse,
             const char* errorResponseCode);
+
+    /**
+     * Parse a start/end range from the next two 8-byte-or-empty-frames.
+     * Reports errors to the if any occur.
+     * If the frames have zero-length, a NULL is placed in the given ptrs.
+     * It is the callers responsibility to delete the slices if they are != NULL
+     * @param startSlice A pointer to a slice ptr where the start slice or NULL is placed,
+     * @param endSlice A pointer to a slice ptr where the end slice or NULL is placed,
+     * @param errName A descriptive name of the range (e.g. "Scan request scan range") for error reporting
+     * @param errorResponse A 4-character response code
+     * @return false if the caller shall exit immediately because of errors.
+     */
+    bool parseLevelDBRange(leveldb::Slice** startSlice,
+            leveldb::Slice** endSlice,
+            const char* errName,
+            const char* errorResponse,
+            bool generateResponse);
+    /**
+     * Receive a single frame from this.processorInputSocket
+     * Automatically handles errors if neccessary
+     * @param msg A pointer to a zmq_msg_t to store it it.
+     * @param errName A descriptive name of the range (e.g. "Scan request scan range") for error reporting
+     * @param errorResponse A 4-character response code
+     * @param generateResponse Set this to true if an error response shall be sent back to the client in case of error
+     * @return false in case of error, true else
+     */
+    bool receiveMsgHandleError(zmq_msg_t* msg,
+            const char* errName,
+            const char* errorResponse,
+            bool generateResponse);
+    /**
+     * Send a single message over this.processorOutputSocket
+     * Automatically handles errors if neccessary.
+     * 
+     * To this function, t is not known whether this is the first frame or 
+     * the error occured somewhere in the middle of the request,
+     * so sending an error report to the client (with generateRespone == true)
+     * could screw up the client code, but this is the only way we can
+     * properly tell the client something went wrong.
+     * 
+     * @param msg A pointer to a zmq_msg_t to store it it.
+     * @param flags The zmq_msg_send flags (e.g. ZMQ_SNDMORE)
+     * @param errName A descriptive name of the range (e.g. "Scan request scan range") for error reporting
+     * @param errorResponse A 4-character response code
+     * @param generateResponse Set this to true if an error response shall be sent back to the client in case of error
+     * @return false in case of error, true else
+     */
+    bool sendMsgHandleError(zmq_msg_t* msg,
+            int flags,
+            const char* errName,
+            const char* errorResponse,
+            bool generateResponse);
 };
 
 #endif	/* ABSTRACTFRAMEPROCESSOR_HPP */

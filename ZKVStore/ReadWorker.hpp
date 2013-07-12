@@ -10,6 +10,7 @@
 #include <thread>
 #include <czmq.h>
 #include "Tablespace.hpp"
+#include "AbstractFrameProcessor.hpp"
 
 class ReadWorkerController {
 public:
@@ -32,6 +33,19 @@ private:
     Tablespace& tablespace;
     size_t numThreads; //size of this->threads
     zctx_t* context;
+};
+
+class ReadWorker : private AbstractFrameProcessor {
+public:
+    ReadWorker(zctx_t* ctx, Tablespace& tablespace);
+    ~ReadWorker();
+private:
+    Tablespace& tablespace;
+    bool processNextRequest();
+    void handleExistsRequest(zmq_msg_t* headerFrame);
+    void handleReadRequest(zmq_msg_t* headerFrame);
+    void handleScanRequest(zmq_msg_t* headerFrame);
+    void handleCountRequest(zmq_msg_t* headerFrame);
 };
 
 #endif	/* READWORKER_HPP */

@@ -53,7 +53,7 @@ bool UpdateWorker::processNextMessage() {
     char haveReplyAddrFrameContent = ((char*) zmq_msg_data(&haveReplyAddrFrame))[0];
     zmq_msg_close(&haveReplyAddrFrame);
     if (haveReplyAddrFrameContent == '\xFF') {
-        return false;
+        return true;
     }
     //OK, it's a processable message, not a stop message
     bool haveReplyAddr = (haveReplyAddrFrameContent == 1);
@@ -74,8 +74,10 @@ bool UpdateWorker::processNextMessage() {
     }
     //The router ensures the header frame is correct, so a (crashing) assert works here
     zmq_msg_init(&headerFrame);
-    receiveLogError(&headerFrame, processorInputSocket, logger);
-   //assert(isHeaderFrame(&headerFrame));
+    if (unlikely(!receiveMsgHandleError(&keyFrame, "Receive header frame in update worker thread", "\x31\x01\xFF", true))) {
+        return true;
+    }
+    //assert(isHeaderFrame(&headerFrame));
     //Parse the request type
     RequestType requestType = getRequestType(&headerFrame);
     /*
@@ -232,34 +234,29 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
         return;
     }
     //Check if there is a range frames
-    if (!expectNextFrame("Only header found in compact request, range missing",
+    if (!expectNextFrame("Only table ID frame found in compact request, range missing",
             generateResponse,
             "\x31\x01\x03\x01")) {
         return;
     }
     //Get the table
     leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
-    //Parse the start/end frame
-    zmq_msg_t rangeStartFrame, rangeEndFrame;
-    zmq_msg_init(&rangeStartFrame);
-    receiveLogError(&rangeStartFrame, processorOutputSocket, logger);
-    if (!expectNextFrame("Only range start frame found in compact request, range end frame missing",
-            generateResponse,
-            "\x31\x01\x03\x01")) {
-        zmq_msg_close(&rangeStartFrame);
-        return;
-    }
-    zmq_msg_init(&rangeEndFrame);
-    receiveLogError(&rangeEndFrame, processorOutputSocket, logger);
-    //Convert frames to slices
-    leveldb::Slice rangeStart((char*) zmq_msg_data(&rangeStartFrame), zmq_msg_size(&rangeStartFrame));
-    leveldb::Slice rangeEnd((char*) zmq_msg_data(&rangeEndFrame), zmq_msg_size(&rangeEndFrame));
-    //Cleanup
-    zmq_msg_close(&rangeStartFrame);
-    zmq_msg_close(&rangeEndFrame);
+    //Parse the from-to range
+    leveldb::Slice* rangeStart, rangeEnd;
+    parseLevelDBRange(&rangeStart,
+            &rangeEnd,
+            "Compact request compact range parsing",
+            "\x31\x01\x03\x01",
+            generateResponse);
     //Do the compaction (takes LONG)
-    db->CompactRange(&rangeStart, &rangeEnd);
+    db->CompactRange(rangeStart, rangeEnd);
     //Remove and destroy the range frames, because they're not used in the response
+    if(rangeStart != nullptr) {
+        delete rangeStart;
+    }
+    if(rangeEnd != nullptr) {
+        delete rangeEnd;
+    }
     //Create the response if neccessary
     if (generateResponse) {
         sendConstFrame("\x31\x01\x03\x00", 4, processorOutputSocket, logger);

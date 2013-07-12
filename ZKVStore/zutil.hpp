@@ -48,7 +48,7 @@ static inline int receiveLogError(zmq_msg_t* msg, void* sock, Logger& logger) {
     int rc = zmq_msg_recv(msg, sock, 0);
     if (unlikely(rc == -1)) {
         logger.warn(std::string("Error while receiving message part: " + std::string(zmq_strerror(zmq_errno()))));
-        return 1;
+        return -1;
     }
     return 0;
 }

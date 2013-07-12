@@ -18,247 +18,6 @@
 #include "macros.hpp"
 
 using namespace std;
-#define DEBUG_READ
-
-/**
- * Read request handler. Shall be called
- * 
- * The original message is modified to contain the response.
- * 
- * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
- */
-static zmsg_t* handleCountRequest(Tablespace& tables, zmsg_t* msg, zframe_t* headerFrame, TableOpenHelper& openHelper) {
-    static const char* ackReply = "\x31\x01\x11\x00"; //--> No error
-    static const char* errorReply = "\x31\x01\x11\x10"; //--> No error
-    //Parse the table id
-    zframe_t* tableIdFrame = zmsg_next(msg);
-    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
-    //Parse the start/end frame
-    //zmsg_next returns a non-NULL frame when calling zmsg_next after the last frame has been next'ed, so we'll have to perform additional checks here
-    zframe_t* rangeStartFrame = zmsg_next(msg);
-    zframe_t* rangeEndFrame = (rangeStartFrame == NULL ? NULL : zmsg_next(msg));
-    bool haveRangeStart = !(rangeStartFrame == NULL || zframe_size(rangeStartFrame) == 0);
-    bool haveRangeEnd = !(rangeEndFrame == NULL || zframe_size(rangeEndFrame) == 0);
-    std::string rangeStart = (haveRangeStart ? string((char*) zframe_data(rangeStartFrame), zframe_size(rangeStartFrame)) : "");
-    std::string rangeEnd = (haveRangeEnd ? string((char*) zframe_data(rangeEndFrame), zframe_size(rangeEndFrame)) : "");
-    //We don't need the range frames any more
-    if (rangeStartFrame) {
-        zmsg_remove_destroy(msg, &rangeStartFrame);
-    }
-    if (rangeEndFrame) {
-        zmsg_remove_destroy(msg, &rangeEndFrame);
-    }
-    //Get the table to read from
-    leveldb::DB* db = tables.getTable(tableId, openHelper);
-    //Create the response object
-    leveldb::ReadOptions readOptions;
-    string value; //Where the value will be placed
-    leveldb::Status status;
-    //Create the iterator
-    leveldb::Iterator* it = db->NewIterator(readOptions);
-    if (haveRangeStart) {
-        it->Seek(rangeStart);
-    } else {
-        it->SeekToFirst();
-    }
-    uint64_t count = 0;
-    //Iterate over all key-values in the range
-    for (; it->Valid(); it->Next()) {
-        count++;
-        string key = it->key().ToString();
-        if (haveRangeEnd && key >= rangeEnd) {
-            break;
-        }
-    }
-    if (!it->status().ok()) { // Check for any errors found during the scan
-        zframe_reset(headerFrame, errorReply, 4);
-        //Reuse the table id frame to store the error message
-        string status = it->status().ToString();
-        zframe_reset(tableIdFrame, status.c_str(), status.length());
-    } else { //Nothing happened wrong
-        //Set th reply code to success if nothing happened wrong
-        zframe_reset(headerFrame, ackReply, 4);
-        //Reuse the table id frame to store the count
-        zframe_reset(tableIdFrame, &count, sizeof (uint64_t));
-    }
-    //Cleanup
-    delete it;
-}
-
-/**
- * Read request handler. Shall be called for Read requests only!
- * 
- * The original message is modified to contain the response.
- * 
- * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
- */
-static void handleReadRequest(Tablespace& tables, zmsg_t* msg, zframe_t* headerFrame, TableOpenHelper& openHelper) {
-    //Parse the table id
-    zframe_t* tableIdFrame = zmsg_next(msg);
-    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
-    //Parse the 
-    //Get the table to read from
-    leveldb::DB* db = tables.getTable(tableId, openHelper);
-    //Create the response object
-    leveldb::ReadOptions readOptions;
-    leveldb::Status status;
-    string value;
-    //Read each read request
-    zframe_t* keyFrame = NULL;
-    while ((keyFrame = zmsg_next(msg)) != NULL) {
-        //Build a slice of the key (zero-copy)
-        leveldb::Slice key((char*) zframe_data(keyFrame), zframe_size(keyFrame));
-        status = db->Get(readOptions, key, &value);
-        if (status.IsNotFound()) {
-            //Empty value
-            zframe_reset(keyFrame, "", 0);
-        } else {
-            zframe_reset(keyFrame, value.c_str(), value.length());
-        }
-    }
-    //Rewrite the header frame (--> ack message)
-    zframe_reset(headerFrame, "\x31\x01\x10\x00", 4);
-    //Now we can remove the table ID frame from the message (doing so before would confuse zmsg_next())
-    zmsg_remove(msg, tableIdFrame);
-    zframe_destroy(&tableIdFrame);
-}
-
-/**
- * Read request handler. Shall be called for Read requests only!
- * 
- * The original message is modified to contain the response.
- * 
- * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
- */
-static void handleReadRangeRequest(Tablespace& tables, zmsg_t* msg, zframe_t* headerFrame, TableOpenHelper& openHelper) {
-    //Parse the table id
-    zframe_t* tableIdFrame = zmsg_next(msg);
-    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
-    //Parse the 
-    //Get the table to read from
-    leveldb::DB* db = tables.getTable(tableId, openHelper);
-    //Create the response object
-    leveldb::ReadOptions readOptions;
-    leveldb::Status status;
-    string value;
-    //Read each read request
-    zframe_t* keyFrame = NULL;
-    while ((keyFrame = zmsg_next(msg)) != NULL) {
-        //Build a slice of the key (zero-copy)
-        leveldb::Slice key((char*) zframe_data(keyFrame), zframe_size(keyFrame));
-        status = db->Get(readOptions, key, &value);
-        if (status.IsNotFound()) {
-            //Empty value
-            zframe_reset(keyFrame, "", 0);
-        } else {
-            zframe_reset(keyFrame, value.c_str(), value.length());
-        }
-    }
-    //Rewrite the header frame (--> ack message)
-    zframe_reset(headerFrame, "\x31\x01\x10\x00", 4);
-    //Now we can remove the table ID frame from the message (doing so before would confuse zmsg_next())
-    zmsg_remove(msg, tableIdFrame);
-    zframe_destroy(&tableIdFrame);
-}
-
-/**
- * Read request handler. Shall be called for Read requests only!
- * 
- * The original message is modified to contain the response.
- * 
- * Envelope + Read request Header + Table ID[what zmsg_next() must return] + Payload
- */
-static void handleExistsRequest(Tablespace& tables, zmsg_t* msg, zframe_t* headerFrame, TableOpenHelper& openHelper) {
-    //Parse the table id
-    zframe_t* tableIdFrame = zmsg_next(msg);
-    uint32_t tableId = extractBinary<uint32_t>(tableIdFrame);
-    //Parse the 
-    //Get the table to read from
-    leveldb::DB* db = tables.getTable(tableId, openHelper);
-    //Create the response object
-    leveldb::ReadOptions readOptions;
-    leveldb::Status status;
-    string value;
-    //Read each read request
-    zframe_t* keyFrame = NULL;
-    while ((keyFrame = zmsg_next(msg)) != NULL) {
-        //Build a slice of the key (zero-copy)
-        leveldb::Slice key((char*) zframe_data(keyFrame), zframe_size(keyFrame));
-        status = db->Get(readOptions, key, &value);
-        if (status.IsNotFound()) {
-            //Empty value
-            zframe_reset(keyFrame, "\x00", 1);
-        } else {
-            zframe_reset(keyFrame, "\x01", 1);
-        }
-    }
-    //Rewrite the header frame (--> ack message)
-    zframe_reset(headerFrame, "\x31\x01\x10\x00", 4);
-    //Now we can remove the table ID frame from the message (doing so before would confuse zmsg_next())
-    zmsg_remove(msg, tableIdFrame);
-    zframe_destroy(&tableIdFrame);
-}
-
-/**
- * The main function for the read worker thread.
- * 
- * This function parses the header, calls the appropriate handler function
- * and sends the response for PARTSYNC requests
- */
-static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
-    //Create the socket that is used to proxy requests to the external req/rep socket
-    void* replyProxySocket = zsocket_new(ctx, ZMQ_PUSH);
-    if (zsocket_connect(replyProxySocket, externalRequestProxyEndpoint)) {
-        debugZMQError("Connect reply proxy socket", errno);
-    }
-    assert(replyProxySocket);
-    //Create the socket we receive requests from
-    void* workPullSocket = zsocket_new(ctx, ZMQ_PULL);
-    zsocket_connect(workPullSocket, readWorkerThreadAddr);
-    assert(workPullSocket);
-    //Create the log source
-    Logger logger(ctx, "Read worker");
-    logger.debug("Read worker thread starting");
-    //Create the table open helper (creates a socket that sends table open requests)
-    TableOpenHelper tableOpenHelper(ctx);
-    //Create the data structure with all info for the poll handler
-    while (true) {
-        zmsg_t* msg = zmsg_recv(workPullSocket);
-        if (unlikely(!msg)) {
-            break;
-        }
-        assert(zmsg_size(msg) >= 1);
-        //Parse the header
-        //Contrary to the update message handling, we assume (checked by the request router) that
-        // the message contains an envelope. Read requests without envelope (--> without return path)
-        // don't really make sense.
-        zframe_t* routingFrame = zmsg_first(msg); //Envelope ID
-        assert(routingFrame);
-        zframe_t* delimiterFrame = zmsg_next(msg); //Envelope delimiter
-        assert(delimiterFrame);
-        zframe_t* headerFrame = zmsg_next(msg);
-        assert(headerFrame);
-        assert(isHeaderFrame(headerFrame));
-        //Get the request type
-        RequestType requestType = getRequestType(headerFrame);
-        //Process the rest of the frame
-        if (requestType == ReadRequest) {
-            handleReadRequest(tablespace, msg, headerFrame, tableOpenHelper);
-        } else if (requestType == CountRequest) {
-            handleCountRequest(tablespace, msg, headerFrame, tableOpenHelper);
-        } else {
-            logger.error("Internal routing error: request type " + std::to_string(requestType) + " routed to read worker thread!");
-        }
-        //Send reply (the handler function rewrote the original message to contain the reply)
-        assert(msg);
-        assert(zmsg_size(msg) >= 3); //2 Envelope + 1 Response header (corner case: Nothing to be read)
-
-        zmsg_send(&msg, replyProxySocket);
-    }
-    logger.debug("Worker thread terminating");
-    zsocket_destroy(ctx, workPullSocket);
-    zsocket_destroy(ctx, replyProxySocket);
-}
 
 ReadWorkerController::ReadWorkerController(zctx_t* context, Tablespace& tablespace) : context(context), tablespace(tablespace), numThreads(3) {
     //Initialize the push socket
@@ -275,7 +34,6 @@ void ReadWorkerController::start() {
 }
 
 ReadWorkerController::~ReadWorkerController() {
-
     //Send an empty STOP message for each read worker thread (use a temporary socket)
     void* tempSocket = zsocket_new(context, ZMQ_PUSH); //Create a temporary socket
     zsocket_connect(tempSocket, readWorkerThreadAddr);
@@ -298,4 +56,356 @@ ReadWorkerController::~ReadWorkerController() {
 
 void ReadWorkerController::send(zmsg_t** msg) {
     zmsg_send(msg, workerPushSocket);
+}
+
+ReadWorker::ReadWorker(zctx_t* ctx, Tablespace& tablespace) :
+AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Update worker"),
+tableOpenHelper(ctx),
+tablespace(tablespace) {
+    //Connect the socket that is used to proxy requests to the external req/rep socket
+    zsocket_connect(processorOutputSocket, externalRequestProxyEndpoint);
+    //Connect the socket that is used by the send() member function
+    zsocket_connect(processorInputSocket, readWorkerThreadAddr);
+    logger.debug("Update worker thread starting");
+}
+
+ReadWorker::~ReadWorker() {
+    logger.debug("Read worker thread stopping...");
+    zsocket_destroy(context, processorOutputSocket);
+    zsocket_destroy(context, processorInputSocket);
+}
+
+void ReadWorker::handleExistsRequest(zmq_msg_t* headerFrame) {
+    static const char* errorResponse = "\x31\x01\x12\x01";
+    static const char* ackResponse = "\x31\x01\x12\x00";
+    //Parse table ID
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId,
+            "Table ID frame in exists request",
+            true,
+            errorResponse)) {
+        return;
+    }
+    //Get the table to read from
+    leveldb::DB* db = tables.getTable(tableId, openHelper);
+    //Create the response object
+    leveldb::ReadOptions readOptions;
+    leveldb::Status status;
+    string value;
+    //If there are no keys at all, just send ACK without SNDMORE, else with SNDMORE
+    if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
+        sendConstFrame(ackResponse, 4, processorOutputSocket);
+    } else {
+        sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
+    }
+    //Read each read request
+    zmq_msg_t keyFrame;
+    zmq_msg_t previousResponse; //Needed to only send last frame without SNDMORE
+    bool havePreviousResponse = false;
+    while (socketHasMoreFrames(processorInputSocket)) {
+        zmq_msg_init(&keyFrame);
+        if (unlikely(!receiveMsgHandleError(&keyFrame, "Receive exists key frame", errorResponse, true))) {
+            return false;
+        }
+        //Build a slice of the key (zero-copy)
+        leveldb::Slice key((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
+        status = db->Get(readOptions, key, &value);
+        zmq_msg_close(&keyFrame);
+        if (!checkLevelDBStatus(status(), "LevelDB error while checking key for existence", true, errorResponse)) {
+            zmq_msg_close(&keyFrame);
+            return;
+        }
+        //Send the previous response, if any
+        if (havePreviousResponse) {
+            if (unlikely(!sendMsgHandleError(&previousResponse, ZMQ_SNDMORE, "ZMQ error while sending exists reply (not last)", true, errorResponse))) {
+                return;
+            }
+        }
+        //Generate the response for the current read key
+        if (status.IsNotFound()) {
+            //Empty value
+            zmq_msg_init_data(&previousResponse, "", 0, nullptr, nullptr);
+        } else {
+            //Found sth, return value
+            zmq_msg_init_size(&previousResponse, value.size());
+            memcpy(zmq_msg_data(&previousResponse), value.c_str(), value.size());
+        }
+    }
+    //Send the last response, if any (last msg, without MORE)
+    if (havePreviousResponse) {
+        if (unlikely(!sendMsgHandleError(&previousResponse,
+                0,
+                "ZMQ error while sending last exists reply",
+                true,
+                errorResponse))) {
+            return;
+        }
+    }
+}
+
+void ReadWorker::handleReadRequest(zmq_msg_t* headerFrame) {
+    static const char* errorResponse = "\x31\x01\x10\x01";
+    static const char* ackResponse = "\x31\x01\x10\x00";
+    //Parse table ID
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId,
+            "Table ID frame in read request",
+            true,
+            errorResponse)) {
+        return;
+    }
+    //Get the table to read from
+    leveldb::DB* db = tables.getTable(tableId, openHelper);
+    //Create the response object
+    leveldb::ReadOptions readOptions;
+    leveldb::Status status;
+    string value;
+    //If there are no keys at all, just send ACK without SNDMORE, else with SNDMORE
+    if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
+        sendConstFrame(ackResponse, 4, processorOutputSocket);
+    } else {
+        sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
+    }
+    //Read each read request
+    zmq_msg_t keyFrame;
+    zmq_msg_t previousResponse; //Needed to only send last frame without SNDMORE
+    bool havePreviousResponse = false;
+    while (socketHasMoreFrames(processorInputSocket)) {
+        zmq_msg_init(&keyFrame);
+        if (unlikely(!receiveMsgHandleError(&keyFrame, "Receive read key frame", errorResponse, true))) {
+            return false;
+        }
+        //Build a slice of the key (zero-copy)
+        leveldb::Slice key((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
+        status = db->Get(readOptions, key, &value);
+        zmq_msg_close(&keyFrame);
+        if (!checkLevelDBStatus(status(), "LevelDB error while reading key", true, errorResponse)) {
+            zmq_msg_close(&keyFrame);
+            return;
+        }
+        //Send the previous response, if any
+        if (havePreviousResponse) {
+            if (unlikely(!sendMsgHandleError(&previousResponse, 0, "ZMQ error while sending read reply (not last)", true, errorResponse))) {
+                return;
+            }
+        }
+        //Generate the response for the current read key
+        havePreviousResponse = true;
+        if (status.IsNotFound()) {
+            //Empty value
+            zmq_msg_init_data(&previousResponse, "", 0, nullptr, nullptr);
+        } else {
+            //Found sth, return value
+            zmq_msg_init_size(&previousResponse, value.size());
+            memcpy(zmq_msg_data(&previousResponse), value.c_str(), value.size());
+        }
+    }
+    //Send the last response, if any (last msg, without MORE)
+    if (havePreviousResponse) {
+        if (unlikely(!sendMsgHandleError(&previousResponse, 0, "ZMQ error while sending last read reply", true, errorResponse))) {
+            return;
+        }
+    }
+}
+
+void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
+    static const char* errorResponse = "\x31\x01\x13\x01";
+    static const char* ackResponse = "\x31\x01\x13\x00";
+    //Parse table ID
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId, "Table ID frame in scan request", true, errorResponse)) {
+        return;
+    }
+    //Check if there is a range frame at all
+    if (!expectNextFrame("Only table ID frame found in scan request, range missing", true, errorResponse)) {
+        return;
+    }
+    //Get the table to read from
+    leveldb::DB* db = tables.getTable(tableId, openHelper);
+    //Parse the from-to range
+    leveldb::Slice* rangeStart, rangeEnd;
+    parseLevelDBRange(&rangeStart, &rangeEnd, "Scan request scan range parsing", errorResponse, true);
+    bool haveRangeStart = (rangeStart != NULL);
+    bool haveRangeEnd = (rangeEnd != NULL);
+    //Do the compaction (takes LONG)
+    //Create the response object
+    leveldb::ReadOptions readOptions;
+    leveldb::Status status;
+    //Create the iterator
+    leveldb::Iterator* it = db->NewIterator(readOptions);
+    if (haveRangeStart) {
+        it->Seek(rangeStart);
+    } else {
+        it->SeekToFirst();
+    }
+    //Send ACK and count
+    sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
+    //Iterate over all key-values in the range
+    zmq_msg_t keyMsg, valueMsg;
+    bool haveLastValueMsg = false; //Needed to send only last frame without SNDMORE
+    for (; it->Valid(); it->Next()) {
+        leveldb::Slice key = it->key();
+        leveldb::Slice value = it->value();
+        //Send the previous value msg, if any
+        if (haveLastValueMsg) {
+            if (unlikely(!sendMsgHandleError(&valueMsg, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", true, errorResponse))) {
+                zmq_msg_close(&valueMsg);
+                delete it;
+                return;
+            }
+        }
+        //Convert the slices into msgs and send them
+        haveLastValueMsg = true;
+        zmq_msg_init_size(&keyMsg, key.size());
+        zmq_msg_init_size(&valueMsg, value.size());
+        memcpy(zmq_msg_data(&keyMsg), key.data(), key.size());
+        memcpy(zmq_msg_data(&valueMsg), value.data(), value.size());
+        if (unlikely(!sendMsgHandleError(&keyMsg, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", true, errorResponse))) {
+            zmq_msg_close(&valueMsg);
+            delete it;
+            return;
+        }
+        //Check if we have to stop here
+        if (haveRangeEnd && key >= rangeEnd) {
+            break;
+        }
+    }
+    //Send the previous value msg, if any
+    if (haveLastValueMsg) {
+        if (unlikely(!sendMsgHandleError(&valueMsg, 0, "ZMQ error while sending read reply (not last)", true, errorResponse))) {
+            delete it;
+            return;
+        }
+    }
+    //Remove and destroy the range slices
+    if (rangeStart != nullptr) {
+        delete rangeStart;
+    }
+    if (rangeEnd != nullptr) {
+        delete rangeEnd;
+    }
+    //Check if any error occured during iteration
+    if (!checkLevelDBStatus(it->status(),
+            "LevelDB error while scanning",
+            true,
+            errorResponse)) {
+        delete it;
+        return;
+    }
+    delete it;
+}
+
+void ReadWorker::handleCountRequest(zmq_msg_t* headerFrame) {
+    static const char* errorResponse = "\x31\x01\x11\x01";
+    static const char* ackResponse = "\x31\x01\x11\x00";
+    //Parse table ID
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId, "Table ID frame in count request", true, errorResponse)) {
+        return;
+    }
+    //Check if there is a range frame at all
+    if (!expectNextFrame("Only table ID frame found in count request, range missing", true, errorResponse)) {
+        return;
+    }
+    //Get the table to read from
+    leveldb::DB* db = tables.getTable(tableId, openHelper);
+    //Parse the from-to range
+    leveldb::Slice* rangeStart, rangeEnd;
+    parseLevelDBRange(&rangeStart, &rangeEnd, "Compact request compact range parsing", errorResponse, true);
+    bool haveRangeStart = (rangeStart != NULL);
+    bool haveRangeEnd = (rangeEnd != NULL);
+    //Do the compaction (takes LONG)
+    //Create the response object
+    leveldb::ReadOptions readOptions;
+    leveldb::Status status;
+    //Create the iterator
+    leveldb::Iterator* it = db->NewIterator(readOptions);
+    if (haveRangeStart) {
+        it->Seek(rangeStart);
+    } else {
+        it->SeekToFirst();
+    }
+    uint64_t count = 0;
+    //Iterate over all key-values in the range
+    for (; it->Valid(); it->Next()) {
+        count++;
+        string key = it->key().ToString();
+        if (haveRangeEnd && key >= *rangeEnd) {
+            break;
+        }
+    }
+    //Remove and destroy the range slices
+    if (rangeStart != nullptr) {
+        delete rangeStart;
+    }
+    if (rangeEnd != nullptr) {
+        delete rangeEnd;
+    }
+    //Check if any error occured during iteration
+    if (!checkLevelDBStatus(it->status(), "LevelDB error while counting", true, errorResponse)) {
+        delete it;
+        return;
+    }
+    delete it;
+    //Send ACK and count
+    sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
+    sendBinary<uint64_t>(count, processorOutputSocket, logger);
+}
+
+bool ReadWorker::processNextRequest() {
+    zmq_msg_t routingFrame, delimiterFrame, headerFrame;
+    //Read routing info
+    zmq_msg_init(&routingFrame);
+    receiveLogError(&routingFrame, processorInputSocket, logger);
+    //Empty frame means: Stop thread
+    if (zmq_msg_size(&routingFrame) == 0) {
+        zmq_msg_close(&routingFrame);
+        return true;
+    }
+    //If it isn't empty, we expect to see the delimiter frame
+    if (!expectNextFrame("Received nonempty routing frame, but no delimiter frame", false, "\x31\x01\xFF\xFF")) {
+        zmq_msg_close(&routingFrame);
+    }
+    zmq_msg_init(&delimiterFrame);
+    receiveExpectMore(&delimiterFrame, processorInputSocket, logger);
+    //Write routing info to the output socket immediately
+    zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
+    zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE);
+    //Receive the header frame
+    zmq_msg_init(&headerFrame);
+    if (unlikely(!receiveMsgHandleError(&headerFrame, "Receive header frame in read worker thread", "\x31\x01\xFF\xFF", true))) {
+        return false;
+    }
+    assert(isHeaderFrame(&headerFrame));
+    //Get the request type
+    RequestType requestType = getRequestType(headerFrame);
+    //Process the rest of the frame
+    if (requestType == ReadRequest) {
+        handleReadRequest(headerFrame);
+    } else if (requestType == CountRequest) {
+        handleCountRequest(headerFrame);
+    } else if (requestType == ExistsRequest) {
+        handleExistsRequest(headerFrame);
+    } else {
+        std::string errstr = "Internal routing error: request type " + std::to_string(requestType) + " routed to read worker thread!";
+        logger.error(errstr);
+        sendConstFrame("\x31\x01\xFF", 3, processorOutputSocket, ZMQ_SNDMORE);
+        sendFrame(errstr, processorOutputSocket);
+    }
+    return true;
+}
+
+/**
+ * The main function for the read worker thread.
+ * 
+ * This function parses the header, calls the appropriate handler function
+ * and sends the response for PARTSYNC requests
+ */
+static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
+    ReadWorker readWorker(ctx, tablespace);
+    while (true) {
+        if (!readWorker.processNextMessage()) {
+            break;
+        }
+    }
 }

@@ -90,8 +90,8 @@ Compact a table (clear the log and rebuild immutable table files). Could take so
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x03 Request type (compact request)]
 * Frame 1: 4-byte little-endian unsigned table number
-* Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
-* Frame 3: End key (inclusive). If this has zero length, the count ends at the last key
+* Frame 2: Start key (inclusive). If this has zero length, the compact starts at the first key
+* Frame 3: End key (inclusive). If this has zero length, the compact ends at the last key
 
 Frame 0-4 must be present under all circumstances.
 
@@ -174,10 +174,10 @@ Check for existence of one or multiple keys in a table.
 
 None of the frames may be empty under any circumstances. Empty frames may lead to undefined behaviour.
 
-##### Éxists response:
+##### Exists response:
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x12 Response type (exists response)][1-byte Response code]
-* Frame 1-n: Each frame has a size of 1. If the byte is zero, the key doesn't exist in the table
+* Frame 1-n: Each frame has a size of 1 byte. If the byte is binary zero, the key doesn't exist in the table. Else, it exists.
 * Frame 1 (if response code indicates an error): Error message
 
 The frames 1-n are in the same order as the request keys.
@@ -204,7 +204,7 @@ The scanned request returns the scan range as alternating key/value frames
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x13 Response type (scan response)][1-byte Response code]
 * Frame 1-n (odd numbers): Next key
-* Frame 1-n (even numbers): Next value
+* Frame 1-n (even numbers): Next value (corresponds to key = previous frame)
 
 Response codes:
 

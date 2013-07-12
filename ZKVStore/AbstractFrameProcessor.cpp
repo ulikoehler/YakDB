@@ -40,9 +40,11 @@ bool AbstractFrameProcessor::parseUint32Frame(uint32_t& dst,
     //Parse table ID, release frame immediately
     zmq_msg_t tableIdFrame;
     zmq_msg_init(&tableIdFrame);
-    receiveLogError(&tableIdFrame, processorInputSocket, logger);
+    if (unlikely(!receiveMsgHandleError(&tableIdFrame, frameDesc.c_str(), errorResponseCode, generateResponse))) {
+        return false;
+    }
     if (unlikely(zmq_msg_size(&tableIdFrame) != sizeof (uint32_t))) {
-        std::string errstr = "Uint32 frame ("
+        std::string errstr = "uint32 frame ("
                 + frameDesc
                 + ") was expected to have a length of 4 bytes, but size is "
                 + std::to_string(zmq_msg_size(&tableIdFrame)) + " bytes";
@@ -75,7 +77,9 @@ bool AbstractFrameProcessor::parseUint64Frame(uint64_t& valueDest,
     //Parse table ID, release frame immediately
     zmq_msg_t uint64Frame;
     zmq_msg_init(&uint64Frame);
-    receiveLogError(&uint64Frame, processorInputSocket, logger);
+    if (unlikely(!receiveMsgHandleError(&uint64Frame, frameDesc.c_str(), errorResponseCode, generateResponse))) {
+        return false;
+    }
     if (unlikely(zmq_msg_size(&uint64Frame) != sizeof (uint64_t))) {
         std::string errstr = "Uint64 frame ("
                 + frameDesc + ") was expected to have a length of 8 bytes, but size is "
@@ -111,7 +115,9 @@ bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest
     zmq_msg_t uint64Frame;
     zmq_msg_init(&uint64Frame);
     size_t frameSize = zmq_msg_size(&uint64Frame);
-    receiveLogError(&uint64Frame, processorInputSocket, logger);
+    if (unlikely(!receiveMsgHandleError(&uint64Frame, frameDesc.c_str(), errorResponseCode, generateResponse))) {
+        return false;
+    }
     if (unlikely(frameSize != sizeof (uint64_t) && frameSize != 0)) {
         std::string errstr = "Uint64 frame ("
                 + frameDesc + ") was expected to have a length of 8 bytes, but size is "
@@ -155,6 +161,84 @@ bool AbstractFrameProcessor::checkLevelDBStatus(const leveldb::Status& status, c
             sendFrame(completeErrorString, processorOutputSocket, logger);
             return false;
         }
+    }
+    return true;
+}
+
+bool AbstractFrameProcessor::parseLevelDBRange(leveldb::Slice** startSlice,
+        leveldb::Slice** endSlice,
+        const char* errName,
+        const char* errorResponse,
+        bool generateResponse) {
+    //Parse the start/end frame
+    zmq_msg_t rangeStartFrame, rangeEndFrame;
+    zmq_msg_init(&rangeStartFrame);
+    if (unlikely(!receiveMsgHandleError(&rangeStartFrame, errName, errorResponse, generateResponse))) {
+        return false;
+    }
+    if (!expectNextFrame(("Only range start frame found in '"
+            + std::string(errName) + "', range end frame missing").c_str(),
+            generateResponse,
+            errorResponse)) {
+        zmq_msg_close(&rangeStartFrame);
+        return false;
+    }
+    zmq_msg_init(&rangeEndFrame);
+    if (unlikely(!receiveMsgHandleError(&rangeEndFrame, errName, errorResponse, generateResponse))) {
+        return false;
+    }
+    //Convert frames to slices, or use nullptr if empty
+    size_t rangeStartFrameSize = zmq_msg_size(&rangeStartFrame);
+    size_t rangeEndFrameSize = zmq_msg_size(&rangeEndFrame);
+    if (rangeStartFrameSize == 0) {
+        startSlice = nullptr;
+    } else {
+        *startSlice = new leveldb::Slice((char*) zmq_msg_data(&rangeStartFrame), rangeStartFrameSize);
+    }
+    if (rangeEndFrameSize == 0) {
+        endSlice = nullptr;
+    } else {
+        *endSlice = new leveldb::Slice((char*) zmq_msg_data(&rangeEndFrame), rangeEndFrameSize);
+    }
+    //Cleanup
+    zmq_msg_close(&rangeStartFrame);
+    zmq_msg_close(&rangeEndFrame);
+    return true;
+}
+
+bool AbstractFrameProcessor::receiveMsgHandleError(zmq_msg_t* msg,
+        const char* errName,
+        const char* errorResponse,
+        bool generateResponse) {
+    if (unlikely(zmq_msg_recv(msg, processorInputSocket, 0) == -1)) {
+        std::string errstr = "Error while receiving message part: "
+                + std::string(zmq_strerror(zmq_errno()))
+                + " in " + std::string(errName);
+        logger.warn(errstr);
+        if (generateResponse) {
+            sendFrame(errorResponse, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger);
+        }
+        return false;
+    }
+    return true;
+}
+
+bool AbstractFrameProcessor::sendMsgHandleError(zmq_msg_t* msg,
+        int flags,
+        const char* errName,
+        const char* errorResponse,
+        bool generateResponse) {
+    if (unlikely(zmq_msg_send(msg, processorOutputSocket, flags) == -1)) {
+        std::string errstr = "Error while sending message part: "
+                + std::string(zmq_strerror(zmq_errno()))
+                + " in " + std::string(errName);
+        logger.warn(errstr);
+        if (generateResponse) {
+            sendFrame(errorResponse, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger);
+        }
+        return false;
     }
     return true;
 }
