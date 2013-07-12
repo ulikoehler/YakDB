@@ -120,12 +120,14 @@ void ReadWorker::handleExistsRequest(zmq_msg_t* headerFrame) {
         }
         //Build a slice of the key (zero-copy)
         leveldb::Slice key((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
+        
         leveldb::Status status = db->Get(readOptions, key, &value);
-        zmq_msg_close(&keyFrame);
         if (!checkLevelDBStatus(status, "LevelDB error while checking key for existence", true, errorResponse)) {
+            logger.trace("The key that caused the previous error was " + std::string((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame)));
             zmq_msg_close(&keyFrame);
             return;
         }
+        zmq_msg_close(&keyFrame);
         //Send the previous response, if any
         if (havePreviousResponse) {
             if (unlikely(!sendMsgHandleError(&previousResponse, ZMQ_SNDMORE, "ZMQ error while sending exists reply (not last)", errorResponse))) {
@@ -133,13 +135,13 @@ void ReadWorker::handleExistsRequest(zmq_msg_t* headerFrame) {
             }
         }
         //Generate the response for the current read key
+        havePreviousResponse = true;
         if (status.IsNotFound()) {
             //Empty value
-            zmq_msg_init_data(&previousResponse, (void*)"", 0, nullptr, nullptr);
+            zmq_msg_init_data(&previousResponse, (void*)"\x00", 1, nullptr, nullptr);
         } else {
-            //Found sth, return value
-            zmq_msg_init_size(&previousResponse, value.size());
-            memcpy(zmq_msg_data(&previousResponse), value.c_str(), value.size());
+            //Found sth
+            zmq_msg_init_data(&previousResponse, (void*)"\x01", 1, nullptr, nullptr);
         }
     }
     //Send the last response, if any (last msg, without MORE)
@@ -190,12 +192,13 @@ void ReadWorker::handleReadRequest(zmq_msg_t* headerFrame) {
         status = db->Get(readOptions, key, &value);
         zmq_msg_close(&keyFrame);
         if (!checkLevelDBStatus(status, "LevelDB error while reading key", true, errorResponse)) {
+            logger.trace("The key that caused the error was " + key.ToString());
             zmq_msg_close(&keyFrame);
             return;
         }
         //Send the previous response, if any
         if (havePreviousResponse) {
-            if (unlikely(!sendMsgHandleError(&previousResponse, 0, "ZMQ error while sending read reply (not last)", errorResponse))) {
+            if (unlikely(!sendMsgHandleError(&previousResponse, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", errorResponse))) {
                 return;
             }
         }

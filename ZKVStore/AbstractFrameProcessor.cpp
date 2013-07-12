@@ -154,7 +154,7 @@ bool AbstractFrameProcessor::expectNextFrame(const char* errString, bool generat
 }
 
 bool AbstractFrameProcessor::checkLevelDBStatus(const leveldb::Status& status, const char* errString, bool generateResponse, const char* errorResponseCode) {
-    if (unlikely(!status.ok())) {
+    if (unlikely(!status.ok() && !status.IsNotFound())) {
         std::string statusErr = status.ToString();
         std::string completeErrorString = std::string(errString) + statusErr;
         logger.error(completeErrorString);

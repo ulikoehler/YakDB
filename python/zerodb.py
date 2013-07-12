@@ -3,11 +3,11 @@ import struct
 
 #TODO document these
 class ParameterException(Exception):
-    def __init__(self, message, Errors):
+    def __init__(self, message):
         Exception.__init__(self, message)
 
 class ZeroDBProtocolException(Exception):
-    def __init__(self, message, Errors):
+    def __init__(self, message):
         Exception.__init__(self, message)
 
 class ZeroDBConnection:
@@ -104,6 +104,9 @@ class ZeroDBConnection:
             raise Exception("Response header frame contains invalid header: %d %d %d" % (ord(responseHeader[0]), ord(responseHeader[1]), ord(responseHeader[2])))
         #Return the server version string
         return replyParts[1]
+    def _checkParameterType(self, value, expectedType, name):
+        if type(value) is not expectedType:
+            raise ParameterException("Parameter '%s' is not a %s but a %s!" % (name, str(expectedType), str(type(value))))
     def put(self, tableNo, valueDict, partsync=False, fullsync=False):
         """
         Write a dictionary of key-value pairs to the connected servers
@@ -119,10 +122,8 @@ class ZeroDBConnection:
         @return True on success, else an appropriate exception will be raised
         """
         #Check parameters
-        if type(tableNo) is not int:
-            raise ParameterException("Table number parameter is not an integer!")
-        if type(valueDict) is not dict:
-            raise ParameterException("valueDict parameter must be a dictionary")
+        self._checkParameterType(tableNo, int, "tableNo")
+        self._checkParameterType(valueDict, dict, "valueDict")
         #Check if this connection instance is setup correctly
         self._checkConnection()
         #Before sending any frames, check the value dictionary for validity
@@ -181,8 +182,7 @@ class ZeroDBConnection:
         @return A list of values, correspondent to the key order
         """
         #Check parameters and create binary-string only key list
-        if type(tableNo) is not int:
-            raise ParameterException("Table number parameter is not an integer!")
+        self._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = []
         if type(keys) is list or type(keys) is tuple:
             for value in keys:
@@ -212,11 +212,62 @@ class ZeroDBConnection:
         if len(msgParts) == 0:
             raise ZeroDBProtocolException("Received empty read reply message")
         if msgParts[0][2] != '\x10':
-            raise ZeroDBProtocolException("Read response code was %d instead of 0x20" % msgParts[0][2])
+            raise ZeroDBProtocolException("Read response type was %d instead of 16" % msgParts[0][2])
         if msgParts[0][3] != '\x00':
             raise ZeroDBProtocolException("Read response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
         #Return the data frames
         return msgParts[1:]
+    def exists(self, tableNo, keys):
+        """
+        Chec one or multiples values, identified by their keys, for existence in a given table.
+        
+        @param tableNo The table number to read from
+        @param keys A list, tuple or single value.
+                        Must only contain strings, ints or floats.
+                        integral types are automatically mapped to signed 32-bit little-endian binary,
+                        floating point types are mapped to signed little-endian 64-bit IEEE754 values.
+                        If you'd like to use another binary representation, use a binary string instead.
+        @return A list of values, correspondent to the key order
+        """
+        #Check parameters and create binary-string only key list
+        self._checkParameterType(tableNo, int, "tableNo")
+        convertedKeys = []
+        if type(keys) is list or type(keys) is tuple:
+            for value in keys:
+                if value is None:
+                    raise ParameterException("Key list contains 'None' value, not mappable to binary")
+                convertedKeys.append(self._convertToBinary(value))
+        elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
+            #We only have a single value
+            convertedKeys.append(self._convertToBinary(keys))
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send("\x31\x01\x12", zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo)
+        #Send key list
+        nextToSend = None #Needed because the last value shall be sent w/out SNDMORE
+        for key in convertedKeys:
+            #Send the value from the last loop iteration
+            if nextToSend is not None: self.socket.send(nextToSend, zmq.SNDMORE)
+            #Send the key and enqueue the value
+            nextToSend = key
+        #Send last key, without SNDMORE flag
+        self.socket.send(nextToSend)
+        #Wait for reply
+        msgParts = self.socket.recv_multipart(copy=True)
+        if len(msgParts) == 0:
+            raise ZeroDBProtocolException("Received empty read reply message")
+        if msgParts[0][2] != '\x12':
+            raise ZeroDBProtocolException("Read response code was %d instead of 18" % ord(msgParts[0][2]))
+        if msgParts[0][3] != '\x00':
+            raise ZeroDBProtocolException("Read response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
+        #Return the data frames after mapping them to bools
+        processedValues = []
+        for msgPart in msgParts[1:]:
+            processedValues.append(False if msgPart == "\x00" else True)
+        return processedValues
     def openTable(self, tableNo, compression=True, lruCacheSize=None, tableBlocksize=None, writeBufferSize=None, bloomFilterBitsPerKey=None):
         """
         Open a table.
@@ -237,8 +288,7 @@ class ZeroDBConnection:
         @parameter bloomFilterBitsPerKey If this is set to none, no bloom filter is used, else a bloom filter with the given number of bits per key is used.
         """
         #Check parameters and create binary-string only key list
-        if type(tableNo) is not int:
-            raise ParameterException("Table number parameter is not an integer!")
+        self._checkParameterType(tableNo, int, "tableNo")
         if lruCacheSize is not None and type(lruCacheSize) is not int:
             raise ParameterException("LRU cache size parameter is not an integer or None!")
         if tableBlocksize is not None and type(tableBlocksize) is not int:
@@ -273,8 +323,7 @@ class ZeroDBConnection:
         @return
         """
         #Check parameters and create binary-string only key list
-        if type(tableNo) is not int:
-            raise ParameterException("Table number parameter is not an integer!")
+        self._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkRequestReply
         #Send header frame

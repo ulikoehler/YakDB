@@ -102,7 +102,10 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
     std::string errmsg; //The error message, if any, will be stored here
 
     RequestType requestType = (RequestType) (uint8_t) headerData[2];
-    if (requestType == RequestType::ReadRequest || requestType == RequestType::CountRequest) {
+    if (requestType == RequestType::ReadRequest
+            || requestType == RequestType::CountRequest
+            || requestType == RequestType::ExistsRequest
+            || requestType == RequestType::ScanRequest) {
         //Forward the message to the read worker controller, the response is sent asynchronously
         void* dstSocket = server->readWorkerController.workerPushSocket;
         zmq_msg_send(&addrFrame, dstSocket, ZMQ_SNDMORE);
