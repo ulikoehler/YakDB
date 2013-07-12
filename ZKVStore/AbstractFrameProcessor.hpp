@@ -41,7 +41,7 @@ protected:
      * @return True on success, false if an error has been handled and the caller shall stop processing.
      */
     bool parseUint32Frame(uint32_t& tableIdDst,
-            const std::string& frameDesc,
+            const char* frameDesc,
             bool generateResponse,
             const char* errorResponseCode);
     /**
@@ -55,7 +55,7 @@ protected:
      * @return True on success, false if an error has been handled and the caller shall stop processing.
      */
     bool parseUint64Frame(uint64_t& tableIdDst,
-            const std::string& frameDesc,
+            const char* frameDesc,
             bool generateResponse,
             const char* errorResponseCode);
     /**
@@ -64,7 +64,7 @@ protected:
      */
     bool parseUint64FrameOrAssumeDefault(uint64_t& tableIdDst,
             uint64_t defaultValue,
-            const std::string& frameDesc,
+            const char* frameDesc,
             bool generateResponse,
             const char* errorResponseCode);
     /**

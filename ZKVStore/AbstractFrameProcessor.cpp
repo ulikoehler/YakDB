@@ -25,11 +25,11 @@ AbstractFrameProcessor::~AbstractFrameProcessor() {
 }
 
 bool AbstractFrameProcessor::parseUint32Frame(uint32_t& dst,
-        const std::string& frameDesc,
+        const char* frameDesc,
         bool generateResponse, const char* errorResponseCode) {
     if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
         std::string errstr = "Trying to read a 32-bit uint frame ("
-                + frameDesc + "), but no frame was available";
+                + std::string(frameDesc) + "), but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
             sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
@@ -40,12 +40,12 @@ bool AbstractFrameProcessor::parseUint32Frame(uint32_t& dst,
     //Parse table ID, release frame immediately
     zmq_msg_t tableIdFrame;
     zmq_msg_init(&tableIdFrame);
-    if (unlikely(!receiveMsgHandleError(&tableIdFrame, frameDesc.c_str(), errorResponseCode, generateResponse))) {
+    if (unlikely(!receiveMsgHandleError(&tableIdFrame, frameDesc, errorResponseCode, generateResponse))) {
         return false;
     }
     if (unlikely(zmq_msg_size(&tableIdFrame) != sizeof (uint32_t))) {
         std::string errstr = "uint32 frame ("
-                + frameDesc
+                + std::string(frameDesc)
                 + ") was expected to have a length of 4 bytes, but size is "
                 + std::to_string(zmq_msg_size(&tableIdFrame)) + " bytes";
         logger.warn(errstr);
@@ -61,12 +61,12 @@ bool AbstractFrameProcessor::parseUint32Frame(uint32_t& dst,
 }
 
 bool AbstractFrameProcessor::parseUint64Frame(uint64_t& valueDest,
-        const std::string& frameDesc,
+        const char* frameDesc,
         bool generateResponse,
         const char* errorResponseCode) {
     if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
         std::string errstr = "Trying to read 64-bit unsigned integer frame ("
-                + frameDesc + "), but no frame was available";
+                + std::string(frameDesc) + "), but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
             sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
@@ -77,12 +77,13 @@ bool AbstractFrameProcessor::parseUint64Frame(uint64_t& valueDest,
     //Parse table ID, release frame immediately
     zmq_msg_t uint64Frame;
     zmq_msg_init(&uint64Frame);
-    if (unlikely(!receiveMsgHandleError(&uint64Frame, frameDesc.c_str(), errorResponseCode, generateResponse))) {
+    if (unlikely(!receiveMsgHandleError(&uint64Frame, frameDesc, errorResponseCode, generateResponse))) {
         return false;
     }
     if (unlikely(zmq_msg_size(&uint64Frame) != sizeof (uint64_t))) {
         std::string errstr = "Uint64 frame ("
-                + frameDesc + ") was expected to have a length of 8 bytes, but size is "
+                + std::string(frameDesc)
+                + ") was expected to have a length of 8 bytes, but size is "
                 + std::to_string(zmq_msg_size(&uint64Frame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
@@ -98,12 +99,13 @@ bool AbstractFrameProcessor::parseUint64Frame(uint64_t& valueDest,
 
 bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest,
         uint64_t defaultValue,
-        const std::string& frameDesc,
+        const char* frameDesc,
         bool generateResponse,
         const char* errorResponseCode) {
     if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
         std::string errstr = "Trying to read 64-bit unsigned integer frame ("
-                + frameDesc + "), but no frame was available";
+                + std::string(frameDesc)
+                + "), but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
             sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
@@ -115,12 +117,13 @@ bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest
     zmq_msg_t uint64Frame;
     zmq_msg_init(&uint64Frame);
     size_t frameSize = zmq_msg_size(&uint64Frame);
-    if (unlikely(!receiveMsgHandleError(&uint64Frame, frameDesc.c_str(), errorResponseCode, generateResponse))) {
+    if (unlikely(!receiveMsgHandleError(&uint64Frame, frameDesc, errorResponseCode, generateResponse))) {
         return false;
     }
     if (unlikely(frameSize != sizeof (uint64_t) && frameSize != 0)) {
         std::string errstr = "Uint64 frame ("
-                + frameDesc + ") was expected to have a length of 8 bytes, but size is "
+                + std::string(frameDesc)
+                + ") was expected to have a length of 8 bytes, but size is "
                 + std::to_string(zmq_msg_size(&uint64Frame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
