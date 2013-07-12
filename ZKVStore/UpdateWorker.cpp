@@ -74,7 +74,7 @@ bool UpdateWorker::processNextMessage() {
     }
     //The router ensures the header frame is correct, so a (crashing) assert works here
     zmq_msg_init(&headerFrame);
-    if (unlikely(!receiveMsgHandleError(&keyFrame, "Receive header frame in update worker thread", "\x31\x01\xFF", true))) {
+    if (unlikely(!receiveMsgHandleError(&headerFrame, "Receive header frame in update worker thread", "\x31\x01\xFF", haveReplyAddr))) {
         return true;
     }
     //assert(isHeaderFrame(&headerFrame));
@@ -242,7 +242,8 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
     //Get the table
     leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //Parse the from-to range
-    leveldb::Slice* rangeStart, rangeEnd;
+    leveldb::Slice* rangeStart;
+    leveldb::Slice* rangeEnd;
     parseLevelDBRange(&rangeStart,
             &rangeEnd,
             "Compact request compact range parsing",

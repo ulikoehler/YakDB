@@ -39,9 +39,10 @@ class ReadWorker : private AbstractFrameProcessor {
 public:
     ReadWorker(zctx_t* ctx, Tablespace& tablespace);
     ~ReadWorker();
+    bool processNextRequest();
 private:
     Tablespace& tablespace;
-    bool processNextRequest();
+    TableOpenHelper tableOpenHelper;
     void handleExistsRequest(zmq_msg_t* headerFrame);
     void handleReadRequest(zmq_msg_t* headerFrame);
     void handleScanRequest(zmq_msg_t* headerFrame);

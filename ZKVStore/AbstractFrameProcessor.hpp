@@ -104,7 +104,7 @@ protected:
             leveldb::Slice** endSlice,
             const char* errName,
             const char* errorResponse,
-            bool generateResponse);
+            bool generateResponse=true);
     /**
      * Receive a single frame from this.processorInputSocket
      * Automatically handles errors if neccessary
@@ -117,7 +117,7 @@ protected:
     bool receiveMsgHandleError(zmq_msg_t* msg,
             const char* errName,
             const char* errorResponse,
-            bool generateResponse);
+            bool generateResponse=true);
     /**
      * Send a single message over this.processorOutputSocket
      * Automatically handles errors if neccessary.
@@ -139,7 +139,7 @@ protected:
             int flags,
             const char* errName,
             const char* errorResponse,
-            bool generateResponse);
+            bool generateResponse=true);
 };
 
 #endif	/* ABSTRACTFRAMEPROCESSOR_HPP */
