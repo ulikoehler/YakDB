@@ -53,7 +53,7 @@ if __name__ == "__main__":
         if cmd not in commands:
             print "Command '%s' not available - available commands: %s" % (cmd, ", ".join(commands))
             sys.exit(1)
-        if cmd == "exists":
+        elif cmd == "exists":
             existsInput = args[1:]
             output = db.exists(tableNo, existsInput)
             #Convert value-only to key-->value map
@@ -61,7 +61,7 @@ if __name__ == "__main__":
             for index, inval in enumerate(existsInput):
                 outMap[inval] = output[index]
             print outMap
-        if cmd == "read":
+        elif cmd == "read":
             readInput = args[1:]
             output = db.read(tableNo, readInput)
             #Convert value-only to key-->value map
@@ -69,3 +69,9 @@ if __name__ == "__main__":
             for index, inval in enumerate(readInput):
                 outMap[inval] = output[index]
             print outMap
+        elif cmd == "put":
+            key = args[1]
+            value = args[2]
+            output = db.put(tableNo, {key: value})
+            #Convert value-only to key-->value map
+            print "Put '%s' --> '%s'" % (key, value)

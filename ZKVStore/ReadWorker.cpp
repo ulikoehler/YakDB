@@ -45,6 +45,10 @@ void ReadWorkerController::start() {
     }
 }
 
+void ReadWorkerController::stopAll() {
+    
+}
+
 ReadWorkerController::~ReadWorkerController() {
     //Send an empty STOP message for each read worker thread (use a temporary socket)
     void* tempSocket = zsocket_new(context, ZMQ_PUSH); //Create a temporary socket

@@ -27,6 +27,7 @@ public:
      * Start the worker threads
      */
     void start();
+    void stopAll();
     void* workerPushSocket; //inproc PUSH socket to communicate to the workers
 private:
     std::thread** threads;
