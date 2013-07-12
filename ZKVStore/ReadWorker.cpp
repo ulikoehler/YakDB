@@ -71,14 +71,14 @@ void ReadWorkerController::send(zmsg_t** msg) {
 }
 
 ReadWorker::ReadWorker(zctx_t* ctx, Tablespace& tablespace) :
-AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Update worker"),
+AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Read worker"),
 tableOpenHelper(ctx),
 tablespace(tablespace) {
     //Connect the socket that is used to proxy requests to the external req/rep socket
     zsocket_connect(processorOutputSocket, externalRequestProxyEndpoint);
     //Connect the socket that is used by the send() member function
     zsocket_connect(processorInputSocket, readWorkerThreadAddr);
-    logger.debug("Update worker thread starting");
+    logger.debug("Read worker thread starting");
 }
 
 ReadWorker::~ReadWorker() {
