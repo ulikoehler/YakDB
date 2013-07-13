@@ -153,7 +153,8 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         zmq_msg_send(&headerFrame, dstSocket, ZMQ_SNDMORE);
         proxyMultipartMessage(sock, dstSocket);
     } else if (requestType == RequestType::PutRequest
-            || requestType == RequestType::DeleteRequest) {
+            || requestType == RequestType::DeleteRequest
+            || requestType == RequestType::DeleteRangeRequest) {
         void* workerSocket = server->updateWorkerController.workerPushSocket;
         /**
          * Only for partsync messages the routing info (addr + delim frame)
@@ -178,6 +179,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         if (!isPartsync(writeFlags)) {
             zmq_msg_send(&addrFrame, sock, ZMQ_SNDMORE);
             zmq_msg_send(&delimiterFrame, sock, ZMQ_SNDMORE);
+            //Response type shall be the same as request type
             char data[] = "\x31\x01\x20\x00";
             data[2] = requestType;
             sendFrame(data, 4, sock); //Send response code 0x00 (ack)

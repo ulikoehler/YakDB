@@ -63,6 +63,7 @@ private:
     Tablespace& tablespace;
     void handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResponse);
     void handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResponse);
+    void handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generateResponse);
     void handleCompactRequest(zmq_msg_t* headerFrame, bool generateResponse);
     void handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateResponse);
     void handleTableCloseRequest(zmq_msg_t* headerFrame, bool generateResponse);

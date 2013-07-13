@@ -102,6 +102,7 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
                     options.write_buffer_size = parameters->writeBufferSize;
                 } else {
                     //To counteract slow writes on slow HDDs, we now use a WB per default
+                    //The default is tuned not to use too much buffer memory at once
                     options.write_buffer_size = 1024 * 1024 * 64; //64 Mibibytes
                 }
                 if (parameters->bloomFilterBitsPerKey != UINT64_MAX) {

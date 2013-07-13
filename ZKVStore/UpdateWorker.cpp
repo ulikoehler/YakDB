@@ -123,6 +123,8 @@ bool UpdateWorker::processNextMessage() {
 }
 
 void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    static const char* errorResponse = "\x31\x01\x20\x01";
+    static const char* ackResponse = "\x31\x01\x20\x00";
     assert(isHeaderFrame(headerFrame));
     //Process the flags
     uint8_t flags = getWriteFlags(headerFrame);
@@ -132,7 +134,7 @@ void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResp
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, "\x31\x01\x20\x10")) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse)) {
         return;
     }
     //Get the table
@@ -169,17 +171,19 @@ void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResp
     if (!checkLevelDBStatus(status,
             "Database error while processing update request: ",
             generateResponse,
-            "\x31\x01\x20\x02")) {
+            errorResponse)) {
         return;
     }
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendConstFrame("\x31\x01\x20\x00", 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
     }
 }
 
 void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    static const char* errorResponse = "\x31\x01\x21\x01";
+    static const char* ackResponse = "\x31\x01\x21\x00";
     //Process the flags
     uint8_t flags = getWriteFlags(headerFrame);
     bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
@@ -188,7 +192,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, "\x31\x01\x20\x10")) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse)) {
         return;
     }
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
@@ -203,7 +207,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
         zmq_msg_init(&keyFrame);
         //The next two frames contain key and value
         if (unlikely(!receiveMsgHandleError(&keyFrame,
-                "Receive deletion key frame", "\x31\x01\x21\x01", generateResponse))) {
+                "Receive deletion key frame", errorResponse, generateResponse))) {
             return;
         }
         //Convert to LevelDB
@@ -221,13 +225,13 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     if (!checkLevelDBStatus(status,
             "Database error while processing delete request: ",
             generateResponse,
-            "\x31\x01\x20\x02")) {
+            errorResponse)) {
         return;
     }
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendConstFrame("\x31\x01\x20\x00", 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
     }
 }
 
@@ -246,6 +250,8 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
  * @param headerFrame
  */
 void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    static const char* errorResponse = "\x31\x01\x03\x01";
+    static const char* ackResponse = "\x31\x01\x03\x00";
     zmq_msg_close(headerFrame);
     //Parse table ID
     uint32_t tableId;
@@ -255,7 +261,7 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
     //Check if there is a range frames
     if (!expectNextFrame("Only table ID frame found in compact request, range missing",
             generateResponse,
-            "\x31\x01\x03\x01")) {
+            errorResponse)) {
         return;
     }
     //Get the table
@@ -266,7 +272,7 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
     parseRangeFrames(rangeStartStr,
             rangeEndStr,
             "Compact request compact range parsing",
-            "\x31\x01\x03\x01",
+            errorResponse,
             generateResponse);
     bool haveRangeStart = !(rangeStartStr.empty());
     bool haveRangeEnd = !(rangeEndStr.empty());
@@ -277,11 +283,93 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
             (haveRangeEnd ? &rangeEnd : nullptr));
     //Create the response if neccessary
     if (generateResponse) {
-        sendConstFrame("\x31\x01\x03\x00", 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
+    }
+}
+
+void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    static const char* errorResponse = "\x31\x01\x22\x01";
+    static const char* ackResponse = "\x31\x01\x22\x00";
+    //Process the flags
+    uint8_t flags = getWriteFlags(headerFrame);
+    bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
+    //Convert options to LevelDB
+    leveldb::WriteOptions writeOptions;
+    writeOptions.sync = fullsync;
+    zmq_msg_close(headerFrame);
+    //Parse table ID
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse)) {
+        return;
+    }
+    //Check if there is a range frames
+    if (!expectNextFrame("Only table ID frame found in compact request, range missing",
+            generateResponse,
+            errorResponse)) {
+        return;
+    }
+    //Get the table
+    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    //Parse the from-to range
+    std::string rangeStartStr;
+    std::string rangeEndStr;
+    parseRangeFrames(rangeStartStr,
+            rangeEndStr,
+            "Compact request compact range parsing",
+            errorResponse,
+            generateResponse);
+    bool haveRangeStart = !(rangeStartStr.empty());
+    bool haveRangeEnd = !(rangeEndStr.empty());
+    //Convert the str to a slice, to compare the iterator slice in-place
+    leveldb::Slice rangeEndSlice(rangeEndStr);
+    //Do the compaction (takes LONG)
+    //Create the response object
+    leveldb::ReadOptions readOptions;
+    leveldb::Status status;
+    //Create the iterator
+    leveldb::Iterator* it = db->NewIterator(readOptions);
+    //All deletes are applied in one batch
+    // This also avoids construct like deleting while iterating
+    leveldb::WriteBatch batch;
+    if (haveRangeStart) {
+        it->Seek(rangeStartStr);
+    } else {
+        it->SeekToFirst();
+    }
+    uint64_t count = 0;
+    //Iterate over all key-values in the range
+    for (; it->Valid(); it->Next()) {
+        count++;
+        leveldb::Slice key = it->key();
+        batch.Delete(key);
+        if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
+            break;
+        }
+    }
+    //Check if any error occured during iteration
+    if (!checkLevelDBStatus(it->status(), "LevelDB error while counting", true, errorResponse)) {
+        delete it;
+        return;
+    }
+    delete it;
+    //Apply the batch
+    status = db->Write(writeOptions, &batch);
+    //If something went wrong, send an error response
+    if (!checkLevelDBStatus(status,
+            "Database error while processing delete request: ",
+            generateResponse,
+            errorResponse)) {
+        return;
+    }
+    //Create the response if neccessary
+    if (generateResponse) {
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
     }
 }
 
 void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    static const char* errorResponse = "\x31\x01\x01\x01";
+    static const char* ackResponse = "\x31\x01\x01\x00";
     /*
      * This method performs frame correctness check, the table open server
      * serializes everything in a single struct.
@@ -296,7 +384,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
     if (!parseUint32Frame(tableId,
             "Table ID frame",
             generateResponse,
-            "\x31\x01\x01\x01")) {
+            errorResponse)) {
         return;
     }
     uint64_t lruCacheSize;
@@ -304,7 +392,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             UINT64_MAX,
             "LRU cache size frame",
             generateResponse,
-            "\x31\x01\x01\x01")) {
+            errorResponse)) {
         return;
     }
     uint64_t blockSize;
@@ -312,7 +400,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             UINT64_MAX,
             "Table block size frame",
             generateResponse,
-            "\x31\x01\x01\x01")) {
+            errorResponse)) {
         return;
     }
     uint64_t writeBufferSize;
@@ -320,7 +408,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             UINT64_MAX,
             "Write buffer size frame",
             generateResponse,
-            "\x31\x01\x01\x01")) {
+            errorResponse)) {
         return;
     }
     uint64_t bloomFilterBitsPerKey;
@@ -328,7 +416,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             UINT64_MAX,
             "Bits per key bloom filter size frame",
             generateResponse,
-            "\x31\x01\x01\x01")) {
+            errorResponse)) {
         return;
     }
     //
@@ -344,30 +432,34 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
     //Rewrite the header frame for the response
     //Create the response if neccessary
     if (generateResponse) {
-        sendConstFrame("\x31\x01\x01\x00", 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
     }
 }
 
 void UpdateWorker::handleTableCloseRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    static const char* errorResponse = "\x31\x01\x02\x01";
+    static const char* ackResponse = "\x31\x01\x02\x00";
     zmq_msg_close(headerFrame);
     uint32_t tableId;
     if (!parseUint32Frame(tableId, "Table ID frame", generateResponse,
-            "\x31\x01\x02\x01")) {
+            errorResponse)) {
         return;
     }
     //Close the table
     tableOpenHelper.closeTable(tableId);
     //Create the response
     if (generateResponse) {
-        sendConstFrame("\x31\x01\x02\x00", 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
     }
 }
 
 void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    static const char* errorResponse = "\x31\x01\x03\x01";
+    static const char* ackResponse = "\x31\x01\x03s\x00";
     zmq_msg_close(headerFrame);
     uint32_t tableId;
     if (!parseUint32Frame(tableId, "Table ID frame", generateResponse,
-            "\x31\x01\x03\x01")) {
+            errorResponse)) {
         return;
     }
     //Close the table
@@ -375,7 +467,7 @@ void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool gener
     //Create the response
     zmsg_t* response = nullptr;
     if (generateResponse) {
-        sendConstFrame("\x31\x01\x03\x00", 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
     }
 }
 

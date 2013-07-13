@@ -5,10 +5,13 @@
 For request/reply sockets the server shall always send an response.
 The server shall send responses as soon as possible.
 
-If a message isn't recognizable by the server, it shall send this protocol error message.
-
 Additional bytes in the header frame shall always be ignored by both
 client and server.
+
+For request/response connections, the server must always respond
+with a response that has a response type equivalent
+to the request type, unless it can't recognize the request at all, it shall
+respond with the protocol error response listed below.
 
 ### Protocol error response
 
@@ -196,7 +199,7 @@ Read a range of keys at once ("read range request")
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x13 Request type (scan request)]
 * Frame 1: 4-byte little-endian unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
-* Frame 3: End key (inclusive). If this has zero length, the count ends at the last key
+* Frame 3: End key (exclusive). If this has zero length, the count ends at the last key
 
 ##### Scan response:
 
@@ -238,22 +241,30 @@ None of the frames may be empty under any circumstances. Empty frames may lead t
 ##### Delete request:
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x21 Request type (Delete request)] [Optional: Write flags, defaults to 0x00]
-* Frame 1-n: Key to delete (may contain arbitrary byte sequence)
+* Frame 1: 4-byte little-endian unsigned table number
+* Frame 2-n: Key to delete (may contain arbitrary byte sequence)
 
 None of the frames may be empty under any circumstances. Empty frames may lead to undefined behaviour.
 
-##### Put/Delete response
+##### Delete range request:
 
-The response format is identical for put and delete requests, besides the response type.
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x22 Request type (Delete range request)] [Optional: Write flags, defaults to 0x00]
+* Frame 1: 4-byte little-endian unsigned table number
+* Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
+* Frame 3: End key (exclusive). If this has zero length, the count ends at the last key
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 or 0x21 Response type (Put/delete reponse)] [1 byte Response code]
+##### Write response
+
+The response format is identical for all write-type requests
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version [Response type (Same as request type)] [1 byte Response code]
 * Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
 
 Response codes (lower byte counts!):
 * 0x00 Acknowledge (Only acknowledges that the request has been received)
-* 0x01 Protocol error, found key frame without value frame (implies Frame 1 being existing)
+* 0x01 Error, unspecified or unknown
 * 0x02 Database error while processing request (implies Frame 1 being existing)
-* 0x10 Protocol error, unspecified
+* 0x10 Protocol error, found key frame without value frame (implies Frame 1 being existing)
 
 If the 0x10 bit is set, the server signals that the write has been applied partially
 and can't be rolled back automatically.
