@@ -288,8 +288,6 @@ class ZeroDBConnection:
         if toKey is not None: toKey = self._convertToBinary(toKey)
         if fromKey is None: fromKey = ""
         if toKey is None: toKey = ""
-        print "Using from key " + fromKey
-        print "Using to key " + toKey
         self.socket.send(fromKey, zmq.SNDMORE)
         self.socket.send(toKey)
         #Wait for reply
@@ -306,6 +304,45 @@ class ZeroDBConnection:
         for i in xrange(0,len(dataParts),2):
             mappedData[dataParts[i]] = dataParts[i+1]
         return mappedData
+    def count(self, tableNo, fromKey, toKey):
+        """
+        Count a range of
+        
+        See self.read() documentation for an explanation of how
+        non-str values are mapped.
+        
+        @param tableNo The table number to scan in
+        @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
+        @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @return The count, as integer
+        """
+        #Check parameters and create binary-string only key list
+        self._checkParameterType(tableNo, int, "tableNo")
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send("\x31\x01\x11", zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo)
+        #Send range. "" --> empty frame --> start/end of tabe
+        if fromKey is not None: fromKey = self._convertToBinary(fromKey)
+        if toKey is not None: toKey = self._convertToBinary(toKey)
+        if fromKey is None: fromKey = ""
+        if toKey is None: toKey = ""
+        self.socket.send(fromKey, zmq.SNDMORE)
+        self.socket.send(toKey)
+        #Wait for reply
+        msgParts = self.socket.recv_multipart(copy=True)
+        if len(msgParts) == 0:
+            raise ZeroDBProtocolException("Received empty count reply message")
+        if msgParts[0][2] != '\x11':
+            raise ZeroDBProtocolException("Count response type was %d instead of 17" % ord(msgParts[0][2]))
+        if msgParts[0][3] != '\x00':
+            raise ZeroDBProtocolException("Count response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
+        #Deserialize
+        binaryCount = msgParts[1]
+        count = struct.unpack("<Q", binaryCount)[0]
+        return count
     def exists(self, tableNo, keys):
         """
         Chec one or multiples values, identified by their keys, for existence in a given table.
