@@ -92,16 +92,14 @@ protected:
     /**
      * Parse a start/end range from the next two 8-byte-or-empty-frames.
      * Reports errors to the if any occur.
-     * If the frames have zero-length, a NULL is placed in the given ptrs.
-     * It is the callers responsibility to delete the slices if they are != NULL
-     * @param startSlice A pointer to a slice ptr where the start slice or NULL is placed,
-     * @param endSlice A pointer to a slice ptr where the end slice or NULL is placed,
+     * @param startSlice A pointer to a string ptr where the start string (or "" for zero-length frames) is placed
+     * @param endSlice A pointer to a string ptr where the end string (or "" for zero-length frames) is placed
      * @param errName A descriptive name of the range (e.g. "Scan request scan range") for error reporting
      * @param errorResponse A 4-character response code
      * @return false if the caller shall exit immediately because of errors.
      */
-    bool parseLevelDBRange(leveldb::Slice** startSlice,
-            leveldb::Slice** endSlice,
+    bool parseRangeFrames(std::string& startSlice,
+            std::string& endSlice,
             const char* errName,
             const char* errorResponse,
             bool generateResponse=true);

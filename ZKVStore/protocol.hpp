@@ -56,7 +56,7 @@ enum RequestType : uint8_t {
     ReadRequest = 0x10,
     CountRequest = 0x11,
     ExistsRequest = 0x12,
-    ScanRequest = 0x12,
+    ScanRequest = 0x13,
     PutRequest = 0x20,
     DeleteRequest = 0x21
 };

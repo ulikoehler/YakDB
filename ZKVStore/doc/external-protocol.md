@@ -229,7 +229,7 @@ PARTSYNC may not be sent for non-REQ-REP sockets. Sending PARTSYNC over other so
 
 ##### Put request:
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 Request type (Put request)] [Optional: Write flags, defaults to 0x00]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 Requqest type (Put request)] [Optional: Write flags, defaults to 0x00]
 * Frame 1-n (odd frame numbers): Key to write to. The next frame specifies the value to write
 * Frame 2-n (even frame numbers): Value to write. The previous frame specifies the corresponding key.
 

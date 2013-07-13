@@ -32,6 +32,10 @@ def delete(db, tableNo, keys):
     db.delete(tableNo, keys)
     print "Deleted [%s]" % ", ".join(keys)
 
+def scan(db, tableNo, fromKey, toKey):
+    #Data is remapped in ZeroDB class
+    print db.scan(tableNo, fromKey, toKey)
+
 if __name__ == "__main__":
     parser = optparse.OptionParser()
     #Server options
@@ -74,12 +78,18 @@ if __name__ == "__main__":
     else: #Single-command mode
         tableNo = opts.tableNo
         cmd = args[0]
-        commands = ["read","exists","put","delete"]
+        #Extract other args
+        arg1 = None
+        arg2 = None
+        if len(args) >= 2: arg1 = args[1]
+        if len(args) >= 3: arg2 = args[2]
+        commands = ["read","exists","put","delete","scan"]
         if cmd not in commands:
             print "Command '%s' not available - available commands: %s" % (cmd, ", ".join(commands))
             sys.exit(1)
         elif cmd == "exists": exists(db, tableNo, args[1:])
         elif cmd == "read": read(db, tableNo, args[1:])
-        elif cmd == "put": put(db, tableNo, args[1], args[2])
+        elif cmd == "put": put(db, tableNo, arg1, arg2)
         elif cmd == "delete": delete(db, tableNo, args[1:])
+        elif cmd == "scan": scan(db, tableNo, arg1, arg2)
             

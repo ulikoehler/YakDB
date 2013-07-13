@@ -168,8 +168,8 @@ bool AbstractFrameProcessor::checkLevelDBStatus(const leveldb::Status& status, c
     return true;
 }
 
-bool AbstractFrameProcessor::parseLevelDBRange(leveldb::Slice** startSlice,
-        leveldb::Slice** endSlice,
+bool AbstractFrameProcessor::parseRangeFrames(std::string& startSlice,
+        std::string& endSlice,
         const char* errName,
         const char* errorResponse,
         bool generateResponse) {
@@ -191,18 +191,8 @@ bool AbstractFrameProcessor::parseLevelDBRange(leveldb::Slice** startSlice,
         return false;
     }
     //Convert frames to slices, or use nullptr if empty
-    size_t rangeStartFrameSize = zmq_msg_size(&rangeStartFrame);
-    size_t rangeEndFrameSize = zmq_msg_size(&rangeEndFrame);
-    if (rangeStartFrameSize == 0) {
-        startSlice = nullptr;
-    } else {
-        *startSlice = new leveldb::Slice((char*) zmq_msg_data(&rangeStartFrame), rangeStartFrameSize);
-    }
-    if (rangeEndFrameSize == 0) {
-        endSlice = nullptr;
-    } else {
-        *endSlice = new leveldb::Slice((char*) zmq_msg_data(&rangeEndFrame), rangeEndFrameSize);
-    }
+    startSlice = std::string((char*) zmq_msg_data(&rangeStartFrame), zmq_msg_size(&rangeStartFrame));
+    endSlice = std::string((char*) zmq_msg_data(&rangeEndFrame), zmq_msg_size(&rangeEndFrame));
     //Cleanup
     zmq_msg_close(&rangeStartFrame);
     zmq_msg_close(&rangeEndFrame);
@@ -252,11 +242,11 @@ void AbstractFrameProcessor::disposeRemainingMsgParts() {
     zmq_msg_t msg;
     zmq_msg_init(&msg);
     while (socketHasMoreFrames(processorInputSocket)) {
-        if(unlikely((&msg, processorInputSocket, 0) == -1)) {
+        if (unlikely((&msg, processorInputSocket, 0) == -1)) {
             logger.warn("ZMQ error while trying to clear remaining messages from queue: "
-                        + std::string(zmq_strerror(zmq_errno())));
+                    + std::string(zmq_strerror(zmq_errno())));
             numErrors++;
-            if(numErrors >= errorLimit) {
+            if (numErrors >= errorLimit) {
                 logger.debug("Exiting disposeRemainingMsgParts() because error limit has been reached");
                 break;
             }

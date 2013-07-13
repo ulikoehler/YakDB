@@ -78,7 +78,7 @@ bool UpdateWorker::processNextMessage() {
         return true;
     }
     //The header-ness of the header frame shall be checked by the main router
-    if(unlikely(!isHeaderFrame(&headerFrame))) {
+    if (unlikely(!isHeaderFrame(&headerFrame))) {
         logger.error("Internal malfunction: Frame of size "
                 + std::to_string(zmq_msg_size(&headerFrame))
                 + ", which was expected to be a header frame, is none: "
@@ -200,11 +200,11 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     zmq_msg_t keyFrame;
     leveldb::WriteBatch batch;
     while (haveMoreData) {
-    zmq_msg_init(&keyFrame);
+        zmq_msg_init(&keyFrame);
         //The next two frames contain key and value
-            if (unlikely(!receiveMsgHandleError(&keyFrame,
-                    "Receive deletion key frame", "\x31\x01\x21\x01", generateResponse))) {
-                return;
+        if (unlikely(!receiveMsgHandleError(&keyFrame,
+                "Receive deletion key frame", "\x31\x01\x21\x01", generateResponse))) {
+            return;
         }
         //Convert to LevelDB
         leveldb::Slice keySlice((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
@@ -261,22 +261,20 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
     //Get the table
     leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //Parse the from-to range
-    leveldb::Slice* rangeStart;
-    leveldb::Slice* rangeEnd;
-    parseLevelDBRange(&rangeStart,
-            &rangeEnd,
+    std::string rangeStartStr;
+    std::string rangeEndStr;
+    parseRangeFrames(rangeStartStr,
+            rangeEndStr,
             "Compact request compact range parsing",
             "\x31\x01\x03\x01",
             generateResponse);
+    bool haveRangeStart = !(rangeStartStr.empty());
+    bool haveRangeEnd = !(rangeEndStr.empty());
     //Do the compaction (takes LONG)
-    db->CompactRange(rangeStart, rangeEnd);
-    //Remove and destroy the range frames, because they're not used in the response
-    if(rangeStart != nullptr) {
-        delete rangeStart;
-    }
-    if(rangeEnd != nullptr) {
-        delete rangeEnd;
-    }
+    leveldb::Slice rangeStart(rangeStartStr);
+    leveldb::Slice rangeEnd(rangeEndStr);
+    db->CompactRange((haveRangeStart ? &rangeStart : nullptr),
+            (haveRangeEnd ? &rangeEnd : nullptr));
     //Create the response if neccessary
     if (generateResponse) {
         sendConstFrame("\x31\x01\x03\x00", 4, processorOutputSocket, logger);

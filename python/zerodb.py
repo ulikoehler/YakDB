@@ -211,7 +211,7 @@ class ZeroDBConnection:
         if len(msgParts) == 0:
             raise ZeroDBProtocolException("Received empty delete reply message")
         if msgParts[0][2] != '\x21':
-            raise ZeroDBProtocolException("Delete response type was %d instead of 33" % msgParts[0][2])
+            raise ZeroDBProtocolException("Delete response type was %d instead of 33" % ord(msgParts[0][2]))
         if msgParts[0][3] != '\x00':
             raise ZeroDBProtocolException("Delete response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
     def read(self, tableNo, keys):
@@ -257,11 +257,55 @@ class ZeroDBConnection:
         if len(msgParts) == 0:
             raise ZeroDBProtocolException("Received empty read reply message")
         if msgParts[0][2] != '\x10':
-            raise ZeroDBProtocolException("Read response type was %d instead of 16" % msgParts[0][2])
+            raise ZeroDBProtocolException("Read response type was %d instead of 16" % ord(msgParts[0][2]))
         if msgParts[0][3] != '\x00':
             raise ZeroDBProtocolException("Read response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
         #Return the data frames
         return msgParts[1:]
+    def scan(self, tableNo, fromKey, toKey):
+        """
+        Synchronous scan. Scans an entire range at once.
+        
+        See self.read() documentation for an explanation of how
+        non-str values are mapped.
+        
+        
+        @param tableNo The table number to scan in
+        @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
+        @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @return A dictionary of the returned key/value pairs
+        """
+        #Check parameters and create binary-string only key list
+        self._checkParameterType(tableNo, int, "tableNo")
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send("\x31\x01\x13", zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo)
+        #Send range. "" --> empty frame --> start/end of tabe
+        if fromKey is not None: fromKey = self._convertToBinary(fromKey)
+        if toKey is not None: toKey = self._convertToBinary(toKey)
+        if fromKey is None: fromKey = ""
+        if toKey is None: toKey = ""
+        print "Using from key " + fromKey
+        print "Using to key " + toKey
+        self.socket.send(fromKey, zmq.SNDMORE)
+        self.socket.send(toKey)
+        #Wait for reply
+        msgParts = self.socket.recv_multipart(copy=True)
+        if len(msgParts) == 0:
+            raise ZeroDBProtocolException("Received empty scan reply message")
+        if msgParts[0][2] != '\x13':
+            raise ZeroDBProtocolException("Scan response type was %d instead of 19" % ord(msgParts[0][2]))
+        if msgParts[0][3] != '\x00':
+            raise ZeroDBProtocolException("Scan response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
+        #Remap the returned key/value pairs to a dict
+        dataParts = msgParts[1:]
+        mappedData = {}
+        for i in xrange(0,len(dataParts),2):
+            mappedData[dataParts[i]] = dataParts[i+1]
+        return mappedData
     def exists(self, tableNo, keys):
         """
         Chec one or multiples values, identified by their keys, for existence in a given table.
