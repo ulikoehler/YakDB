@@ -269,6 +269,10 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     bool haveLastValueMsg = false; //Needed to send only last frame without SNDMORE
     for (; it->Valid(); it->Next()) {
         leveldb::Slice key = it->key();
+        //Check if we have to stop here
+        if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
+            break;
+        }
         leveldb::Slice value = it->value();
         //Send the previous value msg, if any
         if (haveLastValueMsg) {
@@ -288,10 +292,6 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
             zmq_msg_close(&valueMsg);
             delete it;
             return;
-        }
-        //Check if we have to stop here
-        if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
-            break;
         }
     }
     //Send the previous value msg, if any
@@ -348,11 +348,11 @@ void ReadWorker::handleCountRequest(zmq_msg_t* headerFrame) {
     uint64_t count = 0;
     //Iterate over all key-values in the range
     for (; it->Valid(); it->Next()) {
-        count++;
         leveldb::Slice key = it->key();
         if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
             break;
         }
+        count++;
     }
     //Check if any error occured during iteration
     if (!checkLevelDBStatus(it->status(), "LevelDB error while counting", true, errorResponse)) {

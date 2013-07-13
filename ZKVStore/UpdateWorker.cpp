@@ -109,6 +109,8 @@ bool UpdateWorker::processNextMessage() {
         handleCompactRequest(&headerFrame, haveReplyAddr);
     } else if (requestType == TruncateTableRequest) {
         handleTableTruncateRequest(&headerFrame, haveReplyAddr);
+    } else if (requestType == DeleteRangeRequest) {
+        handleDeleteRangeRequest(&headerFrame, haveReplyAddr);
     } else {
         logger.error(std::string("Internal routing error: request type ")
                 + std::to_string(requestType) + " routed to update worker thread!");
@@ -341,10 +343,10 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     for (; it->Valid(); it->Next()) {
         count++;
         leveldb::Slice key = it->key();
-        batch.Delete(key);
         if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
             break;
         }
+        batch.Delete(key);
     }
     //Check if any error occured during iteration
     if (!checkLevelDBStatus(it->status(), "LevelDB error while counting", true, errorResponse)) {

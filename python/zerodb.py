@@ -362,6 +362,38 @@ class Connection:
         for i in xrange(0,len(dataParts),2):
             mappedData[dataParts[i]] = dataParts[i+1]
         return mappedData
+    def deleteRange(self, tableNo, fromKey, toKey):
+        """
+        Deletes a range of keys in the database
+        
+        @param tableNo The table number to scan in
+        @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
+        @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @return A dictionary of the returned key/value pairs
+        """
+        #Check parameters and create binary-string only key list
+        self._checkParameterType(tableNo, int, "tableNo")
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send("\x31\x01\x22", zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo)
+        #Send range. "" --> empty frame --> start/end of tabe
+        if fromKey is not None: fromKey = self._convertToBinary(fromKey)
+        if toKey is not None: toKey = self._convertToBinary(toKey)
+        if fromKey is None: fromKey = ""
+        if toKey is None: toKey = ""
+        self.socket.send(fromKey, zmq.SNDMORE)
+        self.socket.send(toKey)
+        #Wait for reply
+        msgParts = self.socket.recv_multipart(copy=True)
+        if len(msgParts) == 0:
+            raise ZeroDBProtocolException("Received empty delete range reply message")
+        if msgParts[0][2] != '\x22':
+            raise ZeroDBProtocolException("Delete range response type was %d instead of 34" % ord(msgParts[0][2]))
+        if msgParts[0][3] != '\x00':
+            raise ZeroDBProtocolException("Delete range response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
     def count(self, tableNo, fromKey, toKey):
         """
         Count a range of
