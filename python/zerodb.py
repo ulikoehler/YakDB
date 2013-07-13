@@ -9,8 +9,64 @@ class ParameterException(Exception):
 class ZeroDBProtocolException(Exception):
     def __init__(self, message):
         Exception.__init__(self, message)
+        
+class WriteBatch:
+    """
+    An utility class that auto-batches write requests to a backend Connection
+    When calling flush, a put request is issued to the backend.
+    Write request are automatically issued on batch overflow and
+    object deletion.
+    """
+    def __init__(self, db, tableNo, batchSize=2500, partsync=False, fullsync=False):
+        """
+        Create a new WriteBatch.
+        @param db The ZeroDB connection backend
+        @param tableNo The table number this batch is related to.
+        """
+        self.db = db
+        self.tableNo = tableNo
+        self.batchSize = batchSize
+        self.batchData = batchData
+        self.partsync = partsync
+        self.fullsync = fullsync
+        self.batchData = {}
+    def put(self, valueDict):
+        """
+        Write a dictionary of values to the current batch.
+        Note that this is slower than adding the keys one-by-one
+        because of the merge method currently being used
+        """
+        if type(valueDict) is not dict:
+            raise ParameterException("Batch put valueDict parameter must be a dictionary but it's a %s" % str(type(valueDict)))
+        #Merge the dicts
+        self.batchData = dict(self.batchData.items() + valueDict.items())
+        self.__checkFlush()
+    def putSingle(self, key, value):
+        """
+        Write a single key-value pair to the current batch
+        """
+        #Convert the key and value to a appropriate binary form (also checks if obj type is supported)
+        #Without this, tracing back what added a key/value with an inappropriate type would not be possible
+        convKey = Connection._convertToBinary(key) 
+        convValue = Connection._convertToBinary(value)
+        self.batchData[convKey] = convValue
+        self.__checkFlush()
+    def __checkFlush(self):
+        """
+        Issues a flash if self.batchData overflowed
+        """
+        if len(self.batchData) >= self.batchSize:
+            self.flush
+    def flush(self):
+        """
+        Immediately issue the backend write request and clear the batch write queue.
+        It is NOT neccessary to flush before the object is deleted!
+        """
+        self.db.put(self.tableNo, self.batchDat, self.partsync, self.fullsync)
+    def __del__(self):
+        self.flush()
 
-class ZeroDBConnection:
+class Connection:
     def __init__(self, context=None):
         if context is None:
             self.context = zmq.Context()
@@ -72,7 +128,8 @@ class ZeroDBConnection:
         if type(value) is not int:
             raise Exception("Can't format object of non-integer type as binary integer")
         self.socket.send(struct.pack('<q', value), (zmq.SNDMORE if sndmore else 0))
-    def _convertToBinary(self, value):
+    @staticmethod
+    def _convertToBinary(value):
         """
         Given a string, float or int value, convert it to binary and return the converted value.
         Ints are converted to 32-bit little-endian signed integers (uint32_t).

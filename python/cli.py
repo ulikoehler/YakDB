@@ -72,7 +72,7 @@ if __name__ == "__main__":
     #
     if not opts.quiet:
         sys.stderr.write("Connecting to %s\n" % opts.serverURL)
-    db = zerodb.ZeroDBConnection()
+    db = zerodb.Connection()
     #Default is req/rep
     if opts.connectMode is ConnectMode.pushPull:
         db.usePushMode()
