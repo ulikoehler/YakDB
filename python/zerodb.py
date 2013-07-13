@@ -26,7 +26,6 @@ class WriteBatch:
         self.db = db
         self.tableNo = tableNo
         self.batchSize = batchSize
-        self.batchData = batchData
         self.partsync = partsync
         self.fullsync = fullsync
         self.batchData = {}
@@ -47,7 +46,7 @@ class WriteBatch:
         """
         #Convert the key and value to a appropriate binary form (also checks if obj type is supported)
         #Without this, tracing back what added a key/value with an inappropriate type would not be possible
-        convKey = Connection._convertToBinary(key) 
+        convKey = Connection._convertToBinary(key)
         convValue = Connection._convertToBinary(value)
         self.batchData[convKey] = convValue
         self.__checkFlush()
@@ -56,13 +55,14 @@ class WriteBatch:
         Issues a flash if self.batchData overflowed
         """
         if len(self.batchData) >= self.batchSize:
-            self.flush
+            self.flush()
     def flush(self):
         """
         Immediately issue the backend write request and clear the batch write queue.
         It is NOT neccessary to flush before the object is deleted!
         """
-        self.db.put(self.tableNo, self.batchDat, self.partsync, self.fullsync)
+        if len(self.batchData) != 0:
+            self.db.put(self.tableNo, self.batchData, self.partsync, self.fullsync)
     def __del__(self):
         self.flush()
 
