@@ -17,7 +17,7 @@ class WriteBatch:
     Write request are automatically issued on batch overflow and
     object deletion.
     """
-    def __init__(self, db, tableNo, batchSize=2500, partsync=False, fullsync=False):
+    def __init__(self, db, tableNo, batchSize=500, partsync=False, fullsync=False):
         """
         Create a new WriteBatch.
         @param db The ZeroDB connection backend
