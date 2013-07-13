@@ -17,7 +17,7 @@ class WriteBatch:
     Write request are automatically issued on batch overflow and
     object deletion.
     """
-    def __init__(self, db, tableNo, batchSize=500, partsync=False, fullsync=False):
+    def __init__(self, db, tableNo, batchSize=2500, partsync=False, fullsync=False):
         """
         Create a new WriteBatch.
         @param db The ZeroDB connection backend
@@ -63,6 +63,7 @@ class WriteBatch:
         """
         if len(self.batchData) != 0:
             self.db.put(self.tableNo, self.batchData, self.partsync, self.fullsync)
+            self.batchData = {}
     def __del__(self):
         self.flush()
 
@@ -451,7 +452,7 @@ class Connection:
         for msgPart in msgParts[1:]:
             processedValues.append(False if msgPart == "\x00" else True)
         return processedValues
-    def openTable(self, tableNo, compression=True, lruCacheSize=None, tableBlocksize=None, writeBufferSize=None, bloomFilterBitsPerKey=None):
+    def openTable(self, tableNo, compression=True, lruCacheSize=None, writeBufferSize=None, tableBlocksize=None, bloomFilterBitsPerKey=None):
         """
         Open a table.
         
