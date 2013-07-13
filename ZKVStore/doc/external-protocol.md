@@ -299,3 +299,9 @@ Replying to the request does not indicate any kind of success.
 ##### Forward range to socket response
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x40 Response type (Forward range to socket response)]
+* Frame 1: 8-byte little-endian unsigned Job ID
+
+
+-------------------------------
+
+## Data processing requests
