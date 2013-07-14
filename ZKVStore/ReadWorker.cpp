@@ -262,8 +262,9 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     } else {
         it->SeekToFirst();
     }
-    //Send ACK and count
-    sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
+    //If the range is empty, the header needs to be sent w/out MORE,
+    // so we can't send it right away
+    bool sentHeader = false;
     //Iterate over all key-values in the range
     zmq_msg_t keyMsg, valueMsg;
     bool haveLastValueMsg = false; //Needed to send only last frame without SNDMORE
@@ -275,6 +276,10 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         }
         leveldb::Slice value = it->value();
         //Send the previous value msg, if any
+        if (!sentHeader) {
+            sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
+            sentHeader = true;
+        }
         if (haveLastValueMsg) {
             if (unlikely(!sendMsgHandleError(&valueMsg, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", errorResponse))) {
                 delete it;
@@ -300,6 +305,10 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
             return;
         }
     }
+    //If the scanned range is empty, the header has not been sent et
+    if (!sentHeader) {
+        sendConstFrame(ackResponse, 4, processorOutputSocket);
+    }
     //Check if any error occured during iteration
     if (!checkLevelDBStatus(it->status(),
             "LevelDB error while scanning",
@@ -323,20 +332,21 @@ void ReadWorker::handleLimitedScanRequest(zmq_msg_t* headerFrame) {
         return;
     }
     zmq_msg_t rangeStartMsg;
-    if(!receiveMsgHandleError(&rangeStartMsg, "Receive limited scan range start frame", errorResponse, true)) {
+    zmq_msg_init(&rangeStartMsg);
+    if (!receiveMsgHandleError(&rangeStartMsg, "Receive limited scan range start frame", errorResponse, true)) {
         return;
     }
     if (!expectNextFrame("Only range start frame found in limited scan request, limit frame missing", true, errorResponse)) {
         return;
     }
     uint64_t scanLimit;
-    if(!parseUint64Frame(scanLimit, "Receive limited scan range start frame", true, errorResponse)) {
+    if (!parseUint64Frame(scanLimit, "Receive limited scan range start frame", true, errorResponse)) {
         return;
     }
     //Get the table to read from
     leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //Create a slie (does not copy data!) from the start msg
-    leveldb::Slice rangeStartSlice((char*)zmq_msg_data(&rangeStartMsg),zmq_msg_size(&rangeStartMsg));
+    leveldb::Slice rangeStartSlice((char*) zmq_msg_data(&rangeStartMsg), zmq_msg_size(&rangeStartMsg));
     bool haveRangeStart = (zmq_msg_size(&rangeStartMsg) != 0);
     //Do the compaction (takes LONG)
     //Create the response object
@@ -351,7 +361,7 @@ void ReadWorker::handleLimitedScanRequest(zmq_msg_t* headerFrame) {
     }
     zmq_msg_close(&rangeStartMsg);
     //Send ACK and count
-    sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
+    bool sentHeader = false;
     //Iterate over all key-values in the range
     zmq_msg_t keyMsg, valueMsg;
     bool haveLastValueMsg = false; //Needed to send only last frame without SNDMORE
@@ -364,6 +374,10 @@ void ReadWorker::handleLimitedScanRequest(zmq_msg_t* headerFrame) {
         scanLimit--;
         leveldb::Slice value = it->value();
         //Send the previous value msg, if any
+        if (!sentHeader) {
+            sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
+            sentHeader = true;
+        }
         if (haveLastValueMsg) {
             if (unlikely(!sendMsgHandleError(&valueMsg, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", errorResponse))) {
                 delete it;
@@ -381,6 +395,10 @@ void ReadWorker::handleLimitedScanRequest(zmq_msg_t* headerFrame) {
             delete it;
             return;
         }
+    }
+    //If the scanned range is empty, the header has not been sent et
+    if (!sentHeader) {
+        sendConstFrame(ackResponse, 4, processorOutputSocket);
     }
     //Send the previous value msg, if any
     if (haveLastValueMsg) {

@@ -128,7 +128,7 @@ class Connection:
         """
         if type(value) is not int:
             raise Exception("Can't format object of non-integer type as binary integer")
-        self.socket.send(struct.pack('<q', value), (zmq.SNDMORE if sndmore else 0))
+        self.socket.send(struct.pack('<q', value), (zmq.SNDMORE if more else 0))
     @staticmethod
     def _convertToBinary(value):
         """
@@ -223,9 +223,9 @@ class Connection:
             if len(msgParts) == 0:
                 raise ZeroDBProtocolException("Received empty put reply message")
             if msgParts[0][2] != '\x20':
-                raise ZeroDBProtocolException("Put response code was %d instead of 0x20" % msgParts[0][2])
+                raise ZeroDBProtocolException("Put response code was %d instead of 0x20" % ord(msgParts[0][2]))
             if msgParts[0][3] != '\x00':
-                raise ZeroDBProtocolException("Put response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
+                raise ZeroDBProtocolException("Put response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
         return True
     def delete(self, tableNo, keys):
         """
@@ -271,7 +271,7 @@ class Connection:
         if msgParts[0][2] != '\x21':
             raise ZeroDBProtocolException("Delete response type was %d instead of 33" % ord(msgParts[0][2]))
         if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Delete response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
+            raise ZeroDBProtocolException("Delete response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
     def read(self, tableNo, keys):
         """
         Read one or multiples values, identified by their keys, from a table.
@@ -317,7 +317,7 @@ class Connection:
         if msgParts[0][2] != '\x10':
             raise ZeroDBProtocolException("Read response type was %d instead of 16" % ord(msgParts[0][2]))
         if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Read response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
+            raise ZeroDBProtocolException("Read response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
         #Return the data frames
         return msgParts[1:]
     def scan(self, tableNo, fromKey, toKey):
@@ -355,7 +355,50 @@ class Connection:
         if msgParts[0][2] != '\x13':
             raise ZeroDBProtocolException("Scan response type was %d instead of 19" % ord(msgParts[0][2]))
         if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Scan response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
+            raise ZeroDBProtocolException("Scan response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
+        #Remap the returned key/value pairs to a dict
+        dataParts = msgParts[1:]
+        mappedData = {}
+        for i in xrange(0,len(dataParts),2):
+            mappedData[dataParts[i]] = dataParts[i+1]
+        return mappedData
+    def scanWithLimit(self, tableNo, fromKey, limit):
+        """
+        Synchronous limited scan.
+        Returns up to a given limit of key-value pairs, starting
+        at the given start key
+        
+        See self.read() documentation for an explanation of how
+        non-str values are mapped.
+        
+        
+        @param tableNo The table number to scan in
+        @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
+        @param limit The maximum number of keys to return
+        @return A dictionary of the returned key/value pairs
+        """
+        #Check parameters and create binary-string only key list
+        self._checkParameterType(tableNo, int, "tableNo")
+        self._checkParameterType(limit, int, "limit")
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send("\x31\x01\x14", zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo)
+        #Send range. "" --> empty frame --> start/end of tabe
+        if fromKey is not None: fromKey = self._convertToBinary(fromKey)
+        if fromKey is None: fromKey = ""
+        self.socket.send(fromKey, zmq.SNDMORE)
+        self._sendBinary64(limit, more=False)
+        #Wait for reply
+        msgParts = self.socket.recv_multipart(copy=True)
+        if len(msgParts) == 0:
+            raise ZeroDBProtocolException("Received empty limited scan reply message")
+        if msgParts[0][2] != '\x14':
+            raise ZeroDBProtocolException("Limited scan response type was %d instead of 20" % ord(msgParts[0][2]))
+        if msgParts[0][3] != '\x00':
+            raise ZeroDBProtocolException("Limited scan response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
         #Remap the returned key/value pairs to a dict
         dataParts = msgParts[1:]
         mappedData = {}
@@ -393,7 +436,7 @@ class Connection:
         if msgParts[0][2] != '\x22':
             raise ZeroDBProtocolException("Delete range response type was %d instead of 34" % ord(msgParts[0][2]))
         if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Delete range response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
+            raise ZeroDBProtocolException("Delete range response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
     def count(self, tableNo, fromKey, toKey):
         """
         Count a range of
@@ -428,7 +471,7 @@ class Connection:
         if msgParts[0][2] != '\x11':
             raise ZeroDBProtocolException("Count response type was %d instead of 17" % ord(msgParts[0][2]))
         if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Count response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
+            raise ZeroDBProtocolException("Count response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
         #Deserialize
         binaryCount = msgParts[1]
         count = struct.unpack("<Q", binaryCount)[0]
@@ -478,7 +521,7 @@ class Connection:
         if msgParts[0][2] != '\x12':
             raise ZeroDBProtocolException("Exists response code was %d instead of 18" % ord(msgParts[0][2]))
         if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Exists response status code was %d instead of 0x00 (ACK)" % msgParts[0][3])
+            raise ZeroDBProtocolException("Exists response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
         #Return the data frames after mapping them to bools
         processedValues = []
         for msgPart in msgParts[1:]:

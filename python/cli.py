@@ -36,6 +36,10 @@ def scan(db, tableNo, fromKey, toKey):
     #Data is remapped in ZeroDB class
     print db.scan(tableNo, fromKey, toKey)
     
+def scanLimit(db, tableNo, fromKey, limit):
+    #Data is remapped in ZeroDB class
+    print db.scanWithLimit(tableNo, fromKey, int(limit))
+    
 def count(db, tableNo, fromKey, toKey):
     print db.count(tableNo, fromKey, toKey)
 
@@ -97,7 +101,7 @@ if __name__ == "__main__":
         arg2 = None
         if len(args) >= 2: arg1 = args[1]
         if len(args) >= 3: arg2 = args[2]
-        commands = ["open","read","exists","put","delete","deleterange","scan","count","info"]
+        commands = ["open","read","exists","put","delete","deleterange","scan","scan+limit","count","info"]
         if cmd not in commands:
             print "Command '%s' not available - available commands: %s" % (cmd, ", ".join(commands))
             sys.exit(1)
@@ -107,6 +111,7 @@ if __name__ == "__main__":
         elif cmd == "put": put(db, tableNo, arg1, arg2)
         elif cmd == "delete": delete(db, tableNo, args[1:])
         elif cmd == "scan": scan(db, tableNo, arg1, arg2)
+        elif cmd == "scan+limit": scanLimit(db, tableNo, arg1, arg2)
         elif cmd == "deleterange": deleteRange(db, tableNo, arg1, arg2)
         elif cmd == "count": count(db, tableNo, arg1, arg2)
             
