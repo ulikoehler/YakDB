@@ -45,3 +45,4 @@ the protocol.
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0xFF Response type (protocol error)]
 * Frame 1 (Optional): NUL-terminated protocol error description
+

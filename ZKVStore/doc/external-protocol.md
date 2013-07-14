@@ -1,5 +1,20 @@
 # ZeroDB external protocol specification
 
+## Low-Level protocol
+
+The protocol shall use ZMTP/2.0 as outlined [here](http://rfc.zeromq.org/spec:15).
+The protocol is frame-based. Frames are equivalent to ZeroMQ message parts or
+CZMQ frames.
+
+The server shall provide multiple configurable ZeroMQ endpoints,
+including (all optional):
+    - A ROUTER endpoint for read operations and non-optimistic writes
+    - A PULL endpoint for optimistic writes
+    - A SUB socket for PGM-based optimistic redundancy writes
+    - A ROUTER socket for mapreduce requests
+    - A PUB socket for publishing log messages
+
+
 ## General behaviour
 
 For request/reply sockets the server shall always send an response.
@@ -43,6 +58,8 @@ Clients shall therefore ignore additional bytes in the first response frame.
 * 0x01: Server supports on-the-fly table open
 * 0x02: Server supports (does not ignore) PARTSYNC
 * 0x04: Server supports (does not ignore) FULLSYNC
+
+For non-REQ/REP-type sockets the server shall ignore the PARTSYNC flag.
 
 ##### Table open request
 
@@ -225,7 +242,7 @@ end has been reached
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x14 Request type (scan request)]
 * Frame 1: 4-byte little-endian unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
-* Frame 4: 64-bit little-endian unsigned integer, interpreted as the limit of keys to scan.
+* Frame 3: 64-bit little-endian unsigned integer, interpreted as the limit of keys to scan.
 
 ##### Limited scan response:
 
@@ -304,20 +321,18 @@ because processing has not started when the reply is sent.
 
 ## Data processing requests
 
-##### Forward range to socket request
+These requests are closely related to the MapReduce protocol,
+as outlined in mapred-protocol.md.
 
-Read a range of keys at once ("read range request")
+##### 'Initialize range for data chunk requests' requests
+
+This request spawns a new thread that waits for data chunks request
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x40 Request type (Forward range to socket request)]
 * Frame 1: 4-byte little-endian unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
-* Frame 3: End key (inclusive). If this has zero length, the count ends at the last key
-* Frame 4-n: PULL Endpoints to connect to. Put requests (spec: see above) will be sent to these sockets.
-            Endpoints may not be inproc:// and shall be addressible to the server
-* Frame n+1: Empty delimiter frame
-* Frame (n+2)-n: SUB endpoints to send progress messages to.
-
-No frame, except the delimiter frame, may be empty.
+* Frame 3: End key (inclusive). If this has zero length, the count ends at the last keys
+* Frame 4: 64-bit little-endian unsigned integer, interpreted as the limit of keys to scan.
 
 The server may spawn a new thread to serve the request.
 Replying to the request does not indicate any kind of success.
