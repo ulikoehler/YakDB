@@ -213,6 +213,32 @@ Response codes:
 
 * 0x00 Success (--> frame 1 contains first value)
 * 0x10 Error (--> frame 1 contains error description cstring)
+
+##### Limited scan request
+
+Read a range of keys at once, starting at a specified start key,
+and returning a maximum number of keys.
+
+The server shall only return less than the specified amount if the table
+end has been reached
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x14 Request type (scan request)]
+* Frame 1: 4-byte little-endian unsigned table number
+* Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
+* Frame 4: 64-bit little-endian unsigned integer, interpreted as the limit of keys to scan.
+
+##### Limited scan response:
+
+The scanned request returns the scan range as alternating key/value frames.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x14 Response type (limited scan response)][1-byte Response code]
+* Frame 1-n (odd numbers): Next key
+* Frame 1-n (even numbers): Next value (corresponds to key = previous frame)
+
+Response codes:
+
+* 0x00 Success (--> frame 1 contains first value)
+* 0x10 Error (--> frame 1 contains error description cstring)
     
 -------------------------------
 

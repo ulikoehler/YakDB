@@ -277,7 +277,6 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         //Send the previous value msg, if any
         if (haveLastValueMsg) {
             if (unlikely(!sendMsgHandleError(&valueMsg, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", errorResponse))) {
-                zmq_msg_close(&valueMsg);
                 delete it;
                 return;
             }
@@ -288,7 +287,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         zmq_msg_init_size(&valueMsg, value.size());
         memcpy(zmq_msg_data(&keyMsg), key.data(), key.size());
         memcpy(zmq_msg_data(&valueMsg), value.data(), value.size());
-        if (unlikely(!sendMsgHandleError(&keyMsg, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", errorResponse))) {
+        if (unlikely(!sendMsgHandleError(&keyMsg, ZMQ_SNDMORE, "ZMQ error while sending scan reply (not last)", errorResponse))) {
             zmq_msg_close(&valueMsg);
             delete it;
             return;
@@ -309,6 +308,96 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         delete it;
         return;
     }
+    delete it;
+}
+
+void ReadWorker::handleLimitedScanRequest(zmq_msg_t* headerFrame) {
+    static const char* errorResponse = "\x31\x01\x14\x01";
+    static const char* ackResponse = "\x31\x01\x14\x00";
+    //Receive all mandatory frames
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId, "Table ID frame in limited scan request", true, errorResponse)) {
+        return;
+    }
+    if (!expectNextFrame("Only table ID frame found in limited scan request, range missing", true, errorResponse)) {
+        return;
+    }
+    zmq_msg_t rangeStartMsg;
+    if(!receiveMsgHandleError(&rangeStartMsg, "Receive limited scan range start frame", errorResponse, true)) {
+        return;
+    }
+    if (!expectNextFrame("Only range start frame found in limited scan request, limit frame missing", true, errorResponse)) {
+        return;
+    }
+    uint64_t scanLimit;
+    if(!parseUint64Frame(scanLimit, "Receive limited scan range start frame", true, errorResponse)) {
+        return;
+    }
+    //Get the table to read from
+    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    //Create a slie (does not copy data!) from the start msg
+    leveldb::Slice rangeStartSlice((char*)zmq_msg_data(&rangeStartMsg),zmq_msg_size(&rangeStartMsg));
+    bool haveRangeStart = (zmq_msg_size(&rangeStartMsg) != 0);
+    //Do the compaction (takes LONG)
+    //Create the response object
+    leveldb::ReadOptions readOptions;
+    leveldb::Status status;
+    //Create the iterator
+    leveldb::Iterator* it = db->NewIterator(readOptions);
+    if (haveRangeStart) {
+        it->Seek(rangeStartSlice);
+    } else {
+        it->SeekToFirst();
+    }
+    zmq_msg_close(&rangeStartMsg);
+    //Send ACK and count
+    sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
+    //Iterate over all key-values in the range
+    zmq_msg_t keyMsg, valueMsg;
+    bool haveLastValueMsg = false; //Needed to send only last frame without SNDMORE
+    for (; it->Valid(); it->Next()) {
+        leveldb::Slice key = it->key();
+        //Check if we have to stop here
+        if (scanLimit <= 0) {
+            break;
+        }
+        scanLimit--;
+        leveldb::Slice value = it->value();
+        //Send the previous value msg, if any
+        if (haveLastValueMsg) {
+            if (unlikely(!sendMsgHandleError(&valueMsg, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", errorResponse))) {
+                delete it;
+                return;
+            }
+        }
+        //Convert the slices into msgs and send them
+        haveLastValueMsg = true;
+        zmq_msg_init_size(&keyMsg, key.size());
+        zmq_msg_init_size(&valueMsg, value.size());
+        memcpy(zmq_msg_data(&keyMsg), key.data(), key.size());
+        memcpy(zmq_msg_data(&valueMsg), value.data(), value.size());
+        if (unlikely(!sendMsgHandleError(&keyMsg, ZMQ_SNDMORE, "ZMQ error while sending limited scan reply (not last)", errorResponse))) {
+            zmq_msg_close(&valueMsg);
+            delete it;
+            return;
+        }
+    }
+    //Send the previous value msg, if any
+    if (haveLastValueMsg) {
+        if (unlikely(!sendMsgHandleError(&valueMsg, 0, "ZMQ error while sending last limited scan reply", errorResponse))) {
+            delete it;
+            return;
+        }
+    }
+    //Check if any error occured during iteration
+    if (!checkLevelDBStatus(it->status(),
+            "LevelDB error while limited-scanning",
+            true,
+            errorResponse)) {
+        delete it;
+        return;
+    }
+    //Cleanup
     delete it;
 }
 
@@ -403,6 +492,8 @@ bool ReadWorker::processNextRequest() {
         handleExistsRequest(&headerFrame);
     } else if (requestType == ScanRequest) {
         handleScanRequest(&headerFrame);
+    } else if (requestType == LimitedScanRequest) {
+        handleLimitedScanRequest(&headerFrame);
     } else {
         std::string errstr = "Internal routing error: request type " + std::to_string((int) requestType) + " routed to read worker thread!";
         logger.error(errstr);

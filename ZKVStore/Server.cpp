@@ -105,7 +105,8 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
     if (requestType == RequestType::ReadRequest
             || requestType == RequestType::CountRequest
             || requestType == RequestType::ExistsRequest
-            || requestType == RequestType::ScanRequest) {
+            || requestType == RequestType::ScanRequest
+            || requestType == RequestType::LimitedScanRequest) {
         //Forward the message to the read worker controller, the response is sent asynchronously
         void* dstSocket = server->readWorkerController.workerPushSocket;
         zmq_msg_send(&addrFrame, dstSocket, ZMQ_SNDMORE);
