@@ -28,6 +28,41 @@ with a response that has a response type equivalent
 to the request type, unless it can't recognize the request at all, it shall
 respond with the protocol error response listed below.
 
+##### Endianness
+
+All integral frames shall be interpreted as little-endian by both the client and server.
+This decision was made because the main target platforms for ZeroDB, x86/x64 and ARM
+are little-endian and conversion to the network byte order would not only decrease
+performance but also increase API complexity. Every client would have to ensure
+all integral values are converted properly
+
+##### API Classes
+
+*TODO* Req/req-only APIs vs Req/Rep+Push/Pub APIs
+
+##### Asynchronous process IDs (APIDs)
+
+For some compute-intensive data-processing-type requests,
+the server spawns one or multiple background threads instead of processing
+the request in the Update/Worker threadsets.
+
+The reply for such requests is sent during the initialization phase.
+Therefore, the client can expect the server to send a reply within a
+fairly low timeout for all request types, unless in death-by-swap or
+extremely-high-load situations. Additionally, TCP connections
+don't need to be kept open while processing long-duration data analysis
+applications.
+
+For such requests, the server assings and returns a 64-bit asynchronous process ID (APID).
+('Process' is not neccessarily related to system processed).
+This ID can be used to query information about process status from the server.
+
+Statistical information will not always be completely up-to-date, because it's
+handled as low-priority. It will just give an indication of what's going on,
+no exact or synchronized numbers.
+All statistics are flushed after the job has finished, so when the job
+is marked as completed (or failed), the statistics are guaranteed to be reliable.
+
 ### Protocol error response
 
 For request/reply sockets, the server uses this response if it can't recognize
@@ -54,7 +89,7 @@ Frame structure:
 Supported features size might be expanded in future versions without protocol version change.
 Clients shall therefore ignore additional bytes in the first response frame.
 
-[Supported Features]: 64-bit field, Little-Endian, with bitwise-OR-concatenated flags:
+[Supported Features]: 64-bit integer, consisting of bitwise-OR-concatenated flags:
 * 0x01: Server supports on-the-fly table open
 * 0x02: Server supports (does not ignore) PARTSYNC
 * 0x04: Server supports (does not ignore) FULLSYNC
@@ -68,11 +103,11 @@ Tables can also be opened on-the-fly (optional feature), but you can't specify c
 Additionally, opening tables takes a considerable amount of time, therefore
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x01 Request type (table open requst)][1 byte Table open flags]
-* Frame 1: [4-byte little-endian unsigned integer table number]
-* Frame 2: [8 bytes little-endian unsigned integer LRU cache size (in bytes) or zero-length to assume default]
-* Frame 3: [8 bytes little-endian unsigned integer table blocksize (in bytes) or zero-length to assume default]
-* Frame 4: [8 bytes little-endian unsigned integer write buffer size (in bytes) or zero-length to assume default]
-* Frame 4: [8 bytes little-endian unsigned integer bloom filter bits per key or zero-length to use no bloom filter]
+* Frame 1: [4-byte unsigned integer table number]
+* Frame 2: [8 bytes unsigned integer LRU cache size (in bytes) or zero-length to assume default]
+* Frame 3: [8 bytes unsigned integer table blocksize (in bytes) or zero-length to assume default]
+* Frame 4: [8 bytes unsigned integer write buffer size (in bytes) or zero-length to assume default]
+* Frame 4: [8 bytes unsigned integer bloom filter bits per key or zero-length to use no bloom filter]
 
 * *[Table open flags]*: 8-bit-field, with bitwise-OR-concatenated flags.
 * 0x01: NOCOMPRESSION: If this flag is set the table shall be opened with compression disabled
@@ -93,7 +128,7 @@ Response codes:
 Close a table (e.g. to save memory) - includes flushing (not sync) the unwritten table data to disk.
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x02 Request type (table close request)]
-* Frame 1: 4-byte little-endian unsigned integer table number
+* Frame 1: 4-byte unsigned integer table number
 
 ##### Close table response
 
@@ -109,7 +144,7 @@ Response codes:
 Compact a table (clear the log and rebuild immutable table files). Could take some time.
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x03 Request type (compact request)]
-* Frame 1: 4-byte little-endian unsigned table number
+* Frame 1: 4-byte unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the compact starts at the first key
 * Frame 3: End key (inclusive). If this has zero length, the compact ends at the last key
 
@@ -129,7 +164,7 @@ Response codes:
 Close a table and truncate all its contents.
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x04 Request type (truncate request)]
-* Frame 1: 4-byte little-endian unsigned table number
+* Frame 1: 4-byte unsigned table number
 
 ###### Truncate response
 
@@ -145,7 +180,7 @@ Close a table and truncate all its contents.
 Read one or multiple keys (random-access) at once.
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x10 Request type (read request)]
-* Frame 1: 4-byte little-endian unsigned integer table number
+* Frame 1: 4-byte unsigned integer table number
 * Frame 2-n: Each frame contains an arbitrary byte sequence containing the key to be read
 
 None of the frames may be empty under any circumstances. Empty frames may lead to undefined behaviour.
@@ -166,7 +201,7 @@ Response codes:
 Count the number of keys in a given range
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x11 Request type (count request)]
-* Frame 1: 4-byte little-endian unsigned table number
+* Frame 1: 4-byte unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 3: End key (inclusive). If this has zero length, the count ends at the last key
 
@@ -177,7 +212,7 @@ If only frame 2, but not frame 3 is present, frame 3 is treated as if it was zer
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x11 Response type (count response)][1-byte response code]
 * Frame 1 (if response code indicates an error): NUL-terminated string describing the error
-* Frame 1 (if response code indicates success): A 64-bit little-endian unsigned integer representing the number of values found in the given range (count)
+* Frame 1 (if response code indicates success): A 64-bit unsigned integer representing the number of values found in the given range (count)
 
 Response codes:
 * 0x00 Success (--> frame 1 contains count)
@@ -189,7 +224,7 @@ Response codes:
 Check for existence of one or multiple keys in a table.
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x12 Request type (exists request)]
-* Frame 1: 4-byte little-endian unsigned integer table number
+* Frame 1: 4-byte unsigned integer table number
 * Frame 2-n: Each frame contains an arbitrary byte sequence containing the key to be read
 
 None of the frames may be empty under any circumstances. Empty frames may lead to undefined behaviour.
@@ -214,7 +249,7 @@ Response codes:
 Read a range of keys at once ("read range request")
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x13 Request type (scan request)]
-* Frame 1: 4-byte little-endian unsigned table number
+* Frame 1: 4-byte unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 3: End key (exclusive). If this has zero length, the count ends at the last key
 
@@ -240,9 +275,9 @@ The server shall only return less than the specified amount if the table
 end has been reached
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x14 Request type (scan request)]
-* Frame 1: 4-byte little-endian unsigned table number
+* Frame 1: 4-byte unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
-* Frame 3: 64-bit little-endian unsigned integer, interpreted as the limit of keys to scan.
+* Frame 3: 64-bit unsigned integer, interpreted as the limit of keys to scan.
 
 ##### Limited scan response:
 
@@ -256,7 +291,7 @@ Response codes:
 
 * 0x00 Success (--> frame 1 contains first value)
 * 0x10 Error (--> frame 1 contains error description cstring)
-    
+
 -------------------------------
 
 ## Write requests
@@ -284,7 +319,7 @@ None of the frames may be empty under any circumstances. Empty frames may lead t
 ##### Delete request:
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x21 Request type (Delete request)] [Optional: Write flags, defaults to 0x00]
-* Frame 1: 4-byte little-endian unsigned table number
+* Frame 1: 4-byte unsigned table number
 * Frame 2-n: Key to delete (may contain arbitrary byte sequence)
 
 None of the frames may be empty under any circumstances. Empty frames may lead to undefined behaviour.
@@ -292,7 +327,7 @@ None of the frames may be empty under any circumstances. Empty frames may lead t
 ##### Delete range request:
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x22 Request type (Delete range request)] [Optional: Write flags, defaults to 0x00]
-* Frame 1: 4-byte little-endian unsigned table number
+* Frame 1: 4-byte unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 3: End key (exclusive). If this has zero length, the count ends at the last key
 
@@ -329,10 +364,10 @@ as outlined in mapred-protocol.md.
 This request spawns a new thread that waits for data chunks request
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x40 Request type (Forward range to socket request)]
-* Frame 1: 4-byte little-endian unsigned table number
+* Frame 1: 4-byte unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 3: End key (inclusive). If this has zero length, the count ends at the last keys
-* Frame 4: 64-bit little-endian unsigned integer, interpreted as the limit of keys to scan.
+* Frame 4: 64-bit unsigned integer, interpreted as the limit of keys to scan.
 
 The server may spawn a new thread to serve the request.
 Replying to the request does not indicate any kind of success.
@@ -340,8 +375,44 @@ Replying to the request does not indicate any kind of success.
 ##### Forward range to socket response
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x40 Response type (Forward range to socket response)]
-* Frame 1: 8-byte little-endian unsigned Job ID
+* Frame 1: 8-byte unsigned Job ID
 
+##### Server-side table-sinked map request (SSTSMR)
+
+**WIP** API NOT FIXED
+
+Initializes a scan request whose result is not returned to the requesting instances,
+but instead piped through an LLVM-based client-specified mapper.
+The mapper output is then saved in a table.
+
+This request uses snapshots for the input table, writing to the input table
+is therefore possible without any special precautions.
+
+For the mapper, both insertion and deletion is possible.
+
+LLVM API is described in llvm-api.md
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x41 Request type (SSMTSSR)]
+* Frame 1: 4-byte unsigned integer input table number
+* Frame 2: 4-byte unsigned integer output table number (may be the same as input table no)
+* Frame 3: 4-byte unsigned integer, the number of concurrent worker threads to spawn
+* Frame 4-n: Initialization parameters for the mapper, as alternating key-value pairs. (n === 1 mod 2)
+* Frame n+1: Empty delimiter frame
+* Frame n+2: LLVM bitcode
+
+##### SSTSMR response
+
+The response is sent once the job has started.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version [Response type (Same as request type)] [1 byte Response code]
+* Frame 1: 8-byte little-endian unsigned integer APID (can be used to retrieve process state etc)
+* Frame 2 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
+
+Response codes (lower byte counts!):
+* 0x00 Acknowledge (Only acknowledges that the request has been received)
+* 0x01 Error, unspecified or unknown
+* 0x02 Database error while processing request (implies Frame 1 being existing)
+* 0x10 Protocol error, found key frame without value frame (implies Frame 1 being existing)
 
 -------------------------------
 

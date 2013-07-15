@@ -4,6 +4,8 @@ Request receiving over PULL sockets (client code + testing)
 Request receiving over SUB sockets:
 	- Protocol definition (we need a prefixed message to be able to define server groups via multicast)
 Benchmark for python and C++ client
+Extend C++ client to support all requests
+Add API classes (REQ/REP only or PUSH/PUB too?) to external protocol doc
 Expand clients to be able to generate all protocol messages
 Advanced options for table opening, especially n-bits-per-key bloom filters
 Dynamic spawning of update/read threads
