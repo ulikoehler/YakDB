@@ -20,6 +20,10 @@ JobController::JobController(const JobController& orig) {
 JobController::~JobController() {
 }
 
+void parse(void* processorInputSocket) {
+    
+}
+
 static void doSth(void* outputSocket, leveldb::DB* db,
         const std::string rangeStartStr,
         const std::string rangeEndStr) {
