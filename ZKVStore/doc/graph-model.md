@@ -7,6 +7,27 @@ database format
 
 This specification uses requirement levels based on RFC2119
 
+## Purpose of the graph model
+
+The graph model was created to provide a perfomant interface
+to adjacency-list-based highly-sparse graphs on top of
+key-value databases.
+
+Use case classes:
+    - T: At most O(log n) time complexity, where n is the total number of entities in the same table
+    - t: At most O(m) time complexity, where m is the number of attributes of the relevant entity
+    - r: At most O(m+log(n)) time complexity, given n and m from above
+    - S: At most O(n) space complexity, where n is the total number of the requested object in the DB
+    - s: At most O(1) space complexity (assuming the size of a single attribute is considered constant)
+
+Usecases the model shall be optimized to include, but are not limited to:
+    - (Ts) Verifying the existance of a directed edge between two given nodes
+    - (T) Writing a single directed edge between two nodes
+    - (t) Writing small attribute sets that can be retrieved without additional requests (--> basic attributes)
+    - (ts) Writing a large sets of attributes that can be iterated efficiently and requested partially (--> extended attributes)
+    - (rS) Reading a set of basic attributes (--> must fit in memory)
+    - (rs) Iterating a set of extended attributes (--> do not need to fit into memory)
+
 ## Graph database
 
 A graph database is a high-level clientside wrapper on top of the
@@ -112,33 +133,131 @@ Extended attributes shall be saved in a specific table. There shall be one such
 table for each entity that supports extended attributes
 
 The key shall be defined by the following EBNF grammar (where *Entity ID* is the respective entity iden:
-    Key = Entity Identifier, '\x1E' (* ASCII Group separator *), Identifier (* Attribute key *)
+    Key = Entity Identifier, '\x1D' (* ASCII Group separator *), Identifier (* Attribute key *)
     Value = Identifier (* Attribute value *)
 where *Key* and *Value* denote the key and value of the database entry respectively.
 
 ## Nodes
 
-Nodes or vertices are entity that are identified by an [[Identifier]].
+Nodes or vertices are entity that are uniquely identified by an [[Identifier]].
 
 Nodes may (but do not need to) have basic and extended attributes.
-
-The API shall provide at least the following functionality for nodes:
-    - void addNode(id)
-    - void removeNode(id)
-    - bool nodeExists(id)
-plus the respective functions 
 
 ### Node serialization format
 
 The node table shall contain exactly one entry for each node.
 The key shall be equivalent to the node identifier ("node ID").
-The value shall be equivalent to the value of the serialized
+The value in the node table shall be equivalent to the value of the serialized
 basic attribute set (therefore it is zero-sized if the
-basic attribute set is emtpy)
+basic attribute set is empty)
 
+### Node API
 
-
+The API shall provide at least the following functionality for nodes:
+    - void addNode(id)
+    - void removeNode(id)
+    - bool nodeExists(id)
+plus the respective functions for basic and extended attributes.
+As long as the same functionality is provided, alternative names
+or semantics may be used.
 
 ## Edges
 
-Edges are entities that are identified by an [[Identifier]].
+Edges are entities that are uniquely identified by:
+    - A type (may be zero-length)
+    - A source node
+    - A destination node
+    - (Implicitly) a direction
+
+### Ingoing and outgoin edge forms
+
+In order to support fast retrieal of both ingoing and outgoing edges of nodes,
+both forms need to be represented in the database (for the same node)
+
+### Edge types
+
+In order to support rapid application development, the graph model supports
+optional types for each edge.
+
+In the database, edge types act as a prefix (which is empty on default),
+so searching for edges is specific the edge type and not affected by
+edges of other types.
+
+For extremely large datasets, it is recommended to consider the option
+of using a separate edge table with the same node table.
+
+### Directed and undirected edges
+
+The graph model described in this document supports
+only directed edges.
+
+However, the application may consider an edge undirected,
+if the same edge exists in both directions.
+The graph API should provide a high-level wrapper to write
+undirected edges. If any such wrapper is implemented in a
+particular graph API, the implementation shall write and update
+both edges. If applicable, both edges shall be updated in a single
+request to ensure consistence.
+
+Any API implementation for undirected edges may assume both directions
+of an undirected edge have been written correctly, so when a read
+request for an undirected edge is issued, only one direction
+may be read. If any function is implemented in such a way,
+the documentation must clearly state the direction that is read first
+and provide an indication to the user what happens if an edge is read
+that is only provided in one direction.
+Additionally, the API may provide a function that allows to check
+if both directions of an edge equal.
+
+API developers must consider that 'updating both edges' for undirected
+edges effectively yields 4 individual key/value pairs, because
+each individual edge must be written in its active and its passive form
+
+### Edge serialization format
+
+The key (= edge identifier) in the edge table is defined by the following EBNF grammar:
+    Direction = '\x0E' (* For outgoing edges *) | '\x0F' (* For ingoing edges *) ;
+    Edge type = Identifier || '' (* Type identifier *) ;
+    Key = Edge type, '\x1F' (* ASCII Unit separator *), Identifier (* Source node *), Direction, Identifier (* Destination node *) ;
+The value in the edge table shall be equivalent to the value of the serialized
+basic attribute set (therefore it is zero-sized if the
+basic attribute set is empty)
+
+Note that per definition, edges without type are prefixed by '\x1F'.
+This has been chosen deliberately over omitting the prefix in this case
+to avoid increasing implementation complexity.
+
+In any case, both directions of the same edge (ingoing + outgoing) shall be written.
+Both directions should be written in the same write batch/transaction.
+
+The ASCII 0xE (Shift Out) and 0xF (Shift In) have been chosen because of the similarity
+of their names to the edge directions, even if their original purpose is different.
+
+Additionally, because of the requirement that identifiers only have characters >= 0x20,
+edge identifiers are generally unique in respect to source & destination nodes.
+
+##### Edge identifier examples
+
+For an example, we assume a graph with nodes A,B and C that has the following edges
+    - A -> B, default type
+    - A -> C, default type
+    - C -> B, type "foo"
+
+The API shall, given only this information, write exactly these keys, all with empty values.
+Newlines must not be appended at the end of each line.
+    - \x1FA\x0EB
+    - \x1FB\x0FA
+    - \x1FA\x0EC
+    - \x1FC\x0FA
+    - foo\x1FC\x0EB
+    - foo\x1FB\x0FC
+
+### Edge API
+
+The API shall provide at least the following functionality for edges:
+    - void addEdge(source, target, type='')
+    - void removeEdge(source, target, type='')
+    - void edgeExists(source, target, type='')
+plus the respective functions for basic and extended attributes.
+As long as the same functionality is provided, alternative names
+or semantics may be used.
