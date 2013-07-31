@@ -17,6 +17,15 @@ static inline void sendConstFrame(void socket, const char* constStr, size_t size
     return (zmq_msg_send(&msg, socket, flags) == -1) ? errno : 0;
 }
 
+/**
+ * Send an empty (zero-length) frame
+ */
+static inline void sendEmptyFrame(void socket, int flags) {
+    zmq_msg_t msg;
+    zmq_msg_init_data(&msg, nullptr, 0, nullptr, nullptr);
+    return (zmq_msg_send(&msg, socket, flags) == -1) ? errno : 0;
+}
+
 static inline void sendStringFrame(void socket, const std::string& str, int flags) {
     zmq_msg_t msg;
     zmq_msg_init_size(&msg, str.size());
@@ -39,11 +48,14 @@ static inline void sendBinaryFrame(void socket, const char* str, size_t size, in
     return (zmq_msg_send(&msg, socket, flags) == -1) ? errno : 0;
 }
 
-static inline int receiveStringFrame(void socket, const char* str, size_t size, int flags) {
+static inline int receiveStringFrame(void socket, std::string& str) {
     zmq_msg_t msg;
-    zmq_msg_init_size(&msg, size);
-    memcpy(str, (char*) zmq_msg_data(&msg), size);
-    zmq_msg_send(&msg, socket, flags);
+    int rc = zmq_msg_recv(&msg, socket, 0);
+    if(rc == -1) {
+        return -1;
+    }
+    str = std::string(zmq_msg_data(&msg), zmq_msg_size(&msg));
+    zmq_msg_close(&msg);
 }
 
 static void PutRequest::sendHeader(void* socket, uint32_t table, uint8_t flags) {
@@ -121,4 +133,56 @@ static int PutRequest::sendKeyValue(void* socket,
     return sendBinaryFrame(socket, value, valueLength, (last ? 0 : ZMQ_SNDMORE));
 }
 
+static void TableOpenRequest::sendRequest(void* socket, uint32_t tableNo,
+        uint64_t lruCacheSize,
+        uint64_t tableBlockSize,
+        uint64_t writeBufferSize,
+        uint64_t bloomFilterSize,
+        bool enableCompression) {
+    char header[] = "\x31\x01\x00\x00";
+    if (enableCompression) {
+        header[3] = '\x01';
+    }
+    sendBinaryFrame(socket, header, 3, ZMQ_SNDMORE);
+    sendBinaryFrame(socket, &tableNo, sizeof (uint32_t), ZMQ_SNDMORE);
+    //LRU cache size
+    if (lruCacheSize == UINT64_MAX) {
+        sendEmptyFrame(socket, ZMQ_SNDMORE);
+    } else {
+        sendBinaryFrame(socket, &lruCacheSize, sizeof (uint64_t), ZMQ_SNDMORE);
+    }
+    //Table block size
+    if (tableBlockSize == UINT64_MAX) {
+        sendEmptyFrame(socket, ZMQ_SNDMORE);
+    } else {
+        sendBinaryFrame(socket, &tableBlockSize, sizeof (uint64_t), ZMQ_SNDMORE);
+    }
+    //Write buffer size
+    if (writeBufferSize == UINT64_MAX) {
+        sendEmptyFrame(socket, ZMQ_SNDMORE);
+    } else {
+        sendBinaryFrame(socket, &writeBufferSize, sizeof (uint64_t), ZMQ_SNDMORE);
+    }
+    //Bloom filter size
+    if (bloomFilterSize == UINT64_MAX) {
+        sendEmptyFrame(socket, 0);
+    } else {
+        sendBinaryFrame(socket, &bloomFilterSize, sizeof (uint64_t), 0);
+    }
+    return 0;
+}
 
+static int TableOpenRequest::receiveResponse(void* socket, std::string& errorString) {
+    zmq_msg_t msg;
+    int rc = zmq_msg_recv(&msg, socket, 0);
+    if (rc == -1) {
+        return zmq_errno();
+    }
+    zmq_msg_close(&msg);
+    if(zmq_msg_data(&msg)[3] != 0) {
+        //Server indicated error
+        receiveStringFrame(socket, errorString);
+        return -1;
+    }
+    return 0;
+}

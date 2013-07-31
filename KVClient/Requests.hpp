@@ -8,6 +8,7 @@
 #ifndef REQUESTS_HPP
 #define	REQUESTS_HPP
 #include <string>
+#include <cstdint>
 
 namespace ZettaCrunchDB {
     namespace MetaRequests {
@@ -24,6 +25,39 @@ namespace ZettaCrunchDB {
             static int receiveFeatureFlags(void* socket, uint64_t& flags);
             static int receiveVersion(void* socket, std::string& serverVersion);
         };
+        /**
+         * Table open request.
+         * Tables are opened on-the-fly, but if you intend to pass special parameters,
+         * you need to use this request
+         */
+        class TableOpenRequest {
+        public:
+            /**
+             *
+             */
+            static void sendRequest(void* socket, uint32_t tableNo,
+                    uint64_t lruCacheSize = UINT64_MAX,
+                    uint64_t tableBlockSize = UINT64_MAX,
+                    uint64_t writeBufferSize = UINT64_MAX,
+                    uint64_t bloomFilterSize = UINT64_MAX,
+                    bool enableCompression = true);
+            static int receiveResponse(void* socket, std::string& errorString);
+        };
+        /**
+         * Table close request.
+         * Usually tables should not be closed,
+         * but this allows you to save memory and/or re-open the table with
+         * different flags.
+         */
+        class TableCloseRequest {
+        public:
+            static void sendRequest(void* socket, uint32_t tableNum);
+            static int receiveResponse(void* socket, std::string& errorString);
+        };
+    }
+    
+    namespace ReadRequests {
+        
     }
 
     namespace WriteRequests {
