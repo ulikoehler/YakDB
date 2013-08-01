@@ -125,7 +125,10 @@ Response codes:
 
 ##### Close table request
 
-Close a table (e.g. to save memory) - includes flushing (not sync) the unwritten table data to disk.
+Close a table (e.g. to save memory) - includes flushing (not O_DIRECT) the unwritten table data to disk.
+
+This request may only be used if no operations are active only the table for the duration
+of the request, or the behaviour is undefined.
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x02 Request type (table close request)]
 * Frame 1: 4-byte unsigned integer table number
@@ -163,17 +166,26 @@ Response codes:
 
 Close a table and truncate all its contents.
 
+This request may only be used if no operations are active only the table for the duration
+of the request, or the behaviour is undefined.
+
+Note that the table needs to be opened manually after the truncate request
+if you wish to use non-standard table open options.
+
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x04 Request type (truncate request)]
 * Frame 1: 4-byte unsigned table number
 
 ###### Truncate response
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x04 Request type (truncate response)]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x04 Request type (truncate response)][1-byte response code]
+* Frame 1 (if response code indicates an error): NUL-terminated string describing the error
 
+Response codes:
+* 0x00 Success (--> frame 1 not present)
+* 0x01 Error (--> frame 1 contains error description cstring)
 -------------------------------
 
 ## Read-only requests
-
 
 ##### Read request
 
@@ -335,7 +347,7 @@ None of the frames may be empty under any circumstances. Empty frames may lead t
 
 The response format is identical for all write-type requests
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version [Response type (Same as request type)] [1 byte Response code]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][Response type (Same as request type)] [1 byte Response code]
 * Frame 1 (Only present if response code indicates an error): NUL-terminated error string, UTF-8 encoded
 
 Response codes (lower byte counts!):
