@@ -51,7 +51,14 @@ namespace ZettaCrunchDB {
          */
         class TableCloseRequest {
         public:
-            static void sendRequest(void* socket, uint32_t tableNum);
+            static int sendRequest(void* socket, uint32_t tableNum);
+            static int receiveResponse(void* socket, std::string& errorString);
+        };
+        /**
+         * A compact request
+         */
+        class CompactRequest {
+            static int sendRequest(void* socket, uint32_t tableNum, const std::string& startKey, const std::string& endKey);
             static int receiveResponse(void* socket, std::string& errorString);
         };
     }

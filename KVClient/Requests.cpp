@@ -51,11 +51,40 @@ static inline void sendBinaryFrame(void socket, const char* str, size_t size, in
 static inline int receiveStringFrame(void socket, std::string& str) {
     zmq_msg_t msg;
     int rc = zmq_msg_recv(&msg, socket, 0);
-    if(rc == -1) {
+    if (rc == -1) {
         return -1;
     }
     str = std::string(zmq_msg_data(&msg), zmq_msg_size(&msg));
     zmq_msg_close(&msg);
+}
+
+/**
+ * Simple responses are composed of:
+ * - A header frame, with character 4 expected to be 0, else an error is assumed
+ * - If the 4th header character is not 0, a second frame containing an error message shall be received
+ * @param errorString Left unchanged if no error occurs, set to an error description string if any error occurs
+ * @return 0 on success. -1 for errors without errno, errno else
+ */
+static inline int receiveSimpleResponse(void* socket, std::string& errorString) {
+    zmq_msg_t msg;
+    int rc = zmq_msg_recv(&msg, socket, 0);
+    if (rc == -1) {
+        return zmq_errno();
+    }
+    zmq_msg_close(&msg);
+    //Check if there is any error frame
+    int rcvmore;
+    if (zmq_msg_data(&msg)[3] != 0) {
+        zmq_getsockopt(socket, ZMQ_RCVMORE, &rcvmore, sizeof (int));
+        if (!rcvmore) {
+            errorString = "No error message received from server -- Exact error cause is unknown";
+            return -1;
+        }
+        //We have an error frame from the server. Return it.
+        receiveStringFrame(socket, errorString);
+        return -1;
+    }
+    return 0;
 }
 
 static void PutRequest::sendHeader(void* socket, uint32_t table, uint8_t flags) {
@@ -139,11 +168,11 @@ static void TableOpenRequest::sendRequest(void* socket, uint32_t tableNo,
         uint64_t writeBufferSize,
         uint64_t bloomFilterSize,
         bool enableCompression) {
-    char header[] = "\x31\x01\x00\x00";
+    char header[] = "\x31\x01\x01\x00";
     if (enableCompression) {
         header[3] = '\x01';
     }
-    sendBinaryFrame(socket, header, 3, ZMQ_SNDMORE);
+    sendBinaryFrame(socket, header, 4, ZMQ_SNDMORE);
     sendBinaryFrame(socket, &tableNo, sizeof (uint32_t), ZMQ_SNDMORE);
     //LRU cache size
     if (lruCacheSize == UINT64_MAX) {
@@ -173,16 +202,34 @@ static void TableOpenRequest::sendRequest(void* socket, uint32_t tableNo,
 }
 
 static int TableOpenRequest::receiveResponse(void* socket, std::string& errorString) {
+    return receiveSimpleResponse(socket, errorString);
+}
+
+static void TableCloseRequest::sendRequest(void* socket, uint32_t tableNum) {
+    sendBinaryFrame(socket, "\x31\x01\x02\x00", 4, 0);
+}
+
+static int TableCloseRequest::receiveResponse(void* socket, std::string& errorString) {
     zmq_msg_t msg;
     int rc = zmq_msg_recv(&msg, socket, 0);
     if (rc == -1) {
         return zmq_errno();
     }
     zmq_msg_close(&msg);
-    if(zmq_msg_data(&msg)[3] != 0) {
+    if (zmq_msg_data(&msg)[3] != 0) {
         //Server indicated error
         receiveStringFrame(socket, errorString);
         return -1;
     }
     return 0;
+}
+
+static int CompactRequest::sendRequest(void* socket, uint32_t tableNum, const std::string& startKey, const std::string& endKey) {
+    sendBinaryFrame(socket, "\x31\x01\x02\x00", 4, ZMQ_SNDMORE);
+    //If the strings are empty, zero-length frames are generated automatically
+    sendString
+}
+
+static int CompactRequest::receiveResponse(void* socket, std::string& errorString) {
+    return receiveSimpleResponse(socket, errorString);
 }
