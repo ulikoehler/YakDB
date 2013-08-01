@@ -1,6 +1,11 @@
 /* 
  * File:   zmq_utils.hpp
  * Author: uli
+ * 
+ * This header contains inline utility bindings to efficiently
+ * send std::strings/cstrings/binary data/const data over a ZMQ socket.
+ * 
+ * It is not recommended to include this header if not needed.
  *
  * Created on 1. August 2013, 19:33
  */
@@ -166,6 +171,67 @@ static inline int receiveSimpleResponse(void* socket, std::string& errorString) 
         return -1;
     }
     return 0;
+}
+
+/**
+ * Send a key-value frame
+ * @param socket The socket to send over
+ * @param key The key to send (always sent without ZMQ_SNDMORE)
+ * @param value The value to send
+ * @param last If this parameter is set to true, the value frame will be sent without SNDMORE flag
+ * @return -1 on error (--> check errno with zmq_strerror()), 0 else
+ */
+static int sendKeyValue(void* socket,
+        const std::string& key,
+        const std::string& value,
+        bool last = false) {
+    int rc = sendStringFrame(socket, key, ZMQ_SNDMORE);
+    if (!rc) {
+        return rc;
+    }
+    return sendStringFrame(socket, value, (last ? 0 : ZMQ_SNDMORE));
+}
+
+/**
+ * Send a key-value frame
+ * @param socket The socket to send over
+ * @param key The cstring key to send (always sent without ZMQ_SNDMORE)
+ * @param value The cstring value to send
+ * @param last If this parameter is set to true, the value frame will be sent without SNDMORE flag
+ * @return -1 on error (--> check errno with zmq_strerror()), 0 else
+ */
+static int sendKeyValue(void* socket,
+        const char* key,
+        const char* value,
+        bool last = false) {
+    int rc = sendCStringFrame(socket, key, ZMQ_SNDMORE);
+    if (!rc) {
+        return rc;
+    }
+    return sendCStringFrame(socket, value, (last ? 0 : ZMQ_SNDMORE));
+}
+
+/**
+ * Send a key-value frame
+ * @param socket The socket to send over
+ * @param key The key to send (always sent without ZMQ_SNDMORE)
+ * @param keyLength The length of the key in bytes
+ * @param value The value to send
+ * @param valueLength The length of the value in bytes
+ * @param last If this parameter is set to true, the value frame will be sent without SNDMORE flag
+ * @return -1 on error (--> check errno with zmq_strerror()), 0 else
+ */
+static int sendKeyValue(void* socket,
+        const char* key,
+        size_t keyLength,
+        const char* value,
+        size_t valueLength,
+        bool last = false) {
+    int rc = sendBinaryFrame(socket, key, keyLength, ZMQ_SNDMORE);
+    if (!rc) {
+        return rc;
+    }
+    return sendBinaryFrame(socket, value, valueLength, (last ? 0 : ZMQ_SNDMORE));
 }
 
 #endif	/* ZMQ_UTILS_HPP */

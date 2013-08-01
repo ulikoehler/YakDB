@@ -1,6 +1,6 @@
 #include <zmq.h>
 #include "MetaRequests.hpp"
-#include "../include/zmq_utils.hpp"
+#include "../include/zeromq_utils.hpp"
 
 static void TableOpenRequest::sendRequest(void* socket, uint32_t tableNo,
         uint64_t lruCacheSize,

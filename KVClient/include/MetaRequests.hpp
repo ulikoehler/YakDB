@@ -17,6 +17,12 @@ public:
      * Send a server info request
      */
     static void sendRequest(void* socket);
+    /**
+     * Receive the first server info response frame from the 
+     * @param socket
+     * @param flags
+     * @return 
+     */
     static int receiveFeatureFlags(void* socket, uint64_t& flags);
     static int receiveVersion(void* socket, std::string& serverVersion);
 };
