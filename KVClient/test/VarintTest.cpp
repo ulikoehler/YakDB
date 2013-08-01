@@ -7,9 +7,10 @@ using namespace std;
  * This suite tests the low-level update-request-delete facility.
  * Currently, a server is expected to be started in the background.
  */
-BOOST_AUTO_TEST_SUITE(LowLevelRequests)
+BOOST_AUTO_TEST_SUITE(DBConsistency)
 
-BOOST_AUTO_TEST_CASE(TestU) {
+BOOST_AUTO_TEST_CASE(TestWriteReadDelete) {
+    //Connect to the database at localhost
     
 }
 

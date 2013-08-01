@@ -19,4 +19,10 @@ zkvSource =  ["main.cpp",
     "Status.cpp"
 ]
 
-hello = env.Program(target="kvc", source=zkvSource,LIBS=libraries)
+yaklibSrc = ["src/MetaRequests.cpp",
+    "src/ReadRequests.cpp",
+    "src/WriteRequests.cpp"
+]
+
+env.Library(target="yaklib",source=yaklibSrc,CPPPATH="include")
+env.Program(target="kvc", source=zkvSource,LIBS=libraries)

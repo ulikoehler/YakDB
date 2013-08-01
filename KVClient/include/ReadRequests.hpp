@@ -89,12 +89,34 @@ class ExistsRequest {
  * in the given request at once.
  */
 class ScanRequest {
+    static int sendRequest(void* socket, uint32_t tableNum,
+            const std::string& startKey,
+            const std::string& endKey);
+    static int receiveResponseHeader(void* socket, std::string& errorMessage);
+    /**
+     * Receive the next response key&value.
+     * @param keyTarget A string reference to write the key to
+     * @param valueTarget A string reference to write the value to
+     * @return -1 on error, 0 == (success, there are more keys to retrieve), 1 == (success, no more keys to retrieve)
+     */
+    static int receiveResponseValue(void* socket, std::string& keyTarget, std::string& valueTarget);
 };
 
 /**
  * A request to scan up to a limited amount of key/value pairs from a start key
  */
 class LimitedScanRequest {
+    static int sendRequest(void* socket, uint32_t tableNum,
+            const std::string& startKey,
+            uint64_t numKeys);
+    static int receiveResponseHeader(void* socket, std::string& errorMessage);
+    /**
+     * Receive the next response key&value.
+     * @param keyTarget A string reference to write the key to
+     * @param valueTarget A string reference to write the value to
+     * @return -1 on error, 0 == (success, there are more keys to retrieve), 1 == (success, no more keys to retrieve)
+     */
+    static int receiveResponseValue(void* socket, std::string& keyTarget, std::string& valueTarget);
 };
 
 #endif	/* READREQUESTS_HPP */

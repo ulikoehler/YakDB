@@ -7,6 +7,8 @@
 
 #ifndef METAREQUESTS_HPP
 #define	METAREQUESTS_HPP
+#include <string>
+#include <cstdint>
 
 /**
  * An update request that writes 
@@ -16,7 +18,7 @@ public:
     /**
      * Send a server info request
      */
-    static void sendRequest(void* socket);
+    static int sendRequest(void* socket);
     /**
      * Receive the first server info response frame from the 
      * @param socket
@@ -37,7 +39,7 @@ public:
     /**
      *
      */
-    static void sendRequest(void* socket, uint32_t tableNo,
+    static int sendRequest(void* socket, uint32_t tableNo,
             uint64_t lruCacheSize = UINT64_MAX,
             uint64_t tableBlockSize = UINT64_MAX,
             uint64_t writeBufferSize = UINT64_MAX,

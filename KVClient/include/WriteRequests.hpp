@@ -46,6 +46,7 @@ public:
             const char* value,
             size_t valueLength,
             bool last = false);
+    static int receiveResponse(void* socket, std::string& errorString);
 };
 
 /**
@@ -63,13 +64,12 @@ public:
      */
     static int sendHeader(void* socket, uint32_t table, uint8_t flags = 0x00);
     /**
-     * Write a single key-value pair.
-     * If this is not the last key-value pair you want to send,
-     * you must set the 'last' parameter to false!
+     * Write a single key to delete
+     * For the last key to send, you need to set the 'last' parameter to true.
      * @param socket
      * @param key The key to writes
      * @param value The value to write
-     * @param last Whether this is the last key to send. Determines ZMQ_SNDMORE flag
+     * @param last Whether this is the last key to be sent.
      * @return 0 on success, errno else
      */
     static int sendKey(void* socket,
@@ -87,7 +87,7 @@ public:
      * @param socket
      * @return 
      */
-    static int receiveResponse(void* socket. std::string& errorMessage);
+    static int receiveResponse(void* socket, std::string& errorMessage);
 };
 
 #endif	/* UPDATEREQUESTS_HPP */

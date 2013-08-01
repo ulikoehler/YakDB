@@ -2,7 +2,7 @@
 
 ## Low-Level protocol
 
-The protocol shall use ZMTP/2.0 as outlined [here](http://rfc.zeromq.org/spec:15).
+The protocol shall use ZMTP/2.0 as defined in [ZeroMQ RFC 15](http://rfc.zeromq.org/spec:15).
 The protocol is frame-based. Frames are equivalent to ZeroMQ message parts or
 CZMQ frames.
 
