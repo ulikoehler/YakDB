@@ -60,7 +60,8 @@ enum RequestType : uint8_t {
     LimitedScanRequest = 0x14,
     PutRequest = 0x20,
     DeleteRequest = 0x21,
-    DeleteRangeRequest = 0x22
+    DeleteRangeRequest = 0x22,
+    LimitedDeleteRangeRequest = 0x23
 };
 
 enum ResponseType : uint8_t {

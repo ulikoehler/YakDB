@@ -139,6 +139,24 @@ protected:
             const char* errorResponse,
             bool generateResponse=true);
     /**
+     * This function checks if the given frame has a certain size.
+     * If the frame sizes match, it returns true and exits.
+     * 
+     * Else, an error message is logged using the logger instance in the current class
+     * and 
+     * @param msg
+     * @param expectedSize
+     * @param errName
+     * @param errorResponse
+     * @param generateResponse
+     * @return false in case of error, true else
+     */
+    bool expectExactFrameSize(zmq_msg_t* msg,
+            size_t expectedSize,
+            const char* errName,
+            const char* errorResponse,
+            bool generateResponse=true);
+    /**
      * If the input socket has any remaining msg parts in the current message,
      * read and dispose them.
      * 

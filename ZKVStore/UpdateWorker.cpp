@@ -111,6 +111,8 @@ bool UpdateWorker::processNextMessage() {
         handleTableTruncateRequest(&headerFrame, haveReplyAddr);
     } else if (requestType == DeleteRangeRequest) {
         handleDeleteRangeRequest(&headerFrame, haveReplyAddr);
+    } else if (requestType == LimitedDeleteRangeRequest) {
+        handleLimitedDeleteRangeRequest(&headerFrame, haveReplyAddr);
     } else {
         logger.error(std::string("Internal routing error: request type ")
                 + std::to_string(requestType) + " routed to update worker thread!");
@@ -315,6 +317,91 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     //Parse the from-to range
     std::string rangeStartStr;
     std::string rangeEndStr;
+    parseRangeFrames(rangeStartStr,
+            rangeEndStr,
+            "Compact request compact range parsing",
+            errorResponse,
+            generateResponse);
+    bool haveRangeStart = !(rangeStartStr.empty());
+    bool haveRangeEnd = !(rangeEndStr.empty());
+    //Convert the str to a slice, to compare the iterator slice in-place
+    leveldb::Slice rangeEndSlice(rangeEndStr);
+    //Do the compaction (takes LONG)
+    //Create the response object
+    leveldb::ReadOptions readOptions;
+    leveldb::Status status;
+    //Create the iterator
+    leveldb::Iterator* it = db->NewIterator(readOptions);
+    //All deletes are applied in one batch
+    // This also avoids construct like deleting while iterating
+    leveldb::WriteBatch batch;
+    if (haveRangeStart) {
+        it->Seek(rangeStartStr);
+    } else {
+        it->SeekToFirst();
+    }
+    uint64_t count = 0;
+    //Iterate over all key-values in the range
+    for (; it->Valid(); it->Next()) {
+        count++;
+        leveldb::Slice key = it->key();
+        if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
+            break;
+        }
+        batch.Delete(key);
+    }
+    //Check if any error occured during iteration
+    if (!checkLevelDBStatus(it->status(), "LevelDB error while counting", true, errorResponse)) {
+        delete it;
+        return;
+    }
+    delete it;
+    //Apply the batch
+    status = db->Write(writeOptions, &batch);
+    //If something went wrong, send an error response
+    if (!checkLevelDBStatus(status,
+            "Database error while processing delete request: ",
+            generateResponse,
+            errorResponse)) {
+        return;
+    }
+    //Create the response if neccessary
+    if (generateResponse) {
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
+    }
+}
+
+void UpdateWorker::handleLimitedDeleteRangeRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    static const char* errorResponse = "\x31\x01\x23\x01";
+    static const char* ackResponse = "\x31\x01\x23\x00";
+    //Process the flags
+    uint8_t flags = getWriteFlags(headerFrame);
+    bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
+    //Convert options to LevelDB
+    leveldb::WriteOptions writeOptions;
+    writeOptions.sync = fullsync;
+    zmq_msg_close(headerFrame);
+    //Parse table ID
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse)) {
+        return;
+    }
+    //Check if there is a range frames
+    if (!expectNextFrame("Only table ID frame found in compact request, range missing",
+            generateResponse,
+            errorResponse)) {
+        return;
+    }
+    //Get the table
+    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    //Parse the from range and the limit
+    zmq_msg_t rangeStartFrame;
+    zmq_msg_init(&rangeStartFrame);
+    std::string rangeStartStr;
+    if (!receiveExpectMore(tableId, "Range start frame", generateResponse, errorResponse)) {
+        return;
+    }
+    
     parseRangeFrames(rangeStartStr,
             rangeEndStr,
             "Compact request compact range parsing",
