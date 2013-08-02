@@ -56,7 +56,7 @@ class CountRequest {
     static int receiveResponseHeader(void* socket, std::string& errorMessage);
     /**
      * Receive the next response value.
-     * @return -1 on error, 0 == (success, there are more keys to retrieve), 1 == (success, no more keys to retrieve)
+     * @return -1 on error, 0 on success
      */
     static int receiveResponseValue(void* socket, std::string& target);
 };
@@ -79,7 +79,7 @@ class ExistsRequest {
     static int receiveResponseHeader(void* socket, std::string& errorMessage);
     /**
      * Receive the next response value.
-     * @return -1 on error, 0 == (success, there are more keys to retrieve), 1 == (success, no more keys to retrieve)
+     * @return -1 on error, 0 on success
      */
     static int receiveResponseValue(void* socket, std::string& target);
 };
@@ -97,7 +97,7 @@ class ScanRequest {
      * Receive the next response key&value.
      * @param keyTarget A string reference to write the key to
      * @param valueTarget A string reference to write the value to
-     * @return -1 on error, 0 == (success, there are more keys to retrieve), 1 == (success, no more keys to retrieve)
+     * @return -1 on error, 0 on success
      */
     static int receiveResponseValue(void* socket, std::string& keyTarget, std::string& valueTarget);
 };
@@ -114,7 +114,7 @@ class LimitedScanRequest {
      * Receive the next response key&value.
      * @param keyTarget A string reference to write the key to
      * @param valueTarget A string reference to write the value to
-     * @return -1 on error, 0 == (success, there are more keys to retrieve), 1 == (success, no more keys to retrieve)
+     * @return -1 on error, 0 on success
      */
     static int receiveResponseValue(void* socket, std::string& keyTarget, std::string& valueTarget);
 };

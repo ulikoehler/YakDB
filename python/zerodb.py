@@ -437,6 +437,38 @@ class Connection:
             raise ZeroDBProtocolException("Delete range response type was %d instead of 34" % ord(msgParts[0][2]))
         if msgParts[0][3] != '\x00':
             raise ZeroDBProtocolException("Delete range response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
+    def deleteLimitedRange(self, tableNo, fromKey, limit):
+        """
+        Deletes a range of keys in the database. This is a version of deleteRange() that allows
+        you to specify a maximum number of keys to scan, instead of an end key
+        
+        @param tableNo The table number to scan in
+        @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
+        @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @return A dictionary of the returned key/value pairs
+        """
+        #Check parameters and create binary-string only key list
+        self._checkParameterType(tableNo, int, "tableNo")
+        self._checkParameterType(limit, int, "limit")
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send("\x31\x01\x23", zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo)
+        #Send range. "" --> empty frame --> start/end of tabe
+        if fromKey is not None: fromKey = self._convertToBinary(fromKey)
+        if fromKey is None: fromKey = ""
+        self.socket.send(fromKey, zmq.SNDMORE)
+        self._sendBinary64(limit)
+        #Wait for reply
+        msgParts = self.socket.recv_multipart(copy=True)
+        if len(msgParts) == 0:
+            raise ZeroDBProtocolException("Received empty limited delete range reply message")
+        if msgParts[0][2] != '\x23':
+            raise ZeroDBProtocolException("Limited delete range response type was %d instead of 34" % ord(msgParts[0][2]))
+        if msgParts[0][3] != '\x00':
+            raise ZeroDBProtocolException("Limited delete range response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
     def count(self, tableNo, fromKey, toKey):
         """
         Count a range of

@@ -286,10 +286,10 @@ and returning a maximum number of keys.
 The server shall only return less than the specified amount if the table
 end has been reached
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x14 Request type (scan request)]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x14 Request type (limited scan request)]
 * Frame 1: 4-byte unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
-* Frame 3: 64-bit unsigned integer, interpreted as the limit of keys to scan.
+* Frame 3: 64-bit unsigned integer, interpreted as the maximum number of keys to delete, starting at (inclusive) the given start key
 
 ##### Limited scan response:
 
@@ -342,6 +342,13 @@ None of the frames may be empty under any circumstances. Empty frames may lead t
 * Frame 1: 4-byte unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 3: End key (exclusive). If this has zero length, the count ends at the last key
+
+##### Limited delete range request:
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x23 Request type (Delete range request)] [Optional: Write flags, defaults to 0x00]
+* Frame 1: 4-byte unsigned table number
+* Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
+* Frame 3: 64-bit unsigned integer, interpreted as the maximum number of keys to delete, starting at (inclusive) the given start key
 
 ##### Write response
 

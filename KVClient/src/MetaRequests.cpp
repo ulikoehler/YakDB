@@ -3,6 +3,37 @@
 #include "MetaRequests.hpp"
 #include "../include/zeromq_utils.hpp"
 
+int ServerInfoRequest::sendRequest(void* socket) {
+    sendBinaryFrame(socket, "\x31\x01\x00", 3);
+}
+
+int ServerInfoRequest::receiveFeatureFlags(void* socket, uint64_t& flags) {
+    zmq_msg_t msg;
+    zmq_msg_recv(&msg, socket, 0);
+    if (zmq_msg_size(&msg) < (3 + 8)) {
+        return errno; //Response size does not match
+    }
+    char* data = (char*) zmq_msg_data(&msg);
+    if (data[0] != 0x31 || data[1] != 0x01 || data[2] != 0x00) {
+        return 1; //Magic byte mismatch
+    }
+    flags = ((uint64_t*) (data + 3))[0];
+    zmq_msg_close(&msg);
+    return 0; //OK
+}
+
+int ServerInfoRequest::receiveVersion(void* socket, std::string& serverVersion) {
+    zmq_msg_t msg;
+    int rc = zmq_msg_recv(&msg, socket, 0);
+    if (!rc) {
+        return rc;
+    }
+    serverVersion = std::string((char*) zmq_msg_data(&msg), zmq_msg_size(&msg));
+    zmq_msg_close(&msg);
+    return 0; //OK
+}
+
+
 int TableOpenRequest::sendRequest(void* socket, uint32_t tableNo,
         uint64_t lruCacheSize,
         uint64_t tableBlockSize,

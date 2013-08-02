@@ -234,7 +234,7 @@ static int sendKeyValue(void* socket,
  * @param last If this parameter is set to true, the value frame will be sent without SNDMORE flag
  * @return -1 on error (--> check errno with zmq_strerror()), 0 else
  */
-static int sendKeyValue(void* socket,
+static inline int sendKeyValue(void* socket,
         const char* key,
         size_t keyLength,
         const char* value,
@@ -245,6 +245,20 @@ static int sendKeyValue(void* socket,
         return rc;
     }
     return sendBinaryFrame(socket, value, valueLength, (last ? 0 : ZMQ_SNDMORE));
+}
+
+/**
+ * This sends a two-frame-range construct.
+ * @param startKey The range start or the empty string to generate a zero-length frame
+ * @param endKey The range end or the empty string to generate a zero-length frame
+ * @return -1 on error (--> check errno with zmq_strerror()), 0 else
+ */
+static inline int sendRange(void* socket, const std::string& startKey, const std::string& endKey, int flags = 0) {
+    int rc = sendStringFrame(socket, startKey, ZMQ_SNDMORE);
+    if (!rc) {
+        return rc;
+    }
+    return sendStringFrame(socket, endKey, flags);
 }
 
 /**
