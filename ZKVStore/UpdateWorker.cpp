@@ -351,7 +351,7 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
         batch.Delete(key);
     }
     //Check if any error occured during iteration
-    if (!checkLevelDBStatus(it->status(), "LevelDB error while counting", true, errorResponse)) {
+    if (!checkLevelDBStatus(it->status(), "LevelDB error while processing delete request", true, errorResponse)) {
         delete it;
         return;
     }
@@ -426,7 +426,6 @@ void UpdateWorker::handleLimitedDeleteRangeRequest(zmq_msg_t* headerFrame, bool 
     } else {
         it->SeekToFirst();
     }
-    uint64_t count = 0;
     //Iterate over all key-values in the range
     for (; it->Valid(); it->Next()) {
         leveldb::Slice key = it->key();
