@@ -322,7 +322,7 @@ PARTSYNC may not be sent for non-REQ-REP sockets. Sending PARTSYNC over other so
 
 ##### Put request:
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 Requqest type (Put request)] [Optional: Write flags, defaults to 0x00]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 Request type (Put request)] [Optional: Write flags, defaults to 0x00]
 * Frame 1-n (odd frame numbers): Key to write to. The next frame specifies the value to write
 * Frame 2-n (even frame numbers): Value to write. The previous frame specifies the corresponding key.
 
@@ -349,6 +349,30 @@ None of the frames may be empty under any circumstances. Empty frames may lead t
 * Frame 1: 4-byte unsigned table number
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 3: 64-bit unsigned integer, interpreted as the maximum number of keys to delete, starting at (inclusive) the given start key
+
+##### Multi-table write request:
+
+The standard put request only allows to transactionally write into a single table.
+The Multi-table write requests introduce additional overhead, but they allow
+writes to different tables.
+
+For auto-loadbalancing socket types (REQ, PUSH), using this request type
+allows to group several operations into a single message and therefore
+guarantee the entire dataset
+
+The PARTSYNC flag is not allowed (and therefore ignored), because
+the multi-table put request is internally translated to multiple individual put requests.
+Response to this request type will therefore always be async.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x24 Request type (Put request)] [Optional: Write flags, defaults to 0x00]
+
+An arbitrary number of *modification messages* follow frame 0. Modification messages consist of (frame numbering relative to the mod msg start):
+* Frame 0: [32-bit table no][32-bit number of valuesets in request][8-bit request type]
+* Frame 1-n: List of keys for delete request type, alternating key-values for put request type
+
+Request type:
+    0x00: Put - number of valuesets is (total number of frames - 1)/2
+    0x01: Delete - number of valuesets is (total number of frames - 1)
 
 ##### Write response
 
