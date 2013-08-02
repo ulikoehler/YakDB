@@ -143,7 +143,8 @@ protected:
      * If the frame sizes match, it returns true and exits.
      * 
      * Else, an error message is logged using the logger instance in the current class
-     * and 
+     * and, if generateResponse is set to true, the error reponse plus the error msg
+     * is sent over the output socket.
      * @param msg
      * @param expectedSize
      * @param errName

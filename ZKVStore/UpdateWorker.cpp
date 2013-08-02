@@ -394,23 +394,24 @@ void UpdateWorker::handleLimitedDeleteRangeRequest(zmq_msg_t* headerFrame, bool 
     }
     //Get the table
     leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    //
     //Parse the from range and the limit
-    zmq_msg_t rangeStartFrame;
-    zmq_msg_init(&rangeStartFrame);
-    std::string rangeStartStr;
-    if (!receiveExpectMore(tableId, "Range start frame", generateResponse, errorResponse)) {
+    //
+    zmq_msg_t rangeStartMsg;
+    zmq_msg_init(&rangeStartMsg);
+    if (!receiveMsgHandleError(&rangeStartMsg, "Receive limited scan range start frame", errorResponse, true)) {
         return;
     }
-    
-    parseRangeFrames(rangeStartStr,
-            rangeEndStr,
-            "Compact request compact range parsing",
-            errorResponse,
-            generateResponse);
-    bool haveRangeStart = !(rangeStartStr.empty());
-    bool haveRangeEnd = !(rangeEndStr.empty());
-    //Convert the str to a slice, to compare the iterator slice in-place
-    leveldb::Slice rangeEndSlice(rangeEndStr);
+    if (!expectNextFrame("Only range start frame found in limited scan request, limit frame missing", true, errorResponse)) {
+        return;
+    }
+    uint64_t scanLimit;
+    if (!parseUint64Frame(scanLimit, "Receive limited scan range start frame", true, errorResponse)) {
+        return;
+    }
+    bool haveRangeStart = (zmq_msg_size(&rangeStartMsg) != 0);
+    //Convert the range start frame to a slice
+    leveldb::Slice rangeStartSlice((char*) zmq_msg_data(&rangeStartMsg), zmq_msg_size(&rangeStartMsg));
     //Do the compaction (takes LONG)
     //Create the response object
     leveldb::ReadOptions readOptions;
@@ -421,22 +422,25 @@ void UpdateWorker::handleLimitedDeleteRangeRequest(zmq_msg_t* headerFrame, bool 
     // This also avoids construct like deleting while iterating
     leveldb::WriteBatch batch;
     if (haveRangeStart) {
-        it->Seek(rangeStartStr);
+        it->Seek(rangeStartSlice);
     } else {
         it->SeekToFirst();
     }
     uint64_t count = 0;
     //Iterate over all key-values in the range
     for (; it->Valid(); it->Next()) {
-        count++;
         leveldb::Slice key = it->key();
-        if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
+        //Check if we have to stop here
+        if (scanLimit <= 0) {
             break;
         }
+        scanLimit--;
         batch.Delete(key);
     }
     //Check if any error occured during iteration
-    if (!checkLevelDBStatus(it->status(), "LevelDB error while counting", true, errorResponse)) {
+    if (!checkLevelDBStatus(it->status(),
+            "LevelDB error while processing limited range delete request",
+            true, errorResponse)) {
         delete it;
         return;
     }

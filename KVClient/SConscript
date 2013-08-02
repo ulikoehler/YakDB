@@ -12,17 +12,11 @@ if int(enableDebug):
 
 libraries = ["zmq","czmq"]
 
-zkvSource =  ["main.cpp",
-    "../ZKVStore/zutil.cpp",
-    "client.cpp",
-    "dbclient.cpp",
-    "Status.cpp"
-]
-
 yaklibSrc = ["src/MetaRequests.cpp",
     "src/ReadRequests.cpp",
     "src/WriteRequests.cpp"
 ]
 
 env.Library(target="yaklib",source=yaklibSrc,CPPPATH="include")
-env.Program(target="kvc", source=zkvSource,LIBS=libraries)
+#env.Program(target="kvc", source=zkvSource,LIBS=libraries)
+

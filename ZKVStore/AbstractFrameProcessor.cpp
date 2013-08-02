@@ -254,3 +254,25 @@ void AbstractFrameProcessor::disposeRemainingMsgParts() {
         zmq_msg_close(&msg);
     }
 }
+
+bool AbstractFrameProcessor::expectExactFrameSize(zmq_msg_t* msg,
+            size_t expectedSize,
+            const char* errName,
+            const char* errorResponse,
+            bool generateResponse) {
+    size_t actualMsgSize = zmq_msg_size(msg);
+    if(unlikely(actualMsgSize != expectedSize)) {
+        std::string errstr = "Error while checking ZMQ frame length of "
+                + std::string(errName) + ": Expected length was "
+                + std::to_string(expectedSize) + " bytes but actual length was "
+                + std::to_string(actualMsgSize)
+                + " in " + std::string(errName);
+        logger.warn(errstr);
+        if(generateResponse) {
+            sendFrame(errorResponse, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger);
+        }
+        return false;
+    }
+    return true;
+}

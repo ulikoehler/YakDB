@@ -20,23 +20,12 @@
  * Depending on the socket type, different features are supported,
  * e.g. read requests are only supported on the ReqRep socket type
  */
-enum class SocketType {
+enum class SocketType : uint8_t {
     None,
     ReqRep,
     PushPull,
     PubSub
 };
-
-/**
- * Macro that checks a Status object. If the status doesn't indicate success, it throws an exception.
- * Useful if you want to shrink your codebase or you don't want to do too much error handling.
- * 
- * Keep in mind, however, that using this macro might have a negative impact on your performance, depending on how your
- * compiler handles exceptions.
- * 
- * Note that some functions might throw exceptions independently of this macro
- */
-#define checkStatus(expr) {Status macroStatus1415/*Hopefully avoids collisions*/ = expr;if(!status.ok()) {throw new KVDBException(status.getErrorMessage());}}
 
 /**
  * High-level client to the distributed key-value store.
@@ -46,7 +35,7 @@ enum class SocketType {
 class DKVClient {
 public:
     /**
-     * Creates a new DKV client using a new ZeroMQ context that is automatically
+     * Creates a new client using a new ZeroMQ context that is automatically
      * destroyed when this instance is destructed
      */
     DKVClient() noexcept;

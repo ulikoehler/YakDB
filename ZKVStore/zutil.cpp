@@ -53,3 +53,7 @@ void* zsocket_new_connect(zctx_t* context, int type, const char* endpoint) {
 std::string frameToString(zframe_t* frame) {
     return std::string((char*) zframe_data(frame), zframe_size(frame));
 }
+
+std::string frameToString(zmq_msg_t* msg) {
+    
+}
