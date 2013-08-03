@@ -5,3 +5,10 @@ zkv
 *~
 .sconsign.dblite
 autoconfig.h
+#Codelite stuff
+*.project
+*.tags
+*.workspace
+*.workspace.*
+#NB
+nbproject
