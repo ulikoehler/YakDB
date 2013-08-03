@@ -15,7 +15,7 @@ DKVClient::DKVClient() : context(zctx_new()), destroyContextOnExit(true), socket
     //Nothing to be done here
 }
 
-DKVClient::DKVClient(zctx_t* ctx) : context(ctx), destroyContextOnExit(false) h {
+DKVClient::DKVClient(zctx_t* ctx) : context(ctx), destroyContextOnExit(false) {
     //Nothing to be done here
 }
 
@@ -26,14 +26,6 @@ DKVClient::~DKVClient() {
     if (destroyContextOnExit && context) {
         zctx_destroy(&context);
     }
-}
-
-zctx_t* DKVClient::getContext() const {
-    return context;
-}
-
-void DKVClient::setDestroyContextOnExit(bool param) {
-
 }
 
 void DKVClient::connectRequestReply(const char* url) {
@@ -76,7 +68,7 @@ int DKVClient::put(uint32_t table, const char* key, size_t keySize, const char* 
     return 0;
 }
 
-int DKVClient::put(uint32_t table, const char* key, size_t keySize, const char* value, size_t valueSize, uint8_t flags) {
+int DKVClient::put(uint32_t table, const char* key, const char* value, uint8_t flags) {
     if (PutRequest::sendHeader(socket, table, flags) == -1) {
         return -1;
     }
@@ -147,11 +139,11 @@ int DKVClient::read(uint32_t table, const std::vector<std::string>& keys, std::v
     }
     //Send the first n-1 keys first, then the last key without ZMQ_SNDMORE
     for(int i = 0; i < keys.size() - 1; i++) {
-        if(ReadRequest::sendKey(socket, key, false) == -1) {
+        if(ReadRequest::sendKey(socket, keys[i], false) == -1) {
             return -4;
         }
     }
-    if(ReadRequest::sendKey(socket, key, true) == -1) {
+    if(ReadRequest::sendKey(socket, keys[keys.size()-1], true) == -1) {
         return -5;
     }
     //Receive the response
@@ -159,8 +151,13 @@ int DKVClient::read(uint32_t table, const std::vector<std::string>& keys, std::v
     if(ReadRequest::receiveResponseHeader(socket, errorMessage) == -1) {
         return -6;
     }
-    if(ReadRequest::receiveResponseValue(socket, value) == -1) {
-        return -7;
+    //Receive the values one-by-one
+    for(int i = 0; i < keys.size(); i++) {
+        std::string value;
+        if(ReadRequest::receiveResponseValue(socket, value) == -1) {
+            return -7;
+        }
+        values.push_back(value);
     }
     return 0;
 }

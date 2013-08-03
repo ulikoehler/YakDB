@@ -19,6 +19,7 @@
  * receiveResponseValue() is 1.
  */
 class ReadRequest {
+public:
     static int sendHeader(void* socket, uint32_t table);
     static int sendKey(void* socket,
             const std::string& key,
@@ -42,6 +43,7 @@ class ReadRequest {
  * A request to count a range of keys
  */
 class CountRequest {
+public:
     static int sendHeader(void* socket, uint32_t table);
     static int sendKey(void* socket,
             const std::string& key,
@@ -65,6 +67,7 @@ class CountRequest {
  * A request to check if one or multiple keys exist
  */
 class ExistsRequest {
+public:
     static int sendHeader(void* socket, uint32_t table);
     static int sendKey(void* socket,
             const std::string& key,
@@ -89,6 +92,7 @@ class ExistsRequest {
  * in the given request at once.
  */
 class ScanRequest {
+public:
     static int sendRequest(void* socket, uint32_t tableNum,
             const std::string& startKey,
             const std::string& endKey);
@@ -106,6 +110,7 @@ class ScanRequest {
  * A request to scan up to a limited amount of key/value pairs from a start key
  */
 class LimitedScanRequest {
+public:
     static int sendRequest(void* socket, uint32_t tableNum,
             const std::string& startKey,
             uint64_t numKeys);

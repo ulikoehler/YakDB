@@ -90,8 +90,8 @@ public:
     /**
      * @param destroyContextOnExit If this is set to true, the context will be destroyed in the destructor
      */
-    inline void setDestroyContextOnExit(bool destroyContextOnExit) {
-        this->destroyContextOnExit = destroyContextOnExit;
+    inline void setDestroyContextOnExit(bool newValue) {
+        this->destroyContextOnExit = newValue;
     }
     inline bool isRequestReply() {return this->socketType == SocketType::ReqRep;}
     inline bool isPushPull() {return this->socketType == SocketType::PushPull;}

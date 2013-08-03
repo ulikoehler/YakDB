@@ -7,8 +7,8 @@
 
 #ifndef METAREQUESTS_HPP
 #define	METAREQUESTS_HPP
+#include <limits>
 #include <string>
-#include <cstdint>
 
 /**
  * An update request that writes 
@@ -40,10 +40,10 @@ public:
      *
      */
     static int sendRequest(void* socket, uint32_t tableNo,
-            uint64_t lruCacheSize = UINT64_MAX,
-            uint64_t tableBlockSize = UINT64_MAX,
-            uint64_t writeBufferSize = UINT64_MAX,
-            uint64_t bloomFilterSize = UINT64_MAX,
+            uint64_t lruCacheSize = std::numeric_limits<uint64_t>::max(),
+            uint64_t tableBlockSize = std::numeric_limits<uint64_t>::max(),
+            uint64_t writeBufferSize = std::numeric_limits<uint64_t>::max(),
+            uint64_t bloomFilterSize = std::numeric_limits<uint64_t>::max(),
             bool enableCompression = true);
     static int receiveResponse(void* socket, std::string& errorString);
 };
