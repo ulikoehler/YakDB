@@ -14,7 +14,8 @@ libraries = ["zmq","czmq"]
 
 yaklibSrc = ["src/MetaRequests.cpp",
     "src/ReadRequests.cpp",
-    "src/WriteRequests.cpp"
+    "src/WriteRequests.cpp",
+    "src/dbclient.cpp"
 ]
 
 env.Library(target="yaklib",source=yaklibSrc,CPPPATH="include")

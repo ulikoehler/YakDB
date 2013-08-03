@@ -352,6 +352,8 @@ None of the frames may be empty under any circumstances. Empty frames may lead t
 
 ##### Multi-table write request:
 
+** NOT IMPLEMENTED YET! **
+
 The standard put request only allows to transactionally write into a single table.
 The Multi-table write requests introduce additional overhead, but they allow
 writes to different tables.
