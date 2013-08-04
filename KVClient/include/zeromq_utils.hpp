@@ -160,6 +160,29 @@ static inline int receiveStringFrame(void* socket, std::string& str) {
 }
 
 /**
+ * Receive a single-byte boolean-representing frame.
+ * If the byte is 0, the resulting boolean is expected to be false.
+ * Else, the resulting boolean i
+ * @param socket The socket to receive from
+ * @param str A reference to a string that will be set to the received value
+ * @return < 0 on error. 0 on false result, 1 on true result.
+ */
+static inline int receiveBooleanFrame(void* socket) {
+    zmq_msg_t msg;
+    int rc = zmq_msg_recv(&msg, socket, 0);
+    if (rc == -1) {
+        return -1;
+    }
+    if(zmq_msg_size(&msg) != 1) {
+        zmq_msg_close(&msg);
+        return -2; //Frame size mismatch
+    }
+    int val = (((char*)zmq_msg_data(&msg))[0] == 0 ? 0 : 1);
+    zmq_msg_close(&msg);
+    return val;
+}
+
+/**
  * Simple responses are composed of:
  * - A header frame, with character 4 expected to be 0, else an error is assumed
  * - If the 4th header character is not 0, a second frame containing an error message shall be received

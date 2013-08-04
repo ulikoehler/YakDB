@@ -153,7 +153,7 @@ int DKVClient::read(uint32_t table, const std::vector<std::string>& keys, std::v
     }
     //Receive the values one-by-one
     for(int i = 0; i < keys.size(); i++) {
-        std::string value;
+        std::string value;    
         if(ReadRequest::receiveResponseValue(socket, value) == -1) {
             return -7;
         }
@@ -162,8 +162,23 @@ int DKVClient::read(uint32_t table, const std::vector<std::string>& keys, std::v
     return 0;
 }
 
-int DKVClient::exists(uint32_t table, const std::string& keys) {
-
+int DKVClient::exists(uint32_t table, const std::string& key) {
+    if(!isRequestReply()) {
+        return -1;
+    }
+    //Send the request
+    if(ExistsRequest::sendHeader(socket, table)) {
+        return -2;
+    }
+    if(ExistsRequest::sendKey(socket, key, true) == -1) {
+        return -3;
+    }
+    //Receive the response
+    std::string errorMessage;
+    if(ExistsRequest::receiveResponseHeader(socket, errorMessage) == -1) {
+        return -4;
+    }
+    ExistsRequest::receiveResponseValue(socket);
 }
 
 int DKVClient::exists(uint32_t table, const std::vector<std::string>& keys, std::vector<bool>& result) {

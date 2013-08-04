@@ -82,9 +82,9 @@ public:
     static int receiveResponseHeader(void* socket, std::string& errorMessage);
     /**
      * Receive the next response value.
-     * @return -1 on error, 0 on success
+     * @return -1 on error, 0 on success, not found, 1 on success, found
      */
-    static int receiveResponseValue(void* socket, std::string& target);
+    static int receiveResponseValue(void* socket);
 };
 
 /**

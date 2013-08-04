@@ -102,8 +102,8 @@ int ExistsRequest::receiveResponseHeader(void* socket, std::string& errorMessage
     return receiveSimpleResponse(socket, errorMessage);
 }
 
-int ExistsRequest::receiveResponseValue(void* socket, std::string& target) {
-    return receiveStringFrame(socket, target);
+int ExistsRequest::receiveResponseValue(void* socket) {
+    return receiveBooleanFrame(socket);
 }
 
 int ScanRequest::sendRequest(void* socket, uint32_t tableNum,
