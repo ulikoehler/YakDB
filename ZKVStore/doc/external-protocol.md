@@ -63,6 +63,8 @@ no exact or synchronized numbers.
 All statistics are flushed after the job has finished, so when the job
 is marked as completed (or failed), the statistics are guaranteed to be reliable.
 
+APIDs are not related to system process IDs etc. in any way.
+
 ### Protocol error response
 
 For request/reply sockets, the server uses this response if it can't recognize
@@ -70,6 +72,19 @@ the protocol.
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0xFF Response type (protocol error)]
 * Frame 1 (Optional): NUL-terminated protocol error description
+
+### Request types
+
+Request and response codes are divided into several groups to allow fast & easy boolean-logic-based routing:
+
+* Low Nibble: Minor request type (assigned serially, it's just incremented whenever a new request is added)
+* High Nibble: Major request type
+    * 0x0: Meta / Initialization request
+    * 0x1: Read-only request
+    * 0x2: Write request (may also read, but write shall be dominant)
+    * 0x4: Async data processing (MapRed etc.) bit
+    * 0x5 (= 0x4 + 0x1): Data processing read requests
+    * 0x6 (= 0x4 + 0x2): Data processing write requests
 
 -----------------------
 
@@ -399,7 +414,7 @@ because processing has not started when the reply is sent.
 
 -------------------------------
 
-## Data processing requests
+## Data processing initialization request
 
 These requests are closely related to the MapReduce protocol,
 as outlined in mapred-protocol.md.
@@ -422,9 +437,9 @@ Replying to the request does not indicate any kind of success.
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x40 Response type (Forward range to socket response)]
 * Frame 1: 8-byte unsigned Job ID
 
-##### Server-side table-sinked map request (SSTSMR)
+##### Server-side table-sinked map initialization request (SSTSMIR)
 
-**WIP** API NOT FIXED
+**WIP** REQUEST FORMAT MAY CHANGE ; NOT IMPLEMENTED YET
 
 Initializes a scan request whose result is not returned to the requesting instances,
 but instead piped through an LLVM-based client-specified mapper.
@@ -437,7 +452,7 @@ For the mapper, both insertion and deletion is possible.
 
 LLVM API is described in llvm-api.md
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x41 Request type (SSMTSSR)]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x41 Request type (SSMTSSIR)]
 * Frame 1: 4-byte unsigned integer input table number
 * Frame 2: 4-byte unsigned integer output table number (may be the same as input table no)
 * Frame 3: 4-byte unsigned integer, the number of concurrent worker threads to spawn
@@ -445,7 +460,7 @@ LLVM API is described in llvm-api.md
 * Frame n+1: Empty delimiter frame
 * Frame n+2: LLVM bitcode
 
-##### SSTSMR response
+##### SSTSMIR response
 
 The response is sent once the job has started.
 
@@ -459,6 +474,51 @@ Response codes (lower byte counts!):
 * 0x02 Database error while processing request (implies Frame 1 being existing)
 * 0x10 Protocol error, found key frame without value frame (implies Frame 1 being existing)
 
+##### CSPTMIR (Client-Side Passive table map initialization request)
+
+**WIP** REQUEST FORMAT MAY CHANGE ; NOT IMPLEMENTED YET
+
+This request initializes a job with a REP socket that waits for requests from clients and deliverse data blocks upon
+request. The data block size is configurable. This request is called passive because the server waits for client
+requests passively and does not actively send data without requests. It is called client-side because
+
+This request uses snapshots for the source table.
+It is upon the client how the data is handled. The client may write the data to a table (writing to the input table is allowed),
+or write it to a file etc.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x42 Request type (CSPTMIR)]
+* Frame 1: 4-byte unsigned integer input table number
+* Frame 2: Empty or 4-byte blocksize (= number of key-value structures that will be returned upon request)
+* Frame 3: Start key (inclusive). If this has zero length, the count starts at the first key
+* Frame 4: End key (inclusive). If this has zero length, the count ends at the last keys
+
+If frame 2 is empty, a default blocksize shall be assumed.
+
+##### CSPTMIR Response
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x42 Request type (CSPTMIR)]
+* Frame 1: 64-bit APID
+
 -------------------------------
 
-## Data processing requests
+## Data processing read requests
+
+##### Client data request
+
+This request type must only be used with APIDs that have been returned by CSPTMIRs.
+By using this request, clients request data blocks.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x50 Request type]
+* Frame 1: 64-bit APIDs
+
+##### Client data response
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x50 Response type][8-bit response flags]
+* Frame 1-n (odd frame numbers): Key, corresponds to value in next frame
+* Frame 2-n (even frame numbers): Value, corresponds to key in previous frame
+
+The message shall contain at most blocksize*2+1 frames.
+
+Response flags:
+    0x01: No more data (--> last frame, client shall not request more frames as no data will be returned)
+    0x02: Partial data (--> last frame, less than *blocksize* KV pairs). May not occur together with "No more data" flag.

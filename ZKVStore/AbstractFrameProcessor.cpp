@@ -105,7 +105,7 @@ bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest
     if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
         std::string errstr = "Trying to read 64-bit unsigned integer frame ("
                 + std::string(frameDesc)
-                + "), but no frame was available";
+                + ") with default value, but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
             sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
@@ -138,6 +138,50 @@ bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest
         valueDest = extractBinary<uint64_t>(&uint64Frame);
     }
     zmq_msg_close(&uint64Frame);
+    return true;
+}
+
+bool parseUint32FrameOrAssumeDefault(uint32_t& valDst,
+            uint32_t defaultValue,
+            const char* frameDesc,
+            bool generateResponse,
+            const char* errorResponseCode) {
+    if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
+        std::string errstr = "Trying to read 32-bit unsigned integer frame ("
+                + std::string(frameDesc)
+                + ") with default value, but no frame was available";
+        logger.warn(errstr);
+        if (generateResponse) {
+            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger);
+        }
+        return false;
+    }
+    //Parse table ID, release frame immediately
+    zmq_msg_t uint32Frame;
+    zmq_msg_init(&uint32Frame);
+    size_t frameSize = zmq_msg_size(&uint32Frame);
+    if (unlikely(!receiveMsgHandleError(&uint32Frame, frameDesc, errorResponseCode, generateResponse))) {
+        return false;
+    }
+    if (unlikely(frameSize != sizeof (uint32_t) && frameSize != 0)) {
+        std::string errstr = "Uint32 frame ("
+                + std::string(frameDesc)
+                + ") was expected to have a length of 4 bytes, but size is "
+                + std::to_string(zmq_msg_size(&uint32Frame)) + " bytes";
+        logger.warn(errstr);
+        if (generateResponse) {
+            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger);
+        }
+        return false;
+    }
+    if (frameSize == 0) {
+        valueDest = defaultValue;
+    } else {
+        valueDest = extractBinary<uint32_t>(&uint32Frame);
+    }
+    zmq_msg_close(&uint32Frame);
     return true;
 }
 

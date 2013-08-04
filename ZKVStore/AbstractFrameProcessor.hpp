@@ -62,8 +62,17 @@ protected:
      * Equivalent to parseUint64Frame(), but assumes a given default
      * value if the frame is empty.
      */
-    bool parseUint64FrameOrAssumeDefault(uint64_t& tableIdDst,
+    bool parseUint64FrameOrAssumeDefault(uint64_t& valDst,
             uint64_t defaultValue,
+            const char* frameDesc,
+            bool generateResponse,
+            const char* errorResponseCode);
+    /**
+     * Equivalent to parseUint32Frame(), but assumes a given default
+     * value if the frame is empty.
+     */
+    bool parseUint32FrameOrAssumeDefault(uint32_t& valDst,
+            uint32_t defaultValue,
             const char* frameDesc,
             bool generateResponse,
             const char* errorResponseCode);
