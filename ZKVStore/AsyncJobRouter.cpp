@@ -130,13 +130,13 @@ static void clientSidePassiveWorkerThreadFn(
     logger.debug("AP exiting normally");
 }
 
-AsyncJobRouterController::AsyncJobRouterController(zctx_t* ctx, Tablespace& tablespace)
+COLD AsyncJobRouterController::AsyncJobRouterController(zctx_t* ctx, Tablespace& tablespace)
     : childThread(nullptr),
         ctx(ctx),
         tablespace(tablespace) {
 }
 
-void AsyncJobRouterController::start() {
+void COLD AsyncJobRouterController::start() {
     //Lambdas rock
     childThread = new std::thread([](zctx_t* ctx, Tablespace& tablespace) {
         AsyncJobRouter worker(ctx, tablespace);
@@ -144,10 +144,12 @@ void AsyncJobRouterController::start() {
             //Loop until stop msg is received (--> processNextRequest() returns false)
         }
     }, ctx, std::ref(tablespace));
+    //Create the PAIR socket to the job router
+    routerSocket = zsocket_new_connect(ctx, ZMQ_PAIR, asyncJobRouterAddr);
 }
 
-AsyncJobRouter::AsyncJobRouter(zctx_t* ctx, Tablespace& tablespaceArg) : 
-AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Async job router"),
+COLD AsyncJobRouter::AsyncJobRouter(zctx_t* ctx, Tablespace& tablespaceArg) : 
+AbstractFrameProcessor(ctx, ZMQ_PAIR, ZMQ_PUSH, "Async job router"),
 apidGenerator("next-apid.txt"),
 processSocketMap(),
 processThreadMap(),
@@ -268,7 +270,7 @@ void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid,
     uint32_t blocksize,
     const std::string& rangeStart,
     const std::string& rangeEnd) {
-    std::thread* thd = new std::thread(clientSidePassiveWorkerThreadFn,
+    std::thread* thd = new std::thread(clientSidePassiveWorkerThreadFn, 
             ctx,
             apid,
             databaseId,

@@ -9,13 +9,13 @@
 #define SERVER_HPP_
 #include "UpdateWorker.hpp"
 #include "ReadWorker.hpp"
+#include "AsyncJobRouter.hpp"
 #include "Logger.hpp"
 #include "LogServer.hpp"
 
 class KeyValueServer {
 public:
     KeyValueServer(bool dbCompressionEnabled = true);
-
     void start();
     ~KeyValueServer();
     zctx_t* ctx;
@@ -29,6 +29,7 @@ public:
     TableOpenServer tableOpenServer;
     UpdateWorkerController updateWorkerController;
     ReadWorkerController readWorkerController;
+    AsyncJobRouterController asyncJobRouterController;
     Logger logger; //The log source of the server itself, only to be used from the main thread
 };
 

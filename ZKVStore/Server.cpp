@@ -203,17 +203,22 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         sendConstFrame(SERVER_VERSION, strlen(SERVER_VERSION), sock);
         //Dispose non-reused messages
         zmq_msg_close(&headerFrame);
-    } else if(requestType & 0x40) { //Data processing request
+    } else if(requestType & 0x40) { //Any data processing request
         //TODO
+        void* workerSocket = server->asyncJobRouterController.routerSocket;
+        zmq_msg_send(&addrFrame, workerSocket, ZMQ_SNDMORE);
+        zmq_msg_send(&delimiterFrame, workerSocket, ZMQ_SNDMORE);
+        zmq_msg_send(&headerFrame, workerSocket, ZMQ_SNDMORE);
+        proxyMultipartMessage(sock, workerSocket);
     } else {
-        server->logger.warn("Unknown message type " + std::to_string(requestType) + " from client\n");
+        server->logger.warn("Unknown message type " + std::to_string(requestType) + " from client");
         //Send a protocol error back to the client
         //TODO detailed error message frame (see protocol specs)
         sendProtocolError(&addrFrame, &delimiterFrame, sock, "Unknown message type");
         //Dispose non-reused frames
         zmq_msg_close(&headerFrame);
         //There might be more frames of the current msg that clog up the queue
-        // and would lead to nasty bugs. Clear them, if any.
+        // and wcould lead to nasty bugs. Clear them, if any.
         recvAndIgnore(sock);
     }
     return 0;
@@ -270,6 +275,7 @@ externalSubSocket(NULL),
 logServer(ctx),
 updateWorkerController(ctx, tables),
 readWorkerController(ctx, tables),
+asyncJobRouterController(ctx, tables),
 logger(ctx, "Request router") {
     const char* reqRepUrl = "tcp://*:7100";
     const char* writeSubscriptionUrl = "tcp://*:7101";
@@ -280,6 +286,7 @@ logger(ctx, "Request router") {
     //Initialize the sockets that run on the main thread
     externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
     zsocket_bind(externalRepSocket, reqRepUrl);
+    zsocket_bind(externalRepSocket, mainRouterAddr);
     responseProxySocket = zsocket_new(ctx, ZMQ_PULL);
     zsocket_bind(responseProxySocket, externalRequestProxyEndpoint);
     //Now start the update and read workers
@@ -288,6 +295,8 @@ logger(ctx, "Request router") {
     readWorkerController.start();
     //Notify the user that the server has been started successfully
     logger.info("Server startup completed");
+    //Start the async job router
+    asyncJobRouterController.start();
 }
 
 KeyValueServer::~KeyValueServer() {

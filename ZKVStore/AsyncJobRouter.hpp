@@ -20,6 +20,10 @@ public:
      */
     AsyncJobRouterController(zctx_t* ctx, Tablespace& tablespace);
     void start();
+    /**
+     * A socket to the AsyncJobRouter for msg forwarding
+     */
+    void* routerSocket;
 private:
     std::thread* childThread;
     Tablespace& tablespace;
