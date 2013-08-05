@@ -8,10 +8,16 @@
 #include "SequentialIDGenerator.hpp"
 #include "macros.hpp"
 #include <cstdio>
-#include <boost/filesystem/operations.hpp>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+bool COLD fexists(const std::string& file) {
+    struct stat buf;
+    return (stat(file.c_str(), &buf) == 0);
+}
 
 COLD SequentialIDGenerator::SequentialIDGenerator(const std::string& file) : filename(file), nextId(), noFilePersistence(false) {
-    if (boost::filesystem::exists(file)) {
+    if (fexists(file)) {
         //For maximum compatibility and the least possible binsize
         // use C IO here instead of fstreams etc.
         FILE* fin = fopen(file.c_str(), "r");
