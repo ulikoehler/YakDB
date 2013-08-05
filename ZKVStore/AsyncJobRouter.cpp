@@ -239,14 +239,14 @@ uint64_t AsyncJobRouter::initializeJob() {
 
 void AsyncJobRouter::startServerSideJob(uint64_t apid) {
     logger.error("ERRRRRRRROOOOOOORRRRRRRRRR: Not yet implemented!");
-    cleanupAPID(apid);
+    cleanupJob(apid);
 }
 
 void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid) {
     
 }
 
-void AsyncJobRouter::cleanupAPID(uint64_t apid) {
+void AsyncJobRouter::cleanupJob(uint64_t apid) {
     void* socket = processSocketMap[apid];
     std::thread* thread = processThreadMap[apid];
     processSocketMap.erase(apid);
@@ -271,7 +271,7 @@ void AsyncJobRouter::forwardToJob(uint64_t apid,
             zmq_msg_t* headerFrame) {
     void* outSock = processSocketMap[apid];
     zmq_msg_send(routingFrame, outSock, ZMQ_SNDMORE);
-    zmq_msg_send(delimiterFrame, outSock);
+    zmq_msg_send(delimiterFrame, outSock, ZMQ_SNDMORE);
     //Only send MORE flag for the header frame if there are more  frames to follow
     zmq_msg_send(headerFrame, outSock,
         (socketHasMoreFrames(processorInputSocket) ? ZMQ_SNDMORE : 0));
