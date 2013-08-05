@@ -560,6 +560,8 @@ class Connection:
         #Receive response chunk
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x50')
+        #We silently ignore the partial data / no data flags from the header,
+        # because we can simply deduce them from the data frames.
         dataParts = msgParts[1:]
         mappedData = {}
         for i in range(0,len(dataParts),2):

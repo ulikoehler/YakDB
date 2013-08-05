@@ -14,7 +14,7 @@ static void clientSidePassiveWorkerThreadFn(
     zctx_t* ctx,
     uint64_t apid,
     uint32_t databaseId,
-    uint32_t blocksize,
+    uint32_t chunksize,
     std::string rangeStart,
     std::string rangeEnd,
     Tablespace& tablespace) {
@@ -46,9 +46,9 @@ static void clientSidePassiveWorkerThreadFn(
     }
     bool haveRangeEnd = !(rangeEnd.empty());
     leveldb::Slice rangeEndSlice(rangeEnd);
-    //Initialize a message buffer to read one data block ahead to improve latency.
-    zmq_msg_t* keyMsgBuffer = new zmq_msg_t[blocksize];
-    zmq_msg_t* valueMsgBuffer = new zmq_msg_t[blocksize];
+    //Initialize a message buffer to read one data chunk ahead to improve latency.
+    zmq_msg_t* keyMsgBuffer = new zmq_msg_t[chunksize];
+    zmq_msg_t* valueMsgBuffer = new zmq_msg_t[chunksize];
     uint32_t bufferValidSize = 0; //Number of valid elements in the buffer
     //Main receive/respond loop
     zmq_msg_t routingFrame, delimiterFrame, headerFrame;
@@ -58,7 +58,7 @@ static void clientSidePassiveWorkerThreadFn(
     while(true) {
         //Step 1: Read util the buffer is full or end of range is reached
         for(bufferValidSize = 0;
-            bufferValidSize < blocksize && it->Valid();
+            bufferValidSize < chunksize && it->Valid();
             it->Next()) {
             leveldb::Slice key = it->key();
             if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
@@ -102,7 +102,7 @@ static void clientSidePassiveWorkerThreadFn(
              * for the defined grace period
              */
             break;
-        } else if(bufferValidSize < blocksize) { //Partial data
+        } else if(bufferValidSize < chunksize) { //Partial data
             sendConstFrame(responsePartial, 4, outSocket, ZMQ_SNDMORE);
         } else {
             sendConstFrame(responseOK, 4, outSocket, ZMQ_SNDMORE);
@@ -116,7 +116,7 @@ static void clientSidePassiveWorkerThreadFn(
         zmq_msg_send(&keyMsgBuffer[bufferValidSize - 1], outSocket, ZMQ_SNDMORE);
         zmq_msg_send(&valueMsgBuffer[bufferValidSize - 1], outSocket, 0);
         //If this was a partial data, exit the loop
-        if(bufferValidSize < blocksize) {
+        if(bufferValidSize < chunksize) {
             break;
         }
     }
@@ -227,20 +227,22 @@ bool AsyncJobRouter::processNextRequest() {
         sendFrame(errstr, processorOutputSocket);
         logger.error(errstr);
     } else if (requestType == ClientSidePassiveTableMapInitializationRequest) {
-        zmq_msg_close(&headerFrames);
+        zmq_msg_close(&headerFrame);
         //Parse all parameters
-        uint32_t tableIdFrame;
-        if(!parseUint32Frame(tableIdFrame, "APID frame", true, "\x31\01\x42\x01")) {
+        uint32_t tableId;
+        if(!parseUint32Frame(tableId, "APID frame", true, "\x31\01\x42\x01")) {
             return true;
         }
-        uint32_t blockSize;
-        if(!parseUint32FrameOrAssumeDefault(blockSize, 1000, "Block size frame", true, "\x31\01\x42\x01")) {
+        uint32_t chunkSize;
+        if(!parseUint32FrameOrAssumeDefault(chunkSize, 1000, "Block size frame", true, "\x31\01\x42\x01")) {
             return true;
         }
-        std::string startSlice;
-        std::string endSlice;
-        parseRangeFrames(startSlice, endSlice, "CSPTMIR range");
+        std::string rangeStart;
+        std::string rangeEnd;
+        parseRangeFrames(rangeStart, rangeEnd, "CSPTMIR range", "\x31\x01\x42\x01", true);
         //Initialize it
+        uint64_t apid = initializeJob();
+        startClientSidePassiveJob(apid, tableId, chunkSize, rangeStart, rangeEnd);
     }  else {
         std::string errstr = "Internal routing error: request type " + std::to_string((int) requestType) + " routed to read worker thread!";
         logger.error(errstr);
@@ -271,14 +273,14 @@ void AsyncJobRouter::startServerSideJob(uint64_t apid) {
 
 void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid,
     uint32_t databaseId,
-    uint32_t blocksize,
+    uint32_t chunksize,
     const std::string& rangeStart,
     const std::string& rangeEnd) {
     std::thread* thd = new std::thread(clientSidePassiveWorkerThreadFn, 
             ctx,
             apid,
             databaseId,
-            blocksize,
+            chunksize,
             rangeStart,
             rangeEnd,
             std::ref(tablespace)
