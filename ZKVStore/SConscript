@@ -17,5 +17,6 @@ zkvSource =  ["zutil.cpp",
     "LogServer.cpp",
     "AbstractFrameProcessor.cpp",
     "AsyncJobRouter.cpp",
+    "SequentialIDGenerator.cpp",
     "Server.cpp"]
 hello = env.Program(target="zkv", source=zkvSource,LIBS=libraries)

@@ -203,6 +203,8 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         sendConstFrame(SERVER_VERSION, strlen(SERVER_VERSION), sock);
         //Dispose non-reused messages
         zmq_msg_close(&headerFrame);
+    } else if(requestType & 0x40) { //Data processing request
+        //TODO
     } else {
         server->logger.warn("Unknown message type " + std::to_string(requestType) + " from client\n");
         //Send a protocol error back to the client

@@ -87,7 +87,7 @@ static void clientSidePassiveWorkerThreadFn(
             }
             break;
         }
-        zmq_msg_recv(&delimiterFrame, inSocket, 0); //Note we shall not receive the header frame.
+        zmq_msg_recv(&delimiterFrame, inSocket, 0);
         //Step 3: Send the reply to client
         zmq_msg_send(&routingFrame, outSocket, ZMQ_SNDMORE);
         zmq_msg_send(&delimiterFrame, outSocket, ZMQ_SNDMORE);
@@ -187,7 +187,6 @@ bool AsyncJobRouter::processNextRequest() {
         return true;
     }
     assert(isHeaderFrame(&headerFrame));
-    //Read the APID
     //Get the request type
     RequestType requestType = getRequestType(&headerFrame);
     //Process the rest of the frame
@@ -207,6 +206,15 @@ bool AsyncJobRouter::processNextRequest() {
         sendFrame(errstr, processorOutputSocket);
         logger.error(errstr);
     } else if (requestType == ClientSidePassiveTableMapInitializationRequest) {
+        //Parse all parameters
+        uint32_t tableIdFrame;
+        if(!parseUint32Frame(tableIdFrame, "APID frame", true, "\x31\01\x42\x01")) {
+            return true;
+        }
+        uint32_t blockSize;
+        if(!parseUint32FrameOrAssumeDefault(blockSize, 1000, "Block size frame", true, "\x31\01\x42\x01")) {
+            return true;
+        }
         //Initialize it
     } else if (requestType == ClientDataRequest) {
         //Parse the APID frame
@@ -214,6 +222,19 @@ bool AsyncJobRouter::processNextRequest() {
         if(!parseUint64Frame(apid, "APID frame", true, "\x31\01\x50\x01")) {
             return true;
         }
+        //Return the 
+        if(!haveProcess(apid)) {
+            //Respond "No more data"
+            zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
+            zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE);
+            sendConstFrame("\x31\x01\x50\x01", 4, processorOutputSocket, logger, 0);
+        } else { //Forward to the job
+            void* outSock = processSocketMap[apid];
+            zmq_msg_send(&routingFrame, outSock, ZMQ_SNDMORE);
+            zmq_msg_send(&delimiterFrame, outSock, 0);
+        }
+        //Do some cleanup
+        zmq_msg_close(&headerFrame);
     } else {
         std::string errstr = "Internal routing error: request type " + std::to_string((int) requestType) + " routed to read worker thread!";
         logger.error(errstr);
@@ -242,8 +263,21 @@ void AsyncJobRouter::startServerSideJob(uint64_t apid) {
     cleanupJob(apid);
 }
 
-void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid) {
-    
+void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid,
+    uint32_t databaseId,
+    uint32_t blocksize,
+    const std::string& rangeStart,
+    const std::string& rangeEnd) {
+    std::thread* thd = new std::thread(clientSidePassiveWorkerThreadFn,
+            ctx,
+            apid,
+            databaseId,
+            blocksize,
+            rangeStart,
+            rangeEnd,
+            std::ref(tablespace)
+    );
+    processThreadMap[apid] = thd;
 }
 
 void AsyncJobRouter::cleanupJob(uint64_t apid) {

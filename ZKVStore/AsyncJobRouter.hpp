@@ -49,7 +49,11 @@ private:
      */
     uint64_t initializeJob();
     void startServerSideJob(uint64_t apid);
-    void startClientSidePassiveJob(uint64_t apid);
+    void startClientSidePassiveJob(uint64_t apid,
+        uint32_t databaseId,
+        uint32_t blocksize,
+        const std::string& rangeStart,
+        const std::string& rangeEnd);
     /**
      * Stop an asynchronous job an cleanup all resources related to it.
      */
