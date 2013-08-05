@@ -434,6 +434,8 @@ Replying to the request does not indicate any kind of success.
 
 ##### Forward range to socket response
 
+**WIP** REQUEST FORMAT MAY CHANGE ; NOT IMPLEMENTED YET
+
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x40 Response type (Forward range to socket response)]
 * Frame 1: 8-byte unsigned Job ID
 

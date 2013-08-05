@@ -17,9 +17,12 @@
  */
 #define tableOpenEndpoint "inproc://tableopenWorker"
 
-//Internal endpoints. Do not use
+//Internal endpoints. Do not use externally.
 #define updateWorkerThreadAddr "inproc://updateWorkerThreads"
 #define readWorkerThreadAddr "inproc://readWorkerThreads"
+//"Fast-path" to the main router, NOT the return path!
+#define mainRouterAddr "inproc://mainRouter" 
+#define asyncJobRouterAddr "inproc://asyncJobRouter"
 
 #endif	/* ENDPOINTS_HPP */
 

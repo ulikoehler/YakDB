@@ -274,8 +274,9 @@ static inline void recvAndIgnore(void* socket) {
 
 /**
  * Receives message parts from srcSocket until RCVMORE is not set anymore
- * (even if RCVMORE is not set at all)
- * and directly writes them into dstSocket
+ * (if RCVMORE is not set when calling this function, it just returns)
+ * and directly writes them into dstSocket. Only the last message part that is sent
+ * (if any is sent at all) will have ZMQ_SNDMORE unset.
  * 
  * This works similar to zmq_proxy, but only for a single message and only
  * in one direction.

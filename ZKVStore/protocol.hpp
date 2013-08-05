@@ -61,7 +61,11 @@ enum RequestType : uint8_t {
     PutRequest = 0x20,
     DeleteRequest = 0x21,
     DeleteRangeRequest = 0x22,
-    LimitedDeleteRangeRequest = 0x23
+    LimitedDeleteRangeRequest = 0x23,
+    ForwardRangeToSocketRequest = 0x40,
+    ServerSideTableSinkedMapInitializationRequest = 0x41,
+    ClientSidePassiveTableMapInitializationRequest = 0x42,
+    ClientDataRequest = 0x50
 };
 
 enum ResponseType : uint8_t {

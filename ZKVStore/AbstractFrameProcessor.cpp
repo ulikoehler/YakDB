@@ -141,7 +141,7 @@ bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest
     return true;
 }
 
-bool parseUint32FrameOrAssumeDefault(uint32_t& valDst,
+bool AbstractFrameProcessor::parseUint32FrameOrAssumeDefault(uint32_t& valueDest,
             uint32_t defaultValue,
             const char* frameDesc,
             bool generateResponse,
