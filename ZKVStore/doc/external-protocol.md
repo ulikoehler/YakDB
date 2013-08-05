@@ -478,8 +478,6 @@ Response codes (lower byte counts!):
 
 ##### CSPTMIR (Client-Side Passive table map initialization request)
 
-**WIP** REQUEST FORMAT MAY CHANGE ; NOT IMPLEMENTED YET
-
 This request initializes a job with a REP socket that waits for requests from clients and deliverse data blocks upon
 request. The data block size is configurable. This request is called passive because the server waits for client
 requests passively and does not actively send data without requests. It is called client-side because

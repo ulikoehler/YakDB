@@ -192,33 +192,7 @@ bool AsyncJobRouter::processNextRequest() {
     //Get the request type
     RequestType requestType = getRequestType(&headerFrame);
     //Process the rest of the frame
-    if (requestType == ForwardRangeToSocketRequest) {
-        //TODO impleent
-        zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
-        zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE);
-        zmq_send(processorOutputSocket, "\x31\x01\x40\x01", 4, ZMQ_SNDMORE);
-        std::string errstr = "Forward range to socket request not yet implemented";
-        sendFrame(errstr, processorOutputSocket);
-        logger.error(errstr);
-    } else if (requestType == ServerSideTableSinkedMapInitializationRequest) {
-        zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
-        zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE);
-        zmq_send(processorOutputSocket, "\x31\x01\x41\x01", 4, ZMQ_SNDMORE);
-        std::string errstr = "SSTSMIR not yet implemented";
-        sendFrame(errstr, processorOutputSocket);
-        logger.error(errstr);
-    } else if (requestType == ClientSidePassiveTableMapInitializationRequest) {
-        //Parse all parameters
-        uint32_t tableIdFrame;
-        if(!parseUint32Frame(tableIdFrame, "APID frame", true, "\x31\01\x42\x01")) {
-            return true;
-        }
-        uint32_t blockSize;
-        if(!parseUint32FrameOrAssumeDefault(blockSize, 1000, "Block size frame", true, "\x31\01\x42\x01")) {
-            return true;
-        }
-        //Initialize it
-    } else if (requestType == ClientDataRequest) {
+    if (requestType == ClientDataRequest) {
         //Parse the APID frame
         uint64_t apid;
         if(!parseUint64Frame(apid, "APID frame", true, "\x31\01\x50\x01")) {
@@ -237,7 +211,37 @@ bool AsyncJobRouter::processNextRequest() {
         }
         //Do some cleanup
         zmq_msg_close(&headerFrame);
-    } else {
+    } else if (requestType == ForwardRangeToSocketRequest) {
+        //TODO impleent
+        zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
+        zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE);
+        zmq_send(processorOutputSocket, "\x31\x01\x40\x01", 4, ZMQ_SNDMORE);
+        std::string errstr = "Forward range to socket request not yet implemented";
+        sendFrame(errstr, processorOutputSocket);
+        logger.error(errstr);
+    } else if (requestType == ServerSideTableSinkedMapInitializationRequest) {
+        zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
+        zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE);
+        zmq_send(processorOutputSocket, "\x31\x01\x41\x01", 4, ZMQ_SNDMORE);
+        std::string errstr = "SSTSMIR not yet implemented";
+        sendFrame(errstr, processorOutputSocket);
+        logger.error(errstr);
+    } else if (requestType == ClientSidePassiveTableMapInitializationRequest) {
+        zmq_msg_close(&headerFrames);
+        //Parse all parameters
+        uint32_t tableIdFrame;
+        if(!parseUint32Frame(tableIdFrame, "APID frame", true, "\x31\01\x42\x01")) {
+            return true;
+        }
+        uint32_t blockSize;
+        if(!parseUint32FrameOrAssumeDefault(blockSize, 1000, "Block size frame", true, "\x31\01\x42\x01")) {
+            return true;
+        }
+        std::string startSlice;
+        std::string endSlice;
+        parseRangeFrames(startSlice, endSlice, "CSPTMIR range");
+        //Initialize it
+    }  else {
         std::string errstr = "Internal routing error: request type " + std::to_string((int) requestType) + " routed to read worker thread!";
         logger.error(errstr);
         sendConstFrame("\x31\x01\xFF", 3, processorOutputSocket, ZMQ_SNDMORE);

@@ -218,7 +218,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         //Dispose non-reused frames
         zmq_msg_close(&headerFrame);
         //There might be more frames of the current msg that clog up the queue
-        // and wcould lead to nasty bugs. Clear them, if any.
+        // and could lead to nasty bugs. Clear them, if any.
         recvAndIgnore(sock);
     }
     return 0;
