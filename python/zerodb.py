@@ -1,73 +1,9 @@
 import zmq
 import struct
 #Local imports
-from Protocol import ZMQBinaryUtil
+from Conversion import ZMQBinaryUtil
+from Exceptions import ZeroDBProtocolException,  ParameterException
 import DataProcessor
-#TODO document these
-class ParameterException(Exception):
-    def __init__(self, message):
-        Exception.__init__(self, message)
-
-class ZeroDBProtocolException(Exception):
-    def __init__(self, message):
-        Exception.__init__(self, message)
-
-class WriteBatch:
-    """
-    An utility class that auto-batches write requests to a backend Connection
-    When calling flush, a put request is issued to the backend.
-    Write request are automatically issued on batch overflow and
-    object deletion.
-    """
-    def __init__(self, db, tableNo, batchSize=2500, partsync=False, fullsync=False):
-        """
-        Create a new WriteBatch.
-        @param db The ZeroDB connection backend
-        @param tableNo The table number this batch is related to.
-        """
-        self.db = db
-        self.tableNo = tableNo
-        self.batchSize = batchSize
-        self.partsync = partsync
-        self.fullsync = fullsync
-        self.batchData = {}
-    def put(self, valueDict):
-        """
-        Write a dictionary of values to the current batch.
-        Note that this is slower than adding the keys one-by-one
-        because of the merge method currently being used
-        """
-        if type(valueDict) is not dict:
-            raise ParameterException("Batch put valueDict parameter must be a dictionary but it's a %s" % str(type(valueDict)))
-        #Merge the dicts
-        self.batchData = dict(self.batchData.items() + valueDict.items())
-        self.__checkFlush()
-    def putSingle(self, key, value):
-        """
-        Write a single key-value pair to the current batch
-        """
-        #Convert the key and value to a appropriate binary form (also checks if obj type is supported)
-        #Without this, tracing back what added a key/value with an inappropriate type would not be possible
-        convKey = Connection._convertToBinary(key)
-        convValue = Connection._convertToBinary(value)
-        self.batchData[convKey] = convValue
-        self.__checkFlush()
-    def __checkFlush(self):
-        """
-        Issues a flash if self.batchData overflowed
-        """
-        if len(self.batchData) >= self.batchSize:
-            self.flush()
-    def flush(self):
-        """
-        Immediately issue the backend write request and clear the batch write queue.
-        It is NOT neccessary to flush before the object is deleted!
-        """
-        if len(self.batchData) != 0:
-            self.db.put(self.tableNo, self.batchData, self.partsync, self.fullsync)
-            self.batchData = {}
-    def __del__(self):
-        self.flush()
 
 class Connection:
     def __init__(self, context=None):
@@ -127,8 +63,8 @@ class Connection:
         @param more If this is set to true, not only the range start frame but also the range end frame is sent
             with the ZMQ_SNDMORE flag
         """
-        if fromKey is not None: fromKey = self._convertToBinary(fromKey)
-        if toKey is not None: toKey = self._convertToBinary(toKey)
+        if fromKey is not None: fromKey = ZMQBinaryUtil.convertToBinary(fromKey)
+        if toKey is not None: toKey = ZMQBinaryUtil.convertToBinary(toKey)
         if fromKey is None: fromKey = ""
         if toKey is None: toKey = ""
         self.socket.send(fromKey, zmq.SNDMORE)
@@ -156,22 +92,6 @@ class Connection:
                 "Response status code is %d instead of 0x00 (ACK), error message: %s"
                 % (ord(msgParts[0][3]),  errorMsg))
     @staticmethod
-    def _convertToBinary(value):
-        """
-        Given a string, float or int value, convert it to binary and return the converted value.
-        Ints are converted to 32-bit little-endian signed integers (uint32_t).
-        Floats are converted to 64-bit little-endian IEEE754 values (double).
-        Numeric values are assumed to be signed.
-        For other types, raise an exception
-        """
-        if type(value) is int:
-            return struct.pack('<i', value)
-        elif type(value) is float:
-            return struct.pack('<d', value)
-        elif type(value) is str:
-            return value
-        else:
-            raise ParameterException("Value '%s' is neither int nor float nor str-type -- not mappable to binary. Please use a binary string for custom types." % value)
     def serverInfo(self):
         """
         Send a server info request to the client
@@ -242,7 +162,7 @@ class Connection:
             #Send the value from the last loop iteration
             if nextToSend is not None: self.socket.send(nextToSend, zmq.SNDMORE)
             #Map key to binary data if neccessary
-            value = self._convertToBinary(valueDict[key])
+            value = ZMQBinaryUtil.convertToBinary(valueDict[key])
             #Send the key and enqueue the value
             self.socket.send(key, zmq.SNDMORE)
             nextToSend = value
@@ -271,10 +191,10 @@ class Connection:
             for value in keys:
                 if value is None:
                     raise ParameterException("Key list contains 'None' value, not mappable to binary")
-                convertedKeys.append(self._convertToBinary(value))
+                convertedKeys.append(ZMQBinaryUtil.convertToBinary(value))
         elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
             #We only have a single value
-            convertedKeys.append(self._convertToBinary(keys))
+            convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
         #Check if this connection instance is setup correctly
         self._checkRequestReply()
         #Send header frame
@@ -315,10 +235,10 @@ class Connection:
             for value in keys:
                 if value is None:
                     raise ParameterException("Key list contains 'None' value, not mappable to binary")
-                convertedKeys.append(self._convertToBinary(value))
+                convertedKeys.append(ZMQBinaryUtil.convertToBinary(value))
         elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
             #We only have a single value
-            convertedKeys.append(self._convertToBinary(keys))
+            convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
         #Check if this connection instance is setup correctly
         self._checkRequestReply()
         #Send header frame
@@ -403,7 +323,7 @@ class Connection:
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send range. "" --> empty frame --> start/end of tabe
-        if fromKey is not None: fromKey = self._convertToBinary(fromKey)
+        if fromKey is not None: fromKey = ZMQBinaryUtil.convertToBinary(fromKey)
         if fromKey is None: fromKey = ""
         self.socket.send(fromKey, zmq.SNDMORE)
         self._sendBinary64(limit, more=False)
@@ -458,7 +378,7 @@ class Connection:
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send range. "" --> empty frame --> start/end of tabe
-        if fromKey is not None: fromKey = self._convertToBinary(fromKey)
+        if fromKey is not None: fromKey = ZMQBinaryUtil.convertToBinary(fromKey)
         if fromKey is None: fromKey = ""
         self.socket.send(fromKey, zmq.SNDMORE)
         self._sendBinary64(limit)
@@ -513,10 +433,10 @@ class Connection:
             for value in keys:
                 if value is None:
                     raise ParameterException("Key list contains 'None' value, not mappable to binary")
-                convertedKeys.append(self._convertToBinary(value))
+                convertedKeys.append(ZMQBinaryUtil.convertToBinary(value))
         elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
             #We only have a single value
-            convertedKeys.append(self._convertToBinary(keys))
+            convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
         #Check if this connection instance is setup correctly
         self._checkRequestReply()
         #Send header frame
