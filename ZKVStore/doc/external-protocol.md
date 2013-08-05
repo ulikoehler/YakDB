@@ -479,7 +479,7 @@ Response codes (lower byte counts!):
 ##### CSPTMIR (Client-Side Passive table map initialization request)
 
 This request initializes a job with a REP socket that waits for requests from clients and deliverse data blocks upon
-request. The data block size is configurable. This request is called passive because the server waits for client
+request. The data chunksize size is configurable. This request is called passive because the server waits for client
 requests passively and does not actively send data without requests. It is called client-side because
 
 This request uses snapshots for the source table.
@@ -488,11 +488,11 @@ or write it to a file etc.
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x42 Request type (CSPTMIR)]
 * Frame 1: 4-byte unsigned integer input table number
-* Frame 2: Empty or 4-byte blocksize (= number of key-value structures that will be returned upon request)
+* Frame 2: Empty or 4-byte chunksize (= number of key-value structures that will be returned upon request)
 * Frame 3: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 4: End key (inclusive). If this has zero length, the count ends at the last keys
 
-If frame 2 is empty, a default blocksize shall be assumed.
+If frame 2 is empty, a default chunksize shall be assumed.
 
 ##### CSPTMIR Response
 
@@ -506,10 +506,10 @@ If frame 2 is empty, a default blocksize shall be assumed.
 ##### Client data request
 
 This request type must only be used with APIDs that have been returned by CSPTMIRs.
-By using this request, clients request data blocks.
+By using this request, clients request a single data chunk at a time.
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x50 Request type]
-* Frame 1: 64-bit APIDs
+* Frame 1: 64-bit APID
 
 ##### Client data response
 
@@ -517,8 +517,8 @@ By using this request, clients request data blocks.
 * Frame 1-n (odd frame numbers): Key, corresponds to value in next frame
 * Frame 2-n (even frame numbers): Value, corresponds to key in previous frame
 
-The message shall contain at most blocksize*2+1 frames.
+The message shall contain at most chunksize*2+1 frames.
 
 Response flags:
     0x01: No more data (--> last frame, client shall not request more frames as no data will be returned)
-    0x02: Partial data (--> last frame, less than *blocksize* KV pairs). May not occur together with "No more data" flag.
+    0x02: Partial data (--> last frame, less than *chunksize* KV pairs). May not occur together with "No more data" flag.

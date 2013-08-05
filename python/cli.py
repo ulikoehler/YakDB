@@ -47,7 +47,7 @@ def deleteRange(db, tableNo, fromKey, toKey):
     db.deleteRange(tableNo, fromKey, toKey)
 
 def info(db):
-    print db.serverInfo()
+    print(db.serverInfo())
 
 if __name__ == "__main__":
     parser = optparse.OptionParser()
@@ -103,7 +103,7 @@ if __name__ == "__main__":
         if len(args) >= 3: arg2 = args[2]
         commands = ["open","read","exists","put","delete","deleterange","scan","scan+limit","count","info"]
         if cmd not in commands:
-            print "Command '%s' not available - available commands: %s" % (cmd, ", ".join(commands))
+            print("Command '%s' not available - available commands: %s" % (cmd, ", ".join(commands)))
             sys.exit(1)
         elif cmd == "info": info(db)
         elif cmd == "exists": exists(db, tableNo, args[1:])

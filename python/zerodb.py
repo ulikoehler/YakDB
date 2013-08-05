@@ -1,6 +1,8 @@
 import zmq
 import struct
-
+#Local imports
+from Protocol import ZMQBinaryUtil
+import DataProcessor
 #TODO document these
 class ParameterException(Exception):
     def __init__(self, message):
@@ -112,33 +114,12 @@ class Connection:
             raise Exception("Only request/reply connections support server info msgs")
     def _checkConnection(self):
         """Check if the current instance is correctly connected, else raise an exception"""
-        if self.socket == None:
+        if self.socket is None:
             raise Exception("Please connect to server before using serverInfo (use ZeroDBConnection.connect()!")
         if not self.isConnected:
             raise Exception("Current ZeroDBConnection is setup, but not connected. Please connect before usage!")
-    def _sendBinary32(self, value, more=True):
-        """
-        Send a given int as 32-bit little-endian unsigned integer over self.socket.
-
-        If no second argument is given, SNDMORE is used as flag
-
-        This is e.g. used to send a table number frame.
-        """
-        if type(value) is not int:
-            raise Exception("Can't format object of non-integer type as binary integer")
-        self.socket.send(struct.pack('<I', value), (zmq.SNDMORE if more else 0))
-    def _sendBinary64(self, value, more=True):
-        """
-        Send a given int as 64-bit little-endian unsigned integer over self.socket.
-        @param value The integral value, or None to send empty frame.
-        @param more If this is set to False, ZMQ_SNDMORE is unset
-        """
-        if value is None:
-            self.socket.send("", (zmq.SNDMORE if more else 0))
-            return
-        if type(value) is not int:
-            raise Exception("Can't format object of non-integer type as binary integer")
-        self.socket.send(struct.pack('<q', value), (zmq.SNDMORE if more else 0))
+    def _sendBinary32(self, value, more): ZMQBinaryUtil.sendBinary32(self.socket,  value,  more)
+    def _sendBinary64(self, value, more): ZMQBinaryUtil.sendBinary64(self.socket,  value,  more)
     def _sendRange(self, fromKey,  toKey,  more=False):
         """
         Send a dual-frame range over the socket.
@@ -368,7 +349,7 @@ class Connection:
             for i in range(len(values)):
                 res[keys[i]] = values[i]
             return res
-    def scan(self, tableNo, fromKey, toKey):
+    def scan(self, tableNo, fromKey=None, toKey=None):
         """
         Synchronous scan. Scans an entire range at once.
 
@@ -615,14 +596,14 @@ class Connection:
         self._sendBinary32(tableNo, 0) #No SNDMORE flag
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x04')
-    def initializePassiveDataJob(self, tableNo, fromKey, toKey,  blocksize=None):
+    def initializePassiveDataJob(self, tableNo, fromKey=None, toKey=None,  blocksize=None):
         """
         Initialize a job on the server that waits for client requests.
         @param tableNo The table number to scan in
         @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
         @param blocksize How many key/value pairs will be returned for a single request. None --> Serverside default
-        @return A PassiveDataJob instance
+        @return A PassiveDataJob instance, exposing requestDataBlock()
         """
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
@@ -630,7 +611,7 @@ class Connection:
         #Check if this connection instance is setup correctly
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x41", zmq.SNDMORE)
+        self.socket.send("\x31\x01\x42", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         self._sendBinary32(blocksize)
@@ -638,9 +619,29 @@ class Connection:
         self._sendRange(fromKey,  toKey)
         #Receive response
         msgParts = self.socket.recv_multipart(copy=True)
-        if len(msgParts) == 0:
-            raise ZeroDBProtocolException("Received empty reply message")
-        if msgParts[0][2] != '\x01':
-            raise ZeroDBProtocolException("Exists response code was %d instead of 18" % ord(msgParts[0][2]))
-        if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Exists response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
+        self._checkHeaderFrame(msgParts,  '\x42')
+        if len(msgParts) < 2:
+            raise ZeroDBProtocolException("CSPTMIR response does not contain APID frame")
+        #Get the APID and create a new job instance
+        apid = struct.unpack('<q', msgParts[1])
+        return DataProcessor.ClientSidePassiveJob(self,  apid)
+    def _requestJobDataChunk(self,  apid):
+        """
+        Requests a data chunk for a given asynchronous Job.
+        May only be used for client-side passive jobs.
+        @param apid The Asynchronous Process ID
+        """
+        self._checkParameterType(apid, int, "apid")
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send("\x31\x01\x50", zmq.SNDMORE)
+        #Send APID
+        self._sendBinary64(apid,  more=False)
+        #Receive response chunk
+        msgParts = self.socket.recv_multipart(copy=True)
+        self._checkHeaderFrame(msgParts,  '\x50')
+        dataParts = msgParts[1:]
+        mappedData = {}
+        for i in range(0,len(dataParts),2):
+            mappedData[dataParts[i]] = dataParts[i+1]
+        return mappedData
