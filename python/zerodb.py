@@ -9,7 +9,7 @@ class ParameterException(Exception):
 class ZeroDBProtocolException(Exception):
     def __init__(self, message):
         Exception.__init__(self, message)
-        
+
 class WriteBatch:
     """
     An utility class that auto-batches write requests to a backend Connection
@@ -77,6 +77,15 @@ class Connection:
             self.cleanupContextOnDestruct = False
         self.socket = None
         self.isConnected = False
+    def __del__(self):
+        """
+        Cleanup ZMQ resources.
+        Auto-destroys context if the context was created in the constructor.
+        """
+        if self.socket is not None:
+            self.socket.close()
+        if self.cleanupContextOnDestruct:
+            self.context.destroy()
     def useRequestReplyMode(self):
         """Sets the current ZeroDB connection into Request/reply mode (default)"""
         self.socket = self.context.socket(zmq.REQ)
@@ -110,9 +119,9 @@ class Connection:
     def _sendBinary32(self, value, more=True):
         """
         Send a given int as 32-bit little-endian unsigned integer over self.socket.
-        
+
         If no second argument is given, SNDMORE is used as flag
-        
+
         This is e.g. used to send a table number frame.
         """
         if type(value) is not int:
@@ -121,14 +130,50 @@ class Connection:
     def _sendBinary64(self, value, more=True):
         """
         Send a given int as 64-bit little-endian unsigned integer over self.socket.
-        
-        If no second argument is given, SNDMORE is used as flag
-        
-        This is e.g. used to send a table number frame.
+        @param value The integral value, or None to send empty frame.
+        @param more If this is set to False, ZMQ_SNDMORE is unset
         """
+        if value is None:
+            self.socket.send("", (zmq.SNDMORE if more else 0))
+            return
         if type(value) is not int:
             raise Exception("Can't format object of non-integer type as binary integer")
         self.socket.send(struct.pack('<q', value), (zmq.SNDMORE if more else 0))
+    def _sendRange(self, fromKey,  toKey,  more=False):
+        """
+        Send a dual-frame range over the socket.
+        If any of the keys is None or empty, a zero-sized frame is sent
+        @param more If this is set to true, not only the range start frame but also the range end frame is sent
+            with the ZMQ_SNDMORE flag
+        """
+        if fromKey is not None: fromKey = self._convertToBinary(fromKey)
+        if toKey is not None: toKey = self._convertToBinary(toKey)
+        if fromKey is None: fromKey = ""
+        if toKey is None: toKey = ""
+        self.socket.send(fromKey, zmq.SNDMORE)
+        self.socket.send(toKey,  (zmq.SNDMORE if more else 0))
+    @staticmethod
+    def _checkHeaderFrame(self,  msgParts,  expectedResponseType):
+        """
+        Given a list of received message parts, checks the first message part.
+        Checks performed:
+            - Magic byte (expects 0x31)
+            - Version byte (expects 0x01)
+            - Response code (expects 0x00, else it assumes that the next frame, is the error msg)
+        This function throws an exception on check failure and exits normally on success
+        """
+        if len(msgParts) == 0:
+            raise ZeroDBProtocolException("Received empty reply message")
+        if len(msgParts[0] < 4):
+            raise ZeroDBProtocolException("Received empty reply message")
+        if msgParts[0][2] != expectedResponseType:
+            raise ZeroDBProtocolException("Response code received from server is"
+                        "%d instead of %d" % (ord(msgParts[0][2]),  ord(expectedResponseType)))
+        if msgParts[0][3] != '\x00':
+            errorMsg = msgParts[1] if len(msgParts >= 2) else "<Unknown>"
+            raise ZeroDBProtocolException(
+                "Response status code is %d instead of 0x00 (ACK), error message: %s"
+                % (ord(msgParts[0][3]),  errorMsg))
     @staticmethod
     def _convertToBinary(value):
         """
@@ -162,13 +207,19 @@ class Connection:
             raise Exception("Response header frame contains invalid header: %d %d %d" % (ord(responseHeader[0]), ord(responseHeader[1]), ord(responseHeader[2])))
         #Return the server version string
         return replyParts[1]
-    def _checkParameterType(self, value, expectedType, name):
+    def _checkParameterType(self, value, expectedType, name,  allowNone=False):
+        """
+        Raises a ParameterException if the given value does not have the given type
+        @param allowNone If this is set to true, a 'None' value is also allowed and doesn't throw
+        """
+        if allowNone and value is None:
+            return
         if type(value) is not expectedType:
             raise ParameterException("Parameter '%s' is not a %s but a %s!" % (name, str(expectedType), str(type(value))))
     def put(self, tableNo, valueDict, partsync=False, fullsync=False):
         """
         Write a dictionary of key-value pairs to the connected servers
-        
+
         @param tableNo The numeric, unsigned table number to write to
         @param valueDict A dictionary containing the key/value pairs to be written.
                         Must not contain None keys or values.
@@ -220,17 +271,11 @@ class Connection:
         #If this is a req/rep connection, receive a reply
         if self.mode is zmq.REQ:
             msgParts = self.socket.recv_multipart(copy=True)
-            if len(msgParts) == 0:
-                raise ZeroDBProtocolException("Received empty put reply message")
-            if msgParts[0][2] != '\x20':
-                raise ZeroDBProtocolException("Put response code was %d instead of 0x20" % ord(msgParts[0][2]))
-            if msgParts[0][3] != '\x00':
-                raise ZeroDBProtocolException("Put response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
-        return True
+            self._checkHeaderFrame(msgParts,  '\x20')
     def delete(self, tableNo, keys):
         """
         Delete one or multiples values, identified by their keys, from a table.
-        
+
         @param tableNo The table number to delete in
         @param keys A list, tuple or single value.
                         Must only contain strings, ints or floats.
@@ -266,23 +311,21 @@ class Connection:
         self.socket.send(nextToSend)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        if len(msgParts) == 0:
-            raise ZeroDBProtocolException("Received empty delete reply message")
-        if msgParts[0][2] != '\x21':
-            raise ZeroDBProtocolException("Delete response type was %d instead of 33" % ord(msgParts[0][2]))
-        if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Delete response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
-    def read(self, tableNo, keys):
+        self._checkHeaderFrame(msgParts,  '\x21')
+    def readRaw(self, tableNo, keys,  mapKeys=False):
         """
         Read one or multiples values, identified by their keys, from a table.
-        
+
         @param tableNo The table number to read from
         @param keys A list, tuple or single value.
                         Must only contain strings, ints or floats.
                         integral types are automatically mapped to signed 32-bit little-endian binary,
                         floating point types are mapped to signed little-endian 64-bit IEEE754 values.
                         If you'd like to use another binary representation, use a binary string instead.
-        @return A list of values, correspondent to the key order
+        @param mapKeys If this is set to true, a mapping from the original keys to 
+                        values is performed, the return value is a dictionary key->value
+                        rather than a value list. Mapping keys introduces additional overhead.
+        @return A list of values, correspondent to the key order (or a dict, depends on mapKeys parameter)
         """
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
@@ -312,22 +355,26 @@ class Connection:
         self.socket.send(nextToSend)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        if len(msgParts) == 0:
-            raise ZeroDBProtocolException("Received empty read reply message")
-        if msgParts[0][2] != '\x10':
-            raise ZeroDBProtocolException("Read response type was %d instead of 16" % ord(msgParts[0][2]))
-        if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Read response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
-        #Return the data frames
-        return msgParts[1:]
+        self._checkHeaderFrame(msgParts,  '\x10')        #Return the data frames
+        if not mapKeys:
+            return msgParts[1:]
+        else: #Perform key-value mapping
+            res = {}
+            #For mapping we need to ensure 'keys' is array-ish
+            if type(keys) is not list and type(keys) is not tuple:
+                keys = [keys]
+            #Do the key-value mapping
+            values = msgParts[1:]
+            for i in range(len(values)):
+                res[keys[i]] = values[i]
+            return res
     def scan(self, tableNo, fromKey, toKey):
         """
         Synchronous scan. Scans an entire range at once.
-        
+
         See self.read() documentation for an explanation of how
         non-str values are mapped.
-        
-        
+
         @param tableNo The table number to scan in
         @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
@@ -341,25 +388,14 @@ class Connection:
         self.socket.send("\x31\x01\x13", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
-        #Send range. "" --> empty frame --> start/end of tabe
-        if fromKey is not None: fromKey = self._convertToBinary(fromKey)
-        if toKey is not None: toKey = self._convertToBinary(toKey)
-        if fromKey is None: fromKey = ""
-        if toKey is None: toKey = ""
-        self.socket.send(fromKey, zmq.SNDMORE)
-        self.socket.send(toKey)
+        #Send range. "" --> empty frame --> start/end of table
+        self._sendRange(fromKey,  toKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        if len(msgParts) == 0:
-            raise ZeroDBProtocolException("Received empty scan reply message")
-        if msgParts[0][2] != '\x13':
-            raise ZeroDBProtocolException("Scan response type was %d instead of 19" % ord(msgParts[0][2]))
-        if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Scan response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
-        #Remap the returned key/value pairs to a dict
+        self._checkHeaderFrame(msgParts,  '\x13') #Remap the returned key/value pairs to a dict
         dataParts = msgParts[1:]
         mappedData = {}
-        for i in xrange(0,len(dataParts),2):
+        for i in range(0,len(dataParts),2):
             mappedData[dataParts[i]] = dataParts[i+1]
         return mappedData
     def scanWithLimit(self, tableNo, fromKey, limit):
@@ -367,11 +403,10 @@ class Connection:
         Synchronous limited scan.
         Returns up to a given limit of key-value pairs, starting
         at the given start key
-        
+
         See self.read() documentation for an explanation of how
         non-str values are mapped.
-        
-        
+
         @param tableNo The table number to scan in
         @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param limit The maximum number of keys to return
@@ -393,22 +428,17 @@ class Connection:
         self._sendBinary64(limit, more=False)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        if len(msgParts) == 0:
-            raise ZeroDBProtocolException("Received empty limited scan reply message")
-        if msgParts[0][2] != '\x14':
-            raise ZeroDBProtocolException("Limited scan response type was %d instead of 20" % ord(msgParts[0][2]))
-        if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Limited scan response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
+        self._checkHeaderFrame(msgParts,  '\x14')
         #Remap the returned key/value pairs to a dict
         dataParts = msgParts[1:]
         mappedData = {}
-        for i in xrange(0,len(dataParts),2):
+        for i in range(0,len(dataParts),2):
             mappedData[dataParts[i]] = dataParts[i+1]
         return mappedData
     def deleteRange(self, tableNo, fromKey, toKey):
         """
         Deletes a range of keys in the database
-        
+
         @param tableNo The table number to scan in
         @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
@@ -423,25 +453,15 @@ class Connection:
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send range. "" --> empty frame --> start/end of tabe
-        if fromKey is not None: fromKey = self._convertToBinary(fromKey)
-        if toKey is not None: toKey = self._convertToBinary(toKey)
-        if fromKey is None: fromKey = ""
-        if toKey is None: toKey = ""
-        self.socket.send(fromKey, zmq.SNDMORE)
-        self.socket.send(toKey)
+        self._sendRange(fromKey,  toKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        if len(msgParts) == 0:
-            raise ZeroDBProtocolException("Received empty delete range reply message")
-        if msgParts[0][2] != '\x22':
-            raise ZeroDBProtocolException("Delete range response type was %d instead of 34" % ord(msgParts[0][2]))
-        if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Delete range response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
+        self._checkHeaderFrame(msgParts,  '\x22')
     def deleteLimitedRange(self, tableNo, fromKey, limit):
         """
         Deletes a range of keys in the database. This is a version of deleteRange() that allows
         you to specify a maximum number of keys to scan, instead of an end key
-        
+
         @param tableNo The table number to scan in
         @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
@@ -463,19 +483,14 @@ class Connection:
         self._sendBinary64(limit)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        if len(msgParts) == 0:
-            raise ZeroDBProtocolException("Received empty limited delete range reply message")
-        if msgParts[0][2] != '\x23':
-            raise ZeroDBProtocolException("Limited delete range response type was %d instead of 34" % ord(msgParts[0][2]))
-        if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Limited delete range response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
+        self._checkHeaderFrame(msgParts,  '\x23')
     def count(self, tableNo, fromKey, toKey):
         """
         Count a range of
-        
+
         See self.read() documentation for an explanation of how
         non-str values are mapped.
-        
+
         @param tableNo The table number to scan in
         @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
@@ -489,21 +504,11 @@ class Connection:
         self.socket.send("\x31\x01\x11", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
-        #Send range. "" --> empty frame --> start/end of tabe
-        if fromKey is not None: fromKey = self._convertToBinary(fromKey)
-        if toKey is not None: toKey = self._convertToBinary(toKey)
-        if fromKey is None: fromKey = ""
-        if toKey is None: toKey = ""
-        self.socket.send(fromKey, zmq.SNDMORE)
-        self.socket.send(toKey)
+        #Send range. "" --> empty frame --> start/end of table
+        self._sendRange(fromKey,  toKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        if len(msgParts) == 0:
-            raise ZeroDBProtocolException("Received empty count reply message")
-        if msgParts[0][2] != '\x11':
-            raise ZeroDBProtocolException("Count response type was %d instead of 17" % ord(msgParts[0][2]))
-        if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Count response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
+        self._checkHeaderFrame(msgParts,  '\x14')
         #Deserialize
         binaryCount = msgParts[1]
         count = struct.unpack("<Q", binaryCount)[0]
@@ -511,7 +516,7 @@ class Connection:
     def exists(self, tableNo, keys):
         """
         Chec one or multiples values, identified by their keys, for existence in a given table.
-        
+
         @param tableNo The table number to read from
         @param keys A list, tuple or single value.
                         Must only contain strings, ints or floats.
@@ -548,12 +553,7 @@ class Connection:
         self.socket.send(nextToSend)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        if len(msgParts) == 0:
-            raise ZeroDBProtocolException("Received empty exists reply message")
-        if msgParts[0][2] != '\x12':
-            raise ZeroDBProtocolException("Exists response code was %d instead of 18" % ord(msgParts[0][2]))
-        if msgParts[0][3] != '\x00':
-            raise ZeroDBProtocolException("Exists response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))
+        self._checkHeaderFrame(msgParts,  '\x12')
         #Return the data frames after mapping them to bools
         processedValues = []
         for msgPart in msgParts[1:]:
@@ -562,15 +562,15 @@ class Connection:
     def openTable(self, tableNo, compression=True, lruCacheSize=None, writeBufferSize=None, tableBlocksize=None, bloomFilterBitsPerKey=None):
         """
         Open a table.
-        
+
         This is usually not neccessary, because tables are opened on-the-fly
         when they are accessed. Opening tables is slow, however,
         so this decreases latency and counteracts the possibility
         of work piling up for threads that are waiting for a table to be opened.
-        
+
         Additionally, this method of opening tables allows settings all
         table parameters whereas on-the-fly-open always assumes defaults
-        
+
         @param tableNo The table number to truncate
         @param compression Set this to false to disable blocklevel snappy compression
         @param lruCacheSize The LRU cache size in bytes, or None to assume default
@@ -580,50 +580,67 @@ class Connection:
         """
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
-        if lruCacheSize is not None and type(lruCacheSize) is not int:
-            raise ParameterException("LRU cache size parameter is not an integer or None!")
-        if tableBlocksize is not None and type(tableBlocksize) is not int:
-            raise ParameterException("Table block size parameter is not an integer or None!")
-        if writeBufferSize is not None and type(writeBufferSize) is not int:
-            raise ParameterException("Write buffer size parameter is not an integer or None!")
-        if bloomFilterBitsPerKey is not None and type(bloomFilterBitsPerKey) is not int:
-            raise ParameterException("Bloom filter bits per key parameter is not an integer or None!")
+        self._checkParameterType(lruCacheSize,  int,  "lruCacheSize",  allowNone=True)
+        self._checkParameterType(tableBlocksize,  int,  "tableBlocksize",  allowNone=True)
+        self._checkParameterType(writeBufferSize,  int,  "writeBufferSize",  allowNone=True)
+        self._checkParameterType(bloomFilterBitsPerKey,  int,  "bloomFilterBitsPerKey",  allowNone=True)
         #Check if this connection instance is setup correctly
-        self._checkRequestReply
+        self._checkRequestReply()
         #Send header frame
         headerFrame = "\x31\x01\x01" + ("\x00" if compression else "\x01")
         self.socket.send(headerFrame, zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send LRU, blocksize and write buffer size
-        if lruCacheSize is None: self.socket.send("", zmq.SNDMORE)
-        else: self._sendBinary64(lruCacheSize)
-        if tableBlocksize is None: self.socket.send("", zmq.SNDMORE)
-        else: self._sendBinary64(tableBlocksize)
-        if writeBufferSize is None: self.socket.send("", zmq.SNDMORE)
-        else: self._sendBinary64(writeBufferSize)
-        if bloomFilterBitsPerKey is None: self.socket.send("")
-        else: self._sendBinary64(bloomFilterBitsPerKey, more=False)
-        #TODO extract response code and return
-        print self.socket.recv_multipart(copy=True)
+        self._sendBinary64(lruCacheSize)
+        self._sendBinary64(tableBlocksize)
+        self._sendBinary64(writeBufferSize)
+        self._sendBinary64(bloomFilterBitsPerKey, more=False)
+        #Receive and extract response code
+        msgParts = self.socket.recv_multipart(copy=True)
+        self._checkHeaderFrame(msgParts,  '\x01')
     def truncateTable(self, tableNo):
         """
         Close & truncate a table.
-        
         @param tableNo The table number to truncate
         @return
         """
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
-        self._checkRequestReply
+        self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x04", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo, 0) #No SNDMORE flag
-    def __del__(self):
-        """Cleanup ZMQ resources. Auto-destroys context if none was given"""
-        if self.socket is not None:
-            self.socket.close()
-        if self.cleanupContextOnDestruct:
-            self.context.destroy()
+        msgParts = self.socket.recv_multipart(copy=True)
+        self._checkHeaderFrame(msgParts,  '\x04')
+    def initializePassiveDataJob(self, tableNo, fromKey, toKey,  blocksize=None):
+        """
+        Initialize a job on the server that waits for client requests.
+        @param tableNo The table number to scan in
+        @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
+        @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @param blocksize How many key/value pairs will be returned for a single request. None --> Serverside default
+        @return A PassiveDataJob instance
+        """
+        #Check parameters and create binary-string only key list
+        self._checkParameterType(tableNo, int, "tableNo")
+        self._checkParameterType(blocksize, int, "blocksize",  allowNone=True)
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send("\x31\x01\x41", zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo)
+        self._sendBinary32(blocksize)
+        #Send range to be scanned
+        self._sendRange(fromKey,  toKey)
+        #Receive response
+        msgParts = self.socket.recv_multipart(copy=True)
+        if len(msgParts) == 0:
+            raise ZeroDBProtocolException("Received empty reply message")
+        if msgParts[0][2] != '\x01':
+            raise ZeroDBProtocolException("Exists response code was %d instead of 18" % ord(msgParts[0][2]))
+        if msgParts[0][3] != '\x00':
+            raise ZeroDBProtocolException("Exists response status code was %d instead of 0x00 (ACK)" % ord(msgParts[0][3]))

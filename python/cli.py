@@ -13,7 +13,7 @@ def exists(db, tableNo, keys):
     outMap = {}
     for index, inval in enumerate(keys):
         outMap[inval] = output[index]
-    print outMap
+    print(outMap)
 
 def read(db, tableNo, keys):
     output = db.read(tableNo, keys)
@@ -21,27 +21,27 @@ def read(db, tableNo, keys):
     outMap = {}
     for index, inval in enumerate(keys):
         outMap[inval] = output[index]
-    print outMap
+    print(outMap)
 
 def put(db, tableNo, key, value):
     db.put(tableNo, {key: value})
     #Convert value-only to key-->value map
-    print "Put '%s' --> '%s'" % (key, value)
+    print("Put '%s' --> '%s'" % (key, value))
 
 def delete(db, tableNo, keys):
     db.delete(tableNo, keys)
-    print "Deleted [%s]" % ", ".join(keys)
+    print("Deleted [%s]" % ", ".join(keys))
 
 def scan(db, tableNo, fromKey, toKey):
     #Data is remapped in ZeroDB class
-    print db.scan(tableNo, fromKey, toKey)
+    print(db.scan(tableNo, fromKey, toKey))
     
 def scanLimit(db, tableNo, fromKey, limit):
     #Data is remapped in ZeroDB class
-    print db.scanWithLimit(tableNo, fromKey, int(limit))
+    print(db.scanWithLimit(tableNo, fromKey, int(limit)))
     
 def count(db, tableNo, fromKey, toKey):
-    print db.count(tableNo, fromKey, toKey)
+    print(db.count(tableNo, fromKey, toKey))
 
 def deleteRange(db, tableNo, fromKey, toKey):
     db.deleteRange(tableNo, fromKey, toKey)
@@ -114,4 +114,3 @@ if __name__ == "__main__":
         elif cmd == "scan+limit": scanLimit(db, tableNo, arg1, arg2)
         elif cmd == "deleterange": deleteRange(db, tableNo, arg1, arg2)
         elif cmd == "count": count(db, tableNo, arg1, arg2)
-            

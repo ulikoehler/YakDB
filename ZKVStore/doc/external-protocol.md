@@ -496,7 +496,7 @@ If frame 2 is empty, a default blocksize shall be assumed.
 
 ##### CSPTMIR Response
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x42 Request type (CSPTMIR)]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x42 Response type (CSPTMIR)]
 * Frame 1: 64-bit APID
 
 -------------------------------

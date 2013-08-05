@@ -1,6 +1,5 @@
 import zerodb
 import random
-import zmq
 
 #Create a dataset of 1k string KV pairs
 data = {}
