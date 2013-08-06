@@ -142,17 +142,17 @@ static void clientSidePassiveWorkerThreadFn(
     logger.debug("AP exiting normally");
 }
 
-COLD AsyncJobRouterController::AsyncJobRouterController(zctx_t* ctx, Tablespace& tablespace)
+COLD AsyncJobRouterController::AsyncJobRouterController(zctx_t* ctxArg, Tablespace& tablespace)
     : childThread(nullptr),
-        ctx(ctx),
+        ctx(ctxArg),
         tablespace(tablespace),
-        routerSocket(zsocket_new(ctx, ZMQ_PUSH)) {
+        routerSocket(zsocket_new(ctxArg, ZMQ_PUSH)) {
     //Create the PAIR socket to the job router
     zsocket_bind(routerSocket, asyncJobRouterAddr);
 }
 
 void COLD AsyncJobRouterController::start() {
-    //Lambdas rock
+    //Lambdas roc
     childThread = new std::thread([](zctx_t* ctx, Tablespace& tablespace) {
         AsyncJobRouter worker(ctx, tablespace);
         while(worker.processNextRequest()) {
@@ -161,8 +161,9 @@ void COLD AsyncJobRouterController::start() {
     }, ctx, std::ref(tablespace));
 }
 
-COLD AsyncJobRouter::AsyncJobRouter(zctx_t* ctx, Tablespace& tablespaceArg) :
-AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Async job router"),
+COLD AsyncJobRouter::AsyncJobRouter(zctx_t* ctxArg, Tablespace& tablespaceArg) :
+AbstractFrameProcessor(ctxArg, ZMQ_PULL, ZMQ_PUSH, "Async job router"),
+ctx(ctxArg),
 apidGenerator("next-apid.txt"),
 processSocketMap(),
 processThreadMap(),
@@ -187,7 +188,7 @@ bool AsyncJobRouter::processNextRequest() {
     zmq_msg_t routingFrame, delimiterFrame, headerFrame;
     //Read routing info
     zmq_msg_init(&routingFrame);
-    if(!receiveLogError(&routingFrame, processorInputSocket, logger, "Routing frame")) {
+    if(receiveLogError(&routingFrame, processorInputSocket, logger, "Routing frame") == -1) {
         return true;
     }
     logger.debug("ITX1.1");
