@@ -67,7 +67,6 @@ uint64_t HOT SequentialIDGenerator::getNextId() const {
 
 void HOT SequentialIDGenerator::setNextId(uint64_t newValue) {
     std::atomic_store(&nextId, newValue);
-
 }
 
 void SequentialIDGenerator::persist() {

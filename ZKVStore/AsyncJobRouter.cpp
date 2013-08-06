@@ -2,9 +2,53 @@
 #include "TableOpenHelper.hpp"
 #include <leveldb/db.h>
 #include <czmq.h>
+#include <atomic>
 #include "endpoints.hpp"
 #include "protocol.hpp"
 #include "zutil.hpp"
+
+/*
+ * This provides variables written by the AP and read by the
+ * router thread to manage the AP workflow.
+ * This provides a lightweight alternative to using ZMQ sockets
+ * for state communication
+ * --------AP thread termination workflow----------
+ * This workflow starts once the thread has sent out the last
+ * non-empty data packet.
+ * 1. AP sets the wantToTerminate entry to true
+ *  -> Router shall not redirect any more client requests to the thread
+ * 2. AP answers client requests until no request arrived for
+ *    a predefined grace period (e.g. 1 sec).
+ * 3. Thread exits and sets the exited flag and the 'request scrub job' flag
+ * 4. Router scrub job cleans up stuff left behing
+ */
+class ThreadTerminationInfo {
+public:
+    ThreadTerminationInfo(std::atomic<unsigned int>* scrubJobRequestsArg) :
+        wantToTerminate(),
+        exited(),
+        scrubJobRequests(scrubJobRequestsArg) {
+    }
+    void setWantToTerminate() {
+        std::atomic_store(&wantToTerminate, true);
+    }
+    void setExited() {
+        std::atomic_store(&exited, true);
+    }
+    bool wantsToTerminate() {
+        return std::atomic_load(&wantToTerminate);
+    }
+    bool hasTerminated() {
+        return std::atomic_load(&exited);
+    }
+    void requestScrubJob() {
+        std::atomic_fetch_add(scrubJobRequests, (unsigned int)1);
+    }
+private:
+    std::atomic<bool> wantToTerminate;
+    std::atomic<bool> exited;
+    std::atomic<unsigned int>* scrubJobRequests;
+};
 
 /**
  * This function contains the main loop for the thread
@@ -17,7 +61,8 @@ static void clientSidePassiveWorkerThreadFn(
     uint32_t chunksize,
     std::string rangeStart,
     std::string rangeEnd,
-    Tablespace& tablespace) {
+    Tablespace& tablespace,
+    ThreadTerminationInfo* tti) {
     //Static response code
     static const char* responseOK = "\x31\x01\x50\x00";
     static const char* responseNoData = "\x31\x01\x50\x01";
@@ -137,13 +182,35 @@ static void clientSidePassiveWorkerThreadFn(
     delete[] keyMsgBuffer;
     delete[] valueMsgBuffer;
     db->ReleaseSnapshot(options.snapshot);
+    //See ThreadTerminationInfo docs for information about what is done where
+    tti->setWantToTerminate();
+    //Note that settings the RCVTIMEOUT sockopt only affects subsequent connects,
+    // so we have pollers here
+    zmq_pollitem_t items[1];
+    items[0].socket = inSocket;
+    items[0].events = ZMQ_POLLIN;
+    while(zmq_poll(items, 1, 1000) != 0) {
+        //TODO error handling
+        //Just send a NODATA header
+        zmq_msg_recv(&routingFrame, inSocket, 0);
+        zmq_msg_send(&routingFrame, outSocket, ZMQ_SNDMORE);
+        zmq_msg_recv(&delimiterFrame, inSocket, 0);
+        zmq_msg_send(&delimiterFrame, outSocket, ZMQ_SNDMORE);
+        zmq_msg_recv(&headerFrame, inSocket, 0);
+        zmq_msg_close(&headerFrame);
+        sendConstFrame(responseNoData, 4, outSocket, logger, "No data response header frame", 0);
+    }
+    //Final cleanup
     zsocket_destroy(ctx, inSocket);
     zsocket_destroy(ctx, outSocket);
     logger.debug("AP exiting normally");
+    //Set exit flag and request scrub job
+    tti->setExited();
+    tti->requestScrubJob();
 }
 
 COLD AsyncJobRouterController::AsyncJobRouterController(zctx_t* ctxArg, Tablespace& tablespace)
-    : childThread(nullptr),
+    : childThread(nullptr),        
         ctx(ctxArg),
         tablespace(tablespace),
         routerSocket(zsocket_new(ctxArg, ZMQ_PUSH)) {
@@ -167,6 +234,7 @@ ctx(ctxArg),
 apidGenerator("next-apid.txt"),
 processSocketMap(),
 processThreadMap(),
+apTerminationInfo(),
 tablespace(tablespaceArg) {
     //Connect the socket that is used by the send() member function
     if(zsocket_connect(processorInputSocket, asyncJobRouterAddr) == -1) {
@@ -309,6 +377,8 @@ uint64_t AsyncJobRouter::initializeJob() {
     void* sock = zsocket_new(ctx, ZMQ_PAIR);
     zsocket_bind(sock, "inproc://apid/%ld", apid);
     processSocketMap[apid] = sock;
+    //Create the thread termination info object
+    apTerminationInfo[apid] = new ThreadTerminationInfo(&scrubJobsRequested);
     return apid;
 }
 
@@ -329,7 +399,8 @@ void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid,
             chunksize,
             rangeStart,
             rangeEnd,
-            std::ref(tablespace)
+            std::ref(tablespace),
+            apTerminationInfo[apid]
     );
     processThreadMap[apid] = thd;
 }
@@ -339,6 +410,9 @@ void AsyncJobRouter::cleanupJob(uint64_t apid) {
     std::thread* thread = processThreadMap[apid];
     processSocketMap.erase(apid);
     processThreadMap.erase(apid);
+    ThreadTerminationInfo* tti = apTerminationInfo[apid];
+    delete tti;
+    apTerminationInfo.erase(apid);
     //Send an empty frame (--> stop request) to the thread and wait for it to exits
     zstr_send(socket, "");
     thread->join();
@@ -352,6 +426,34 @@ void AsyncJobRouter::cleanupJob(uint64_t apid) {
 bool AsyncJobRouter::haveProcess(uint64_t apid) {
     return processSocketMap.count(apid) != 0;
 }
+
+bool AsyncJobRouter::doesAPWantToTerminate(uint64_t apid) {
+    return apTerminationInfo[apid]->wantsToTerminate();
+}
+
+bool AsyncJobRouter::isThereAnyScrubJobRequest() {
+    return std::atomic_load(&scrubJobsRequested);
+}
+
+void AsyncJobRouter::doScrubJob() {
+     /**
+      * -----------Performance note-----------
+      * Scrub jobs currently have a runtime complexity of O(n)
+      * where n is the number of currently stored APs.
+      * This can probably be optimized by informing the async
+      * router of the APID that has terminated, but this
+      * would require a more complex implementation
+      */
+     //Substract one from the scrub job request counter
+     std::atomic_fetch_sub(&scrubJobsRequested, (unsigned int)1);
+     //Find jobs that have already terminated and scrub them
+     typedef std::pair<uint64_t, ThreadTerminationInfo*> JobPair;
+     for(const JobPair& jobPair: apTerminationInfo) {
+         if(jobPair.second->hasTerminated()) {
+             cleanupJob(jobPair.first);
+         }
+     }
+ }
 
 void AsyncJobRouter::forwardToJob(uint64_t apid,
             zmq_msg_t* routingFrame,

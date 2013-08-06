@@ -4,7 +4,7 @@
 #include "SequentialIDGenerator.hpp"
 #include "Tablespace.hpp"
 #include <thread>
-#include <unordered_map>
+#include <map>
 #include <czmq.h>
 #include <cstdint>
 #include <string>
@@ -30,9 +30,18 @@ private:
     zctx_t* ctx;
 };
 
+class ThreadTerminationInfo;
+
 /**
  * This router handles messages for data processing requests.
  * It spawns asynchronous processes and manages APIDs and AP lifecycles.
+ * 
+ * ----------- Map type ------------
+ * std::map seems to be a better choice at the moment based on benchmarks
+ * like this one here:
+ * http://kariddi.blogspot.de/2012/07/c11-unorderedmap-vs-map.html
+ * We usually expect the map to be quite small, so the (AVL?RB?) tree overhead
+ * is minimal when compared to hashing each value.
  */
 class AsyncJobRouter : private AbstractFrameProcessor
 {
@@ -78,9 +87,34 @@ private:
      * @return True if and only if we have a running process for the current APID.
      */
     bool haveProcess(uint64_t apid);
+    /**
+     * @return true if and only if the thread with the given APID
+     *  has finished sending all non-empty datablocks and is currently in
+     *  the termination grace period.
+     */
+    bool doesAPWantToTerminate(uint64_t apid);
+    /**
+     * Execute a scrub job to release resources acquired by
+     * APs that already have ended
+     */
+    void doScrubJob();
+    /**
+     * @return true if and only if the value of this->scrubJobsRequested is > 0
+     */
+    bool isThereAnyScrubJobRequest();
     zctx_t* ctx;
-    std::unordered_map<uint64_t, void*> processSocketMap; //APID --> ZMQ socket
-    std::unordered_map<uint64_t, std::thread*> processThreadMap; //APID --> ZMQ socket
+    std::map<uint64_t, void*> processSocketMap; //APID --> ZMQ socket
+    std::map<uint64_t, std::thread*> processThreadMap; //APID --> ZMQ socket
+    std::map<uint64_t, ThreadTerminationInfo*> apTerminationInfo; //APID --> TTI object
+    /**
+     * This variable is incremented by APs when they exit
+     * to request a scrub job.
+     * If no messages arrive at the async router for a predefined
+     * grace period and this variable is > 0,
+     * it starts a scrub job that releases resources
+     * acquired for terminated AP lifecycle management.
+     */
+    std::atomic<unsigned int> scrubJobsRequested;
     SequentialIDGenerator apidGenerator;
     Tablespace& tablespace;
 };
