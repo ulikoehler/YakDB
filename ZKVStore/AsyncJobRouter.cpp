@@ -290,8 +290,13 @@ bool AsyncJobRouter::processNextRequest() {
         if(!parseUint64Frame(apid, "APID frame", true, "\x31\01\x50\x01")) {
             return true;
         }
-        //Return the 
-        if(!haveProcess(apid)) {
+        /*
+         * Directly reply "No data" if:
+         *  1) There is no such job (any more?)
+         *  2) The job has sent already the last non-empty data packet and
+         *     reached its end-of-life, only expect
+         */
+        if(!haveProcess(apid) || doesAPWantToTerminate(apid)) {
             //Respond "No more data"
             if(zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE) == -1) {
                 logMessageSendError("Routing frame (branch: No such APID)", logger);
@@ -300,7 +305,7 @@ bool AsyncJobRouter::processNextRequest() {
                 logMessageSendError("Delimiter frame (branch: No such APID)", logger);
             }
             sendConstFrame("\x31\x01\x50\x01", 4, processorOutputSocket, logger, "No data response header (branch: No such APID)");
-        } else { //Forward to the job
+        } else { //Forward to the
             void* outSock = processSocketMap[apid];
             if(zmq_msg_send(&routingFrame, outSock, ZMQ_SNDMORE) == -1) {
                 logMessageSendError("Routing frame (on route to worker thread)", logger);
@@ -362,6 +367,10 @@ bool AsyncJobRouter::processNextRequest() {
         logger.error(errstr);
         sendConstFrame("\x31\x01\xFF", 3, processorOutputSocket, logger, "Internal routing error header frame", ZMQ_SNDMORE);
         sendFrame(errstr, processorOutputSocket, logger, "Internal routing error message frame");
+    }
+    //Scrub, if needed
+    if(isThereAnyScrubJobRequest()) {
+        doScrubJob();
     }
     /**
      * In some cases (especially errors) the msg part input queue is clogged
@@ -450,6 +459,7 @@ void AsyncJobRouter::doScrubJob() {
      typedef std::pair<uint64_t, ThreadTerminationInfo*> JobPair;
      for(const JobPair& jobPair: apTerminationInfo) {
          if(jobPair.second->hasTerminated()) {
+             logger.trace("Scrubbing job with APID " + std::to_string(jobPair.first));
              cleanupJob(jobPair.first);
          }
      }
