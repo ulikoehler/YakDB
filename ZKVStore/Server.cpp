@@ -225,7 +225,6 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         //Dispose non-reused messages
         zmq_msg_close(&headerFrame);
     } else if(requestType & 0x40) { //Any data processing request
-        server->logger.trace("FX1");
         void* workerSocket = server->asyncJobRouterController.routerSocket;
         if(zmq_msg_send(&addrFrame, workerSocket, ZMQ_SNDMORE) == -1) {
             logMessageSendError("Data processing request address frame", server->logger);

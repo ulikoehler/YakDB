@@ -45,8 +45,8 @@ public:
         std::atomic_fetch_add(scrubJobRequests, (unsigned int)1);
     }
 private:
-    std::atomic<bool> wantToTerminate;
-    std::atomic<bool> exited;
+    volatile std::atomic<bool> wantToTerminate;
+    volatile std::atomic<bool> exited;
     std::atomic<unsigned int>* scrubJobRequests;
 };
 
@@ -190,24 +190,23 @@ static void clientSidePassiveWorkerThreadFn(
     zmq_pollitem_t items[1];
     items[0].socket = inSocket;
     items[0].events = ZMQ_POLLIN;
-    while(zmq_poll(items, 1, 1000) != 0) {
+    while(zmq_poll(items, 1, 100) != 0) {
+        logger.trace("Stuff happens");
         //TODO error handling
         //Just send a NODATA header
         zmq_msg_recv(&routingFrame, inSocket, 0);
         zmq_msg_send(&routingFrame, outSocket, ZMQ_SNDMORE);
         zmq_msg_recv(&delimiterFrame, inSocket, 0);
         zmq_msg_send(&delimiterFrame, outSocket, ZMQ_SNDMORE);
-        zmq_msg_recv(&headerFrame, inSocket, 0);
-        zmq_msg_close(&headerFrame);
         sendConstFrame(responseNoData, 4, outSocket, logger, "No data response header frame", 0);
     }
     //Final cleanup
     zsocket_destroy(ctx, inSocket);
     zsocket_destroy(ctx, outSocket);
-    logger.debug("AP exiting normally");
     //Set exit flag and request scrub job
     tti->setExited();
     tti->requestScrubJob();
+    logger.debug("AP exiting normally");
 }
 
 COLD AsyncJobRouterController::AsyncJobRouterController(zctx_t* ctxArg, Tablespace& tablespace)
@@ -259,7 +258,6 @@ bool AsyncJobRouter::processNextRequest() {
     if(receiveLogError(&routingFrame, processorInputSocket, logger, "Routing frame") == -1) {
         return true;
     }
-    logger.debug("ITX1.1");
     //Empty frame means: Stop thread
     if (zmq_msg_size(&routingFrame) == 0) {
         logger.trace("Async job router thread received stop signal");
@@ -296,6 +294,7 @@ bool AsyncJobRouter::processNextRequest() {
          *  1) There is no such job (any more?)
          *  2) The job has sent already the last non-empty data packet and
          *     reached its end-of-life, only expect
+         * Else forward to corresponding worker
          */
         if(!haveProcess(apid) || doesAPWantToTerminate(apid)) {
             //Respond "No more data"
@@ -306,7 +305,7 @@ bool AsyncJobRouter::processNextRequest() {
                 logMessageSendError("Delimiter frame (branch: No such APID)", logger);
             }
             sendConstFrame("\x31\x01\x50\x01", 4, processorOutputSocket, logger, "No data response header (branch: No such APID)");
-        } else { //Forward to the
+        } else { //Forward to the worker
             void* outSock = processSocketMap[apid];
             if(zmq_msg_send(&routingFrame, outSock, ZMQ_SNDMORE) == -1) {
                 logMessageSendError("Routing frame (on route to worker thread)", logger);
@@ -363,6 +362,9 @@ bool AsyncJobRouter::processNextRequest() {
         }
         //Send APID frame //TODO error check
         sendUint64Frame(apid, "CSPTMI Response APID");
+        //Persist the latest APID to generate strictly ascending APIDs after
+        // server restart
+        apidGenerator.persist();
     }  else {
         std::string errstr = "Internal routing error: request type " + std::to_string((int) requestType) + " routed to read worker thread!";
         logger.error(errstr);
@@ -373,12 +375,6 @@ bool AsyncJobRouter::processNextRequest() {
     if(isThereAnyScrubJobRequest()) {
         doScrubJob();
     }
-    /**
-     * In some cases (especially errors) the msg part input queue is clogged
-     * up with frames that have not yet been processed.
-     * Clear them
-     */
-    disposeRemainingMsgParts();
     return true;
 }
 
@@ -402,7 +398,7 @@ void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid,
     uint32_t chunksize,
     const std::string& rangeStart,
     const std::string& rangeEnd) {
-    std::thread* thd = new std::thread(clientSidePassiveWorkerThreadFn, 
+    processThreadMap[apid] = new std::thread(clientSidePassiveWorkerThreadFn, 
             ctx,
             apid,
             databaseId,
@@ -412,25 +408,20 @@ void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid,
             std::ref(tablespace),
             apTerminationInfo[apid]
     );
-    processThreadMap[apid] = thd;
 }
 
 void AsyncJobRouter::cleanupJob(uint64_t apid) {
     void* socket = processSocketMap[apid];
-    std::thread* thread = processThreadMap[apid];
-    processSocketMap.erase(apid);
-    processThreadMap.erase(apid);
-    ThreadTerminationInfo* tti = apTerminationInfo[apid];
-    delete tti;
-    apTerminationInfo.erase(apid);
-    //Send an empty frame (--> stop request) to the thread and wait for it to exits
-    zstr_send(socket, "");
-    thread->join();
-    //Cleanup the thread             
-    delete thread;
-    //Destroy the socket
+    //Wait for thread to exit completely, then free the mem
+    processThreadMap[apid]->join();
+    delete processThreadMap[apid];
+    //Destroy the sockets that were used to communicate with the thread
     zsocket_set_linger(socket, 0);
     zsocket_destroy(ctx, socket);
+    //Remove the map entries
+    processSocketMap.erase(apid);
+    processThreadMap.erase(apid);
+    apTerminationInfo.erase(apid);
 }
 
 bool AsyncJobRouter::haveProcess(uint64_t apid) {

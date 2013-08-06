@@ -39,7 +39,6 @@ Logger::Logger(zctx_t* ctx, const std::string& name, const std::string& endpoint
 }
 
 Logger::~Logger() {
-    fprintf(stderr, "Destructing logger '%s'\n", loggerName.c_str());
     fflush(stderr);
     zsocket_destroy(ctx, socket);
 }

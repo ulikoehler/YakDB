@@ -92,7 +92,7 @@ class Connection:
             raise ZeroDBProtocolException("Response code received from server is"
                         "%d instead of %d" % (ord(msgParts[0][2]),  ord(expectedResponseType)))
         if msgParts[0][3] != '\x00':
-            errorMsg = msgParts[1] if len(msgParts >= 2) else "<Unknown>"
+            errorMsg = msgParts[1] if len(msgParts) >= 2 else "<Unknown>"
             raise ZeroDBProtocolException(
                 "Response status code is %d instead of 0x00 (ACK), error message: %s"
                 % (ord(msgParts[0][3]),  errorMsg))
@@ -548,7 +548,7 @@ class Connection:
         if len(msgParts) < 2:
             raise ZeroDBProtocolException("CSPTMIR response does not contain APID frame")
         #Get the APID and create a new job instance
-        apid = struct.unpack('<q', msgParts[1])
+        apid = struct.unpack('<q', msgParts[1])[0]
         return DataProcessor.ClientSidePassiveJob(self,  apid)
     def _requestJobDataChunk(self,  apid):
         """
@@ -564,6 +564,11 @@ class Connection:
         self._sendBinary64(apid,  more=False)
         #Receive response chunk
         msgParts = self.socket.recv_multipart(copy=True)
+        #A response code of 0x01 or 0x02 also indicates success
+        if len(msgParts) >= 1 and len(msgParts[0]) > 2:
+            hdrList = list(msgParts[0]) #Strings are immutable!
+            hdrList[3] = '\x00' #Otherwise _checkHeaderFrame would fail
+            msgParts[0] = b"".join(hdrList)
         self._checkHeaderFrame(msgParts,  '\x50')
         #We silently ignore the partial data / no data flags from the header,
         # because we can simply deduce them from the data frames.

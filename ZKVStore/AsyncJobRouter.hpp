@@ -68,7 +68,8 @@ private:
         const std::string& rangeStart,
         const std::string& rangeEnd);
     /**
-     * Stop an asynchronous job an cleanup all resources related to it.
+     * Cleanup an asynchronous job an release all resources related to it.
+     * Must only be used on jobs that have already signalled that they have exited
      */
     void cleanupJob(uint64_t apid);
     /**
