@@ -181,9 +181,10 @@ static void clientSidePassiveWorkerThreadFn(
     delete it;
     delete[] keyMsgBuffer;
     delete[] valueMsgBuffer;
-    db->ReleaseSnapshot(options.snapshot);
+    db->ReleaseSnapshot(options.snapshot);             
     //See ThreadTerminationInfo docs for information about what is done where
     tti->setWantToTerminate();
+    logger.trace("Reached AP end of life");
     //Note that settings the RCVTIMEOUT sockopt only affects subsequent connects,
     // so we have pollers here
     zmq_pollitem_t items[1];
@@ -425,7 +426,7 @@ void AsyncJobRouter::cleanupJob(uint64_t apid) {
     //Send an empty frame (--> stop request) to the thread and wait for it to exits
     zstr_send(socket, "");
     thread->join();
-    //Cleanup the thread
+    //Cleanup the thread             
     delete thread;
     //Destroy the socket
     zsocket_set_linger(socket, 0);
