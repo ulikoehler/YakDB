@@ -63,7 +63,7 @@ void COLD logMessageOperationError(const char* frameDesc, const char* operation,
                 + std::string(zmq_strerror(errno))
                 + "' while trying to "
                 + std::string(operation) + " frame '"
-                + std::string(frameDesc));
+                + std::string(frameDesc) + "'");
 }
 
 void COLD logMessageInitializationError(const char* frameDesc, Logger& logger) {

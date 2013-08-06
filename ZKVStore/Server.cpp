@@ -63,7 +63,7 @@ static void COLD sendProtocolError(zmq_msg_t* addrFrame,
     zmq_msg_send(addrFrame, sock, ZMQ_SNDMORE);
     zmq_msg_send(delimiterFrame, sock, ZMQ_SNDMORE);
     sendConstFrame("\x31\x01\xFF", 3, sock, logger, "Protocol error header frame", ZMQ_SNDMORE); //Send protocol error header
-    sendFrame(errmsg, sock, logger, "Protocol error error message frame");
+    sendFrame(errmsg, sock, logger, "Protocol error message frame");
 }
 
 /**
@@ -101,7 +101,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
                 "Received malformed message, header format is not correct: " +
                 describeMalformedHeaderFrame(&headerFrame),
                 server->logger);
-        server->logger.warn("Client sent invalid header frame");
+        server->logger.warn("Client sent invalid header frame: " + describeMalformedHeaderFrame(&headerFrame));
         zmq_msg_close(&headerFrame);
         return 0;
     }

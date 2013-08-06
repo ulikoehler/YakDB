@@ -173,12 +173,12 @@ static inline int sendFrame(const void* data, size_t size, void* socket, Logger&
  */
 static inline int sendFrame(const std::string& msgStr, void* socket, Logger& logger, const char* frameDesc, int flags = 0) {
     zmq_msg_t msg;
-    if (unlikely(zmq_msg_init_size(&msg, msgStr.size()) != 0)) {
+    if (unlikely(zmq_msg_init_size(&msg, msgStr.size()) == -1)) {
         logMessageInitializationError(frameDesc, logger);
         return -1;
     }
     memcpy(zmq_msg_data(&msg), msgStr.c_str(), msgStr.size());
-    if (unlikely(zmq_msg_send(&msg, socket, flags) != 0)) {
+    if (unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
         logMessageSendError(frameDesc, logger);
         return -1;
     }
