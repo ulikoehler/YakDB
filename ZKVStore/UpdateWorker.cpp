@@ -563,7 +563,6 @@ void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool gener
     //Close the table
     tableOpenHelper.truncateTable(tableId);
     //Create the response
-    zmsg_t* response = nullptr;
     if (generateResponse) {
         sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
     }
@@ -582,7 +581,11 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     }
 }
 
-UpdateWorkerController::UpdateWorkerController(zctx_t* context, Tablespace& tablespace) : context(context), numThreads(3), tablespace(tablespace) {
+UpdateWorkerController::UpdateWorkerController(zctx_t* context, Tablespace& tablespace)
+: tablespace(tablespace),
+numThreads(3),
+context(context)
+ {
     //Initialize the push socket
     workerPushSocket = zsocket_new(context, ZMQ_PUSH);
     zsocket_bind(workerPushSocket, updateWorkerThreadAddr);
@@ -590,7 +593,7 @@ UpdateWorkerController::UpdateWorkerController(zctx_t* context, Tablespace& tabl
 
 void UpdateWorkerController::start() {
     threads = new std::thread*[numThreads];
-    for (int i = 0; i < numThreads; i++) {
+    for (unsigned int i = 0; i < numThreads; i++) {
         threads[i] = new std::thread(updateWorkerThreadFunction, context, std::ref(tablespace));
     }
 }
@@ -599,14 +602,14 @@ UpdateWorkerController::~UpdateWorkerController() {
     //Send an empty STOP message for each update thread (use a temporary socket)
     void* tempSocket = zsocket_new(context, ZMQ_PUSH); //Create a temporary socket
     zsocket_connect(tempSocket, updateWorkerThreadAddr);
-    for (int i = 0; i < numThreads; i++) {
+    for (unsigned int i = 0; i < numThreads; i++) {
         //Send an empty msg (signals the table open thread to stop)
         sendEmptyFrameMessage(tempSocket);
     }
     //Cleanup
     zsocket_destroy(context, tempSocket);
     //Wait for each thread to exit
-    for (int i = 0; i < numThreads; i++) {
+    for (unsigned int i = 0; i < numThreads; i++) {
         threads[i]->join();
         delete threads[i];
     }
