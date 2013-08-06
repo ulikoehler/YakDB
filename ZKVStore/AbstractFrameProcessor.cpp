@@ -32,8 +32,8 @@ bool AbstractFrameProcessor::parseUint32Frame(uint32_t& dst,
                 + std::string(frameDesc) + "), but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(errstr, processorOutputSocket, logger);
+            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
     }
@@ -50,8 +50,8 @@ bool AbstractFrameProcessor::parseUint32Frame(uint32_t& dst,
                 + std::to_string(zmq_msg_size(&tableIdFrame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(errstr, processorOutputSocket, logger);
+            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
     }
@@ -69,8 +69,8 @@ bool AbstractFrameProcessor::parseUint64Frame(uint64_t& valueDest,
                 + std::string(frameDesc) + "), but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(errstr, processorOutputSocket, logger);
+            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
     }
@@ -87,8 +87,8 @@ bool AbstractFrameProcessor::parseUint64Frame(uint64_t& valueDest,
                 + std::to_string(zmq_msg_size(&uint64Frame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(errstr, processorOutputSocket, logger);
+            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
     }
@@ -108,8 +108,8 @@ bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest
                 + ") with default value, but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(errstr, processorOutputSocket, logger);
+            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
     }
@@ -127,8 +127,8 @@ bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest
                 + std::to_string(zmq_msg_size(&uint64Frame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(errstr, processorOutputSocket, logger);
+            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
     }
@@ -152,8 +152,8 @@ bool AbstractFrameProcessor::parseUint32FrameOrAssumeDefault(uint32_t& valueDest
                 + ") with default value, but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(errstr, processorOutputSocket, logger);
+            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
     }
@@ -171,8 +171,8 @@ bool AbstractFrameProcessor::parseUint32FrameOrAssumeDefault(uint32_t& valueDest
                 + std::to_string(zmq_msg_size(&uint32Frame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(errstr, processorOutputSocket, logger);
+            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
     }
@@ -189,8 +189,8 @@ bool AbstractFrameProcessor::expectNextFrame(const char* errString, bool generat
     if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
         logger.warn(errString);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(errString, strlen(errString), processorOutputSocket, logger);
+            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, errString, ZMQ_SNDMORE);
+            sendFrame(errString, strlen(errString), processorOutputSocket, logger, errString);
         }
         return false;
     }
@@ -204,8 +204,8 @@ bool AbstractFrameProcessor::checkLevelDBStatus(const leveldb::Status& status, c
         logger.error(completeErrorString);
         if (generateResponse) {
             //Send DB error code
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(completeErrorString, processorOutputSocket, logger);
+            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, errString, ZMQ_SNDMORE);
+            sendFrame(completeErrorString, processorOutputSocket, logger, errString);
             return false;
         }
     }
@@ -253,8 +253,8 @@ bool AbstractFrameProcessor::receiveMsgHandleError(zmq_msg_t* msg,
                 + " in " + std::string(errName);
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponse, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(errstr, processorOutputSocket, logger);
+            sendFrame(errorResponse, 4, processorOutputSocket, logger, errName, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger, errName);
         }
         return false;
     }
@@ -272,8 +272,8 @@ bool AbstractFrameProcessor::sendMsgHandleError(zmq_msg_t* msg,
                 + " in " + std::string(errName);
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponse, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(errstr, processorOutputSocket, logger);
+            sendFrame(errorResponse, 4, processorOutputSocket, logger, errName, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger, errName);
         }
         return false;
     }
@@ -313,8 +313,8 @@ bool AbstractFrameProcessor::expectExactFrameSize(zmq_msg_t* msg,
                 + " in " + std::string(errName);
         logger.warn(errstr);
         if(generateResponse) {
-            sendFrame(errorResponse, 4, processorOutputSocket, logger, ZMQ_SNDMORE);
-            sendFrame(errstr, processorOutputSocket, logger);
+            sendFrame(errorResponse, 4, processorOutputSocket, logger, errName, ZMQ_SNDMORE);
+            sendFrame(errstr, processorOutputSocket, logger, errName);
         }
         return false;
     }

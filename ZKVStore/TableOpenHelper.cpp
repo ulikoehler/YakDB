@@ -171,7 +171,7 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
             //Errors (e.g. for nonexistent dirs) do not exist
             rmdir(dirname.c_str());
             logger.debug("Truncated table in " + dirname);
-            sendConstFrame(&responseCode, 1, repSocket);
+            sendConstFrame(&responseCode, 1, repSocket, logger, "Truncate response");
         } else {
             logger.error("Internal protocol error: Table open server received unkown request type " + std::to_string(msgType));
             //Reply anyway
@@ -248,9 +248,9 @@ void COLD TableOpenHelper::openTable(uint32_t tableId,
     parameters.bloomFilterBitsPerKey = bloomFilterBitsPerKey;
     parameters.compressionEnabled = compressionEnabled;
     //Just send a message containing the table index to the opener thread
-    sendConstFrame("\x00", 1, reqSocket, logger, ZMQ_SNDMORE);
-    sendBinary(tableId, reqSocket, logger, ZMQ_SNDMORE);
-    sendFrame(&parameters, sizeof (TableOpenParameters), reqSocket, logger);
+    sendConstFrame("\x00", 1, reqSocket, logger, "Table opener header msg", ZMQ_SNDMORE);
+    sendBinary(tableId, reqSocket, logger, "Table ID", ZMQ_SNDMORE);
+    sendFrame(&parameters, sizeof (TableOpenParameters), reqSocket, logger, "Table open parameters");
     //Wait for the reply (reply content is ignored)
     zmsg_t* msg = zmsg_recv(reqSocket); //Blocks until reply received
     if (msg != nullptr) {
@@ -280,8 +280,8 @@ void COLD TableOpenHelper::truncateTable(TableOpenHelper::IndexType index) {
      * Note: The reason this doesn't use CZMQ even if efficiency does not matter
      * is that repeated calls using CZMQ API cause SIGSEGV somewhere inside calloc.
      */
-    sendConstFrame("\x02", 1, reqSocket, ZMQ_SNDMORE);
-    sendFrame(&index, sizeof (IndexType), reqSocket);
+    sendConstFrame("\x02", 1, reqSocket, logger, "Truncate header", ZMQ_SNDMORE);
+    sendFrame(&index, sizeof (IndexType), reqSocket, logger, "Table index");
     /*if (unlikely(zmsg_send(&msg, reqSocket) == -1)) {
         logger.critical("Truncate table message send failed: " + std::string(zmq_strerror(errno)));
     }*/

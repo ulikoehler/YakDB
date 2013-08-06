@@ -110,11 +110,9 @@ void ReadWorker::handleExistsRequest(zmq_msg_t* headerFrame) {
     leveldb::ReadOptions readOptions;
     string value;
     //If there are no keys at all, just send ACK without SNDMORE, else with SNDMORE
-    if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket);
-    } else {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
-    }
+    bool dataFramesAvailable = socketHasMoreFrames(processorInputSocket);
+    sendConstFrame(ackResponse, 4, processorOutputSocket,
+        logger, "ACK response", (dataFramesAvailable ? ZMQ_SNDMORE : 0));
     //Read each read request
     zmq_msg_t keyFrame;
     zmq_msg_t previousResponse; //Needed to only send last frame without SNDMORE
@@ -179,11 +177,9 @@ void ReadWorker::handleReadRequest(zmq_msg_t* headerFrame) {
     leveldb::Status status;
     string value;
     //If there are no keys at all, just send ACK without SNDMORE, else with SNDMORE
-    if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket);
-    } else {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
-    }
+    bool dataFramesAvailable = socketHasMoreFrames(processorInputSocket);
+    sendConstFrame(ackResponse, 4, processorOutputSocket,
+        logger, "ACK response", (dataFramesAvailable ? ZMQ_SNDMORE : 0));
     //Read each read request
     zmq_msg_t keyFrame;
     zmq_msg_t previousResponse; //Needed to only send last frame without SNDMORE
@@ -277,7 +273,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         leveldb::Slice value = it->value();
         //Send the previous value msg, if any
         if (!sentHeader) {
-            sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
+            sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response", ZMQ_SNDMORE);
             sentHeader = true;
         }
         if (haveLastValueMsg) {
@@ -307,7 +303,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     }
     //If the scanned range is empty, the header has not been sent et
     if (!sentHeader) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
     }
     //Check if any error occured during iteration
     if (!checkLevelDBStatus(it->status(),
@@ -375,7 +371,7 @@ void ReadWorker::handleLimitedScanRequest(zmq_msg_t* headerFrame) {
         leveldb::Slice value = it->value();
         //Send the previous value msg, if any
         if (!sentHeader) {
-            sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
+            sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response", ZMQ_SNDMORE);
             sentHeader = true;
         }
         if (haveLastValueMsg) {
@@ -398,7 +394,7 @@ void ReadWorker::handleLimitedScanRequest(zmq_msg_t* headerFrame) {
     }
     //If the scanned range is empty, the header has not been sent et
     if (!sentHeader) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
     }
     //Send the previous value msg, if any
     if (haveLastValueMsg) {
@@ -468,7 +464,7 @@ void ReadWorker::handleCountRequest(zmq_msg_t* headerFrame) {
     }
     delete it;
     //Send ACK and count
-    sendConstFrame(ackResponse, 4, processorOutputSocket, ZMQ_SNDMORE);
+    sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response", ZMQ_SNDMORE);
     sendBinary<uint64_t>(count, processorOutputSocket, logger);
 }
 
@@ -515,8 +511,8 @@ bool ReadWorker::processNextRequest() {
     } else {
         std::string errstr = "Internal routing error: request type " + std::to_string((int) requestType) + " routed to read worker thread!";
         logger.error(errstr);
-        sendConstFrame("\x31\x01\xFF", 3, processorOutputSocket, ZMQ_SNDMORE);
-        sendFrame(errstr, processorOutputSocket);
+        sendConstFrame("\x31\x01\xFF", 3, processorOutputSocket, logger, "Internal routing error header", ZMQ_SNDMORE);
+        sendFrame(errstr, processorOutputSocket, logger, "Internal routing error error message");
     }
     /**
      * In some cases (especially errors) the msg part input queue is clogged

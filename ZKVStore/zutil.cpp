@@ -57,3 +57,19 @@ std::string frameToString(zframe_t* frame) {
 std::string frameToString(zmq_msg_t* msg) {
     
 }
+
+void COLD logMessageOperationError(const char* frameDesc, const char* operation, Logger& logger) {
+    logger.error("Error '"
+                + std::string(zmq_strerror(errno))
+                + "' while trying to "
+                + std::string(operation) + " frame '"
+                + std::string(frameDesc));
+}
+
+void COLD logMessageInitializationError(const char* frameDesc, Logger& logger) {
+    logMessageOperationError(frameDesc, "initialize", logger);
+}
+
+void COLD logMessageSendError(const char* frameDesc, Logger& logger) {
+    logMessageOperationError(frameDesc, "send", logger);
+}

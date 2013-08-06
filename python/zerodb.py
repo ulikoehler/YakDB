@@ -54,8 +54,8 @@ class Connection:
             raise Exception("Please connect to server before using serverInfo (use ZeroDBConnection.connect()!")
         if not self.isConnected:
             raise Exception("Current ZeroDBConnection is setup, but not connected. Please connect before usage!")
-    def _sendBinary32(self, value, more): ZMQBinaryUtil.sendBinary32(self.socket,  value,  more)
-    def _sendBinary64(self, value, more): ZMQBinaryUtil.sendBinary64(self.socket,  value,  more)
+    def _sendBinary32(self, value, more=True): ZMQBinaryUtil.sendBinary32(self.socket,  value,  more)
+    def _sendBinary64(self, value, more=True): ZMQBinaryUtil.sendBinary64(self.socket,  value,  more)
     def _sendRange(self, fromKey,  toKey,  more=False):
         """
         Send a dual-frame range over the socket.
@@ -69,7 +69,6 @@ class Connection:
         if toKey is None: toKey = ""
         self.socket.send(fromKey, zmq.SNDMORE)
         self.socket.send(toKey,  (zmq.SNDMORE if more else 0))
-    @staticmethod
     def _checkHeaderFrame(self,  msgParts,  expectedResponseType):
         """
         Given a list of received message parts, checks the first message part.
@@ -81,8 +80,8 @@ class Connection:
         """
         if len(msgParts) == 0:
             raise ZeroDBProtocolException("Received empty reply message")
-        if len(msgParts[0] < 4):
-            raise ZeroDBProtocolException("Received empty reply message")
+        if len(msgParts[0]) < 4:
+            raise ZeroDBProtocolException("Header frame has size of %d, but expected 4" % len(msgParts[0]))
         if msgParts[0][2] != expectedResponseType:
             raise ZeroDBProtocolException("Response code received from server is"
                         "%d instead of %d" % (ord(msgParts[0][2]),  ord(expectedResponseType)))

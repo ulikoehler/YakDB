@@ -17,3 +17,8 @@ class ClientSidePassiveJob:
         not request any more data blocks (they will always be empty).
         """
         return self.connection._requestJobDataChunk(self.apid)
+    def getAPID(self):
+        """
+        Getter for the job-specific APID that is guaranteed to be unique
+        """
+        return self.apid

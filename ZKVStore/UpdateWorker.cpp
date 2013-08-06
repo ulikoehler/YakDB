@@ -181,7 +181,7 @@ void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResp
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
     }
 }
 
@@ -235,7 +235,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
     }
 }
 
@@ -287,7 +287,7 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
             (haveRangeEnd ? &rangeEnd : nullptr));
     //Create the response if neccessary
     if (generateResponse) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
     }
 }
 
@@ -367,7 +367,7 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     }
     //Create the response if neccessary
     if (generateResponse) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
     }
 }
 
@@ -455,7 +455,7 @@ void UpdateWorker::handleLimitedDeleteRangeRequest(zmq_msg_t* headerFrame, bool 
     }
     //Create the response if neccessary
     if (generateResponse) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
     }
 }
 
@@ -524,7 +524,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
     //Rewrite the header frame for the response
     //Create the response if neccessary
     if (generateResponse) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
     }
 }
 
@@ -541,7 +541,7 @@ void UpdateWorker::handleTableCloseRequest(zmq_msg_t* headerFrame, bool generate
     tableOpenHelper.closeTable(tableId);
     //Create the response
     if (generateResponse) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
     }
 }
 
@@ -559,7 +559,7 @@ void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool gener
     //Create the response
     zmsg_t* response = nullptr;
     if (generateResponse) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger);
+        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
     }
 }
 
