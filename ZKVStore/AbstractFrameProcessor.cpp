@@ -286,7 +286,7 @@ void AbstractFrameProcessor::disposeRemainingMsgParts() {
     zmq_msg_t msg;
     zmq_msg_init(&msg);
     while (socketHasMoreFrames(processorInputSocket)) {
-        if (unlikely((&msg, processorInputSocket, 0) == -1)) {
+        if (unlikely(zmq_msg_recv(&msg, processorInputSocket, 0) == -1)) {
             logger.warn("ZMQ error while trying to clear remaining messages from queue: "
                     + std::string(zmq_strerror(zmq_errno())));
             numErrors++;
@@ -316,6 +316,34 @@ bool AbstractFrameProcessor::expectExactFrameSize(zmq_msg_t* msg,
             sendFrame(errorResponse, 4, processorOutputSocket, logger, errName, ZMQ_SNDMORE);
             sendFrame(errstr, processorOutputSocket, logger, errName);
         }
+        return false;
+    }
+    return true;
+}
+
+bool AbstractFrameProcessor::sendUint64Frame(uint64_t value, const char* frameDesc, int flags) {
+    zmq_msg_t msg;
+    if(unlikely(zmq_msg_init_size(&msg, sizeof(uint64_t)) == -1)) {
+        logMessageInitializationError(frameDesc, logger);
+        return false;
+    }
+    memcpy(zmq_msg_data(&msg), &value, sizeof(uint64_t));
+    return sendMessage(&msg, frameDesc, flags);
+}
+
+bool AbstractFrameProcessor::sendUint32Frame(uint32_t value, const char* frameDesc, int flags) {
+    zmq_msg_t msg;
+    if(unlikely(zmq_msg_init_size(&msg, sizeof(uint32_t)) == -1)) {
+        logMessageInitializationError(frameDesc, logger);
+        return false;
+    }
+    memcpy(zmq_msg_data(&msg), &value, sizeof(uint64_t));
+    return sendMessage(&msg, frameDesc, flags);
+}
+
+bool AbstractFrameProcessor::sendMessage(zmq_msg_t* msg, const char* frameDesc, int flags) {
+    if(unlikely(zmq_msg_send(msg, processorOutputSocket, flags) == -1)){
+        logMessageSendError(frameDesc, logger);
         return false;
     }
     return true;

@@ -184,7 +184,6 @@ AsyncJobRouter::~AsyncJobRouter()
 }
 
 bool AsyncJobRouter::processNextRequest() {
-    logger.debug("ITX");
     zmq_msg_t routingFrame, delimiterFrame, headerFrame;
     //Read routing info
     zmq_msg_init(&routingFrame);
@@ -198,13 +197,11 @@ bool AsyncJobRouter::processNextRequest() {
         zmq_msg_close(&routingFrame);
         return false;
     }
-    logger.debug("ITX1.5");
     //If it isn't empty, we expect to see the delimiter frame
     if (!expectNextFrame("Received nonempty routing frame, but no delimiter frame", false, "\x31\x01\xFF\xFF")) {
         zmq_msg_close(&routingFrame);
         return true;
     }
-    logger.debug("ITX2");
     zmq_msg_init(&delimiterFrame);
     if(receiveExpectMore(&delimiterFrame, processorInputSocket, logger, "delimiter frame") == -1) {
         return true;
@@ -217,9 +214,9 @@ bool AsyncJobRouter::processNextRequest() {
     assert(isHeaderFrame(&headerFrame));
     //Get the request type
     RequestType requestType = getRequestType(&headerFrame);
-    //Process the rest of the frame
-    logger.debug("ITX3");
+    //Process the rest of the framex
     if (requestType == ClientDataRequest) {
+        logger.trace("Client data request");
         //Parse the APID frame
         uint64_t apid;
         if(!parseUint64Frame(apid, "APID frame", true, "\x31\01\x50\x01")) {
@@ -264,7 +261,6 @@ bool AsyncJobRouter::processNextRequest() {
         logger.error(errstr);
     } else if (requestType == ClientSidePassiveTableMapInitializationRequest) {
         zmq_msg_close(&headerFrame);
-        logger.trace("IT2");
         //Parse all parameters
         uint32_t tableId;
         if(!parseUint32Frame(tableId, "APID frame", true, "\x31\01\x42\x01")) {
@@ -280,6 +276,19 @@ bool AsyncJobRouter::processNextRequest() {
         //Initialize it
         uint64_t apid = initializeJob();
         startClientSidePassiveJob(apid, tableId, chunkSize, rangeStart, rangeEnd);
+        //Send the reply
+        if(zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE) == -1) {
+            zmq_msg_close(&routingFrame);
+            logMessageSendError("Routing frame (CSPTMI Response)", logger);
+        }
+        if(zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE) == -1) {
+            logMessageSendError("Routing frame (CSPTMI Response)", logger);
+        }
+        if(zmq_send(processorOutputSocket, "\x31\x01\x42\x00", 4, ZMQ_SNDMORE) == -1) {
+            logMessageSendError("Header frame (CSPTMI Response)", logger);
+        }
+        //Send APID frame //TODO error check
+        sendUint64Frame(apid, "CSPTMI Response APID");
     }  else {
         std::string errstr = "Internal routing error: request type " + std::to_string((int) requestType) + " routed to read worker thread!";
         logger.error(errstr);

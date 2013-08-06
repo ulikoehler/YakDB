@@ -23,6 +23,7 @@ COLD SequentialIDGenerator::SequentialIDGenerator(const std::string& file) : fil
         FILE* fin = fopen(file.c_str(), "r");
         uint64_t tempVal = 1;
         if (fread(&tempVal, sizeof (uint64_t), 1, fin) < 1) {
+            //We *could* log that we created the file
             fprintf(stderr, "Failed to read sequential ID initialization data from %s - initializing to zero.", file.c_str());
             tempVal = 1;
         }
@@ -31,6 +32,8 @@ COLD SequentialIDGenerator::SequentialIDGenerator(const std::string& file) : fil
     } else {
         //Initialize the atomic variable
         std::atomic_store(&nextId, (uint64_t) 1);
+        //Create the file
+        persist();
     }
 }
 

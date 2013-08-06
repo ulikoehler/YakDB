@@ -167,6 +167,24 @@ protected:
             const char* errorResponse,
             bool generateResponse=true);
     /**
+     * Send a uint64 frame over the processor output socet.
+     * Log any error that might occur.
+     * @return false if any error occured, true else
+     */
+    bool sendUint64Frame(uint64_t value, const char* frameDesc, int flags = 0);
+    /**
+     * Send a uint32 frame over the processor output socet.
+     * Log any error that might occur.
+     * @return false if any error occured, true else
+     */
+    bool sendUint32Frame(uint32_t value, const char* frameDesc, int flags = 0);
+    /**
+     * Send a message over processorOutputSocket.
+     * Log any error that might occur.
+     * @return false if any error occured, true else
+     */
+    bool sendMessage(zmq_msg_t* msg, const char* frameDesc, int flags = 0);
+    /**
      * If the input socket has any remaining msg parts in the current message,
      * read and dispose them.
      * 
