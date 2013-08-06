@@ -145,9 +145,10 @@ static void clientSidePassiveWorkerThreadFn(
 COLD AsyncJobRouterController::AsyncJobRouterController(zctx_t* ctx, Tablespace& tablespace)
     : childThread(nullptr),
         ctx(ctx),
-        tablespace(tablespace) {
+        tablespace(tablespace),
+        routerSocket(zsocket_new(ctx, ZMQ_PUSH)) {
     //Create the PAIR socket to the job router
-    routerSocket = zsocket_new_bind(ctx, ZMQ_PUSH, asyncJobRouterAddr);
+    zsocket_bind(routerSocket, asyncJobRouterAddr);
 }
 
 void COLD AsyncJobRouterController::start() {
@@ -186,7 +187,7 @@ bool AsyncJobRouter::processNextRequest() {
     zmq_msg_t routingFrame, delimiterFrame, headerFrame;
     //Read routing info
     zmq_msg_init(&routingFrame);
-    if(!receiveLogError(&routingFrame, processorInputSocket, logger)) {
+    if(!receiveLogError(&routingFrame, processorInputSocket, logger, "Routing frame")) {
         return true;
     }
     logger.debug("ITX1.1");
@@ -204,7 +205,9 @@ bool AsyncJobRouter::processNextRequest() {
     }
     logger.debug("ITX2");
     zmq_msg_init(&delimiterFrame);
-    receiveExpectMore(&delimiterFrame, processorInputSocket, logger);
+    if(receiveExpectMore(&delimiterFrame, processorInputSocket, logger, "delimiter frame") == -1) {
+        return true;
+    }
     //Receive the header frame
     zmq_msg_init(&headerFrame);
     if (unlikely(!receiveMsgHandleError(&headerFrame, "Receive header frame in read worker thread", "\x31\x01\xFF\xFF", true))) {

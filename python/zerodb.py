@@ -1,9 +1,15 @@
-import zmq
 import struct
 #Local imports
 from Conversion import ZMQBinaryUtil
 from Exceptions import ZeroDBProtocolException,  ParameterException
 import DataProcessor
+#Use ZMQPy inside PyPy
+import platform
+if platform.python_implementation() == "PyPy":
+    import zmqpy as zmq
+else:
+    import zmq
+
 
 class Connection:
     def __init__(self, context=None):
@@ -64,9 +70,9 @@ class Connection:
             with the ZMQ_SNDMORE flag
         """
         if fromKey is not None: fromKey = ZMQBinaryUtil.convertToBinary(fromKey)
+        else: fromKey = ""
         if toKey is not None: toKey = ZMQBinaryUtil.convertToBinary(toKey)
-        if fromKey is None: fromKey = ""
-        if toKey is None: toKey = ""
+        else: toKey = ""
         self.socket.send(fromKey, zmq.SNDMORE)
         self.socket.send(toKey,  (zmq.SNDMORE if more else 0))
     def _checkHeaderFrame(self,  msgParts,  expectedResponseType):
@@ -515,25 +521,25 @@ class Connection:
         self._sendBinary32(tableNo, 0) #No SNDMORE flag
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x04')
-    def initializePassiveDataJob(self, tableNo, fromKey=None, toKey=None,  blocksize=None):
+    def initializePassiveDataJob(self, tableNo, fromKey=None, toKey=None,  chunksize=None):
         """
         Initialize a job on the server that waits for client requests.
         @param tableNo The table number to scan in
         @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
-        @param blocksize How many key/value pairs will be returned for a single request. None --> Serverside default
+        @param chunksize How many key/value pairs will be returned for a single request. None --> Serverside default
         @return A PassiveDataJob instance, exposing requestDataBlock()
         """
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
-        self._checkParameterType(blocksize, int, "blocksize",  allowNone=True)
+        self._checkParameterType(chunksize, int, "chunksize",  allowNone=True)
         #Check if this connection instance is setup correctly
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x42", zmq.SNDMORE)
+        self.socket.send("\x31\x01\x42",  zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
-        self._sendBinary32(blocksize)
+        self._sendBinary32(chunksize)
         #Send range to be scanned
         self._sendRange(fromKey,  toKey)
         #Receive response

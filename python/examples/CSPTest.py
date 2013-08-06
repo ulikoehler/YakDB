@@ -9,7 +9,7 @@ for i in range(1,1000):
 conn = zerodb.Connection()
 conn.connect("tcp://localhost:7100")
 
-conn.put(1, data)
+#conn.put(1, data)
 
 #Initialize job
 conn.initializePassiveDataJob(1)

@@ -49,7 +49,9 @@ bool UpdateWorker::processNextMessage() {
      */
     zmq_msg_t haveReplyAddrFrame, routingFrame, delimiterFrame, headerFrame;
     zmq_msg_init(&haveReplyAddrFrame);
-    receiveExpectMore(&haveReplyAddrFrame, processorInputSocket, logger);
+    if(receiveExpectMore(&haveReplyAddrFrame, processorInputSocket, logger, "Have reply addr frame") == -1) {
+        return true;
+    }
     char haveReplyAddrFrameContent = ((char*) zmq_msg_data(&haveReplyAddrFrame))[0];
     zmq_msg_close(&haveReplyAddrFrame);
     if (haveReplyAddrFrameContent == '\xFF') {
@@ -65,9 +67,13 @@ bool UpdateWorker::processNextMessage() {
     if (haveReplyAddr) {
         //Read routing info
         zmq_msg_init(&routingFrame);
-        receiveExpectMore(&routingFrame, processorInputSocket, logger);
+        if(receiveExpectMore(&routingFrame, processorInputSocket, logger, "Routing frame") == -1) {
+            return true;
+        }
         zmq_msg_init(&delimiterFrame);
-        receiveExpectMore(&delimiterFrame, processorInputSocket, logger);
+        if(receiveExpectMore(&delimiterFrame, processorInputSocket, logger, "Delimiter frame") == -1) {
+            return true;
+        }
         //Write routing info
         zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
         zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE);
@@ -153,12 +159,12 @@ void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResp
         zmq_msg_init(&keyFrame);
         zmq_msg_init(&valueFrame);
         //The next two frames contain key and value
-        receiveLogError(&keyFrame, processorInputSocket, logger);
+        receiveLogError(&keyFrame, processorInputSocket, logger, "Key frame");
         //Check if there is a key but no value
         if (!expectNextFrame("Protocol error: Found key frame, but no value frame. They must occur in pairs!", generateResponse, "\x31\x01\x20\x01")) {
             return;
         }
-        receiveLogError(&valueFrame, processorInputSocket, logger);
+        receiveLogError(&valueFrame, processorInputSocket, logger, "Value frame");
         //Convert to LevelDB
         leveldb::Slice keySlice((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
         leveldb::Slice valueSlice((char*) zmq_msg_data(&valueFrame), zmq_msg_size(&valueFrame));

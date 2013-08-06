@@ -73,3 +73,7 @@ void COLD logMessageInitializationError(const char* frameDesc, Logger& logger) {
 void COLD logMessageSendError(const char* frameDesc, Logger& logger) {
     logMessageOperationError(frameDesc, "send", logger);
 }
+
+void COLD logMessageRecvError(const char* frameDesc, Logger& logger) {
+    logMessageOperationError(frameDesc, "receive", logger);
+}

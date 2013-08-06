@@ -14,6 +14,32 @@
 #include "macros.hpp"
 
 /**
+ * Log an error during the ZMQ msg lifecycle, evaluating errno
+ * @param frameDesc A description of the frame that is related to the error
+ * @param operation The phase during the message lifecycle the error occured at
+ * @param logger The logger to log the error message to (loglevel: error)
+ */
+void COLD logMessageOperationError(const char* frameDesc, const char* operation, Logger& logger);
+/**
+ * Log an error during a zmq_msg_init() call, evaluating errno
+ * @param frameDesc A description of the frame that is related to the error
+ * @param logger The logger to log the error message to (loglevel: error)
+ */
+void COLD logMessageInitializationError(const char* frameDesc, Logger& logger);
+/**
+ * Log an error during a zmq_msg_send() call, evaluating errno
+ * @param frameDesc A description of the frame that is related to the error
+ * @param logger The logger to log the error message to (loglevel: error)
+ */
+void COLD logMessageSendError(const char* frameDesc, Logger& logger);
+/**
+ * Log an error during a zmq_msg_recv() call, evaluating errno
+ * @param frameDesc A description of the frame that is related to the error
+ * @param logger The logger to log the error message to (loglevel: error)
+ */
+void COLD logMessageRecvError(const char* frameDesc, Logger& logger);
+
+/**
  * If errno is not zero, print a
  * @param action What you did before the error happened
  */
@@ -44,10 +70,9 @@ static inline void logZMQError(int error, const char* action, Logger& logger) {
  * It won't be logged as error because protocol because the server usually
  * can easily recover from protocol errors.
  */
-static inline int receiveLogError(zmq_msg_t* msg, void* sock, Logger& logger) {
-    int rc = zmq_msg_recv(msg, sock, 0);
-    if (unlikely(rc == -1)) {
-        logger.warn(std::string("Error while receiving message part: " + std::string(zmq_strerror(zmq_errno()))));
+static inline int receiveLogError(zmq_msg_t* msg, void* sock, Logger& logger, const char* frameDesc) {
+    if(unlikely(zmq_msg_recv(msg, sock, 0) == -1)) {
+        logMessageRecvError(frameDesc, logger);
         return -1;
     }
     return 0;
@@ -66,8 +91,8 @@ static inline int receiveLogError(zmq_msg_t* msg, void* sock, Logger& logger) {
  * It won't be logged as error because protocol because the server usually
  * can easily recover from protocol errors.
  */
-static inline int receiveExpectMore(zmq_msg_t* msg, void* sock, Logger& logger) {
-    if (unlikely(receiveLogError(msg, sock, logger))) {
+static inline int receiveExpectMore(zmq_msg_t* msg, void* sock, Logger& logger, const char* frameDesc) {
+    if (unlikely(receiveLogError(msg, sock, logger, frameDesc) == -1)) {
         return 2;
     }
     if (unlikely(!zmq_msg_more(msg))) {
@@ -90,8 +115,8 @@ static inline int receiveExpectMore(zmq_msg_t* msg, void* sock, Logger& logger) 
  * It won't be logged as error because protocol because the server usually
  * can easily recover from protocol errors.
  */
-static inline int receiveExpectNoMore(zmq_msg_t* msg, void* sock, Logger& logger) {
-    if (unlikely(receiveLogError(msg, sock, logger))) {
+static inline int receiveExpectNoMore(zmq_msg_t* msg, void* sock, Logger& logger, const char* frameDesc) {
+    if (unlikely(receiveLogError(msg, sock, logger, frameDesc) == -1)) {
         return 2;
     }
     //Check rcvmore
@@ -101,26 +126,6 @@ static inline int receiveExpectNoMore(zmq_msg_t* msg, void* sock, Logger& logger
     }
     return 0;
 }
-
-/**
- * Log an error during the ZMQ msg lifecycle, evaluating errno
- * @param frameDesc A description of the frame that is related to the error
- * @param operation The phase during the message lifecycle the error occured at
- * @param logger The logger to log the error message to (loglevel: error)
- */
-void COLD logMessageOperationError(const char* frameDesc, const char* operation, Logger& logger);
-/**
- * Log an error during a zmq_msg_init() call, evaluating errno
- * @param frameDesc A description of the frame that is related to the error
- * @param logger The logger to log the error message to (loglevel: error)
- */
-void COLD logMessageInitializationError(const char* frameDesc, Logger& logger);
-/**
- * Log an error during a zmq_msg_send() call, evaluating errno
- * @param frameDesc A description of the frame that is related to the error
- * @param logger The logger to log the error message to (loglevel: error)
- */
-void COLD logMessageSendError(const char* frameDesc, Logger& logger);
 
 /**
  * Send constant data over a socket using zero-copy as far as possible.

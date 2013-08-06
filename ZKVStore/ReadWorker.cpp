@@ -472,7 +472,9 @@ bool ReadWorker::processNextRequest() {
     zmq_msg_t routingFrame, delimiterFrame, headerFrame;
     //Read routing info
     zmq_msg_init(&routingFrame);
-    receiveLogError(&routingFrame, processorInputSocket, logger);
+    if(receiveLogError(&routingFrame, processorInputSocket, logger, "Routing frame") == -1) {
+        return true;
+    }
     //Empty frame means: Stop thread
     if (zmq_msg_size(&routingFrame) == 0) {
         logger.trace("Read worker thread received stop signal");
@@ -485,7 +487,9 @@ bool ReadWorker::processNextRequest() {
         return true;
     }
     zmq_msg_init(&delimiterFrame);
-    receiveExpectMore(&delimiterFrame, processorInputSocket, logger);
+    if(receiveExpectMore(&delimiterFrame, processorInputSocket, logger, "Delimiter frame") == -1) {
+        return true;
+    }
     //Write routing info to the output socket immediately
     zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
     zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE);

@@ -77,7 +77,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
     //Receive the routing info and the ZeroDB header frame
     zmq_msg_t addrFrame, delimiterFrame, headerFrame;
     zmq_msg_init(&addrFrame);
-    if (unlikely(receiveExpectMore(&addrFrame, sock, server->logger))) {
+    if (unlikely(receiveExpectMore(&addrFrame, sock, server->logger, "Routing addr") == -1)) {
         server->logger.error("Frame envelope could not be received correctly");
         //We can't even send back an error message, because the address can't be correct,
         // considering the envelope is missing
@@ -85,7 +85,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         return 0;
     }
     zmq_msg_init(&delimiterFrame);
-    if (receiveExpectMore(&delimiterFrame, sock, server->logger)) {
+    if (receiveExpectMore(&delimiterFrame, sock, server->logger, "Delimiter frame") == -1) {
         sendProtocolError(&addrFrame,
                 &delimiterFrame,
                 sock,
@@ -95,7 +95,12 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         return 0;
     }
     zmq_msg_init(&headerFrame);
-    receiveLogError(&headerFrame, sock, server->logger);
+    if(receiveLogError(&headerFrame, sock, server->logger, "Header frame")) {
+        zmq_msg_close(&addrFrame);
+        zmq_msg_close(&delimiterFrame);
+        return 0;
+    }
+    //Check the header -- send error message if invalid
     if (unlikely(!isHeaderFrame(&headerFrame))) {
         sendProtocolError(&addrFrame, &delimiterFrame, sock,
                 "Received malformed message, header format is not correct: " +
@@ -105,10 +110,9 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         zmq_msg_close(&headerFrame);
         return 0;
     }
-    //Check the header -- send error message if invalid
+    //Extract the request type from the header
     char* headerData = (char*) zmq_msg_data(&headerFrame);
     size_t headerSize = zmq_msg_size(&headerFrame);
-    
     std::string errmsg; //The error message, if any, will be stored here
     RequestType requestType = (RequestType) (uint8_t) headerData[2];
     if (requestType == RequestType::ReadRequest
@@ -221,11 +225,20 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         //Dispose non-reused messages
         zmq_msg_close(&headerFrame);
     } else if(requestType & 0x40) { //Any data processing request
+        server->logger.trace("FX1");
         void* workerSocket = server->asyncJobRouterController.routerSocket;
-        zmq_msg_send(&addrFrame, workerSocket, ZMQ_SNDMORE);
-        zmq_msg_send(&delimiterFrame, workerSocket, ZMQ_SNDMORE);
-        zmq_msg_send(&headerFrame, workerSocket, ZMQ_SNDMORE);
-        proxyMultipartMessage(sock, workerSocket);
+        if(zmq_msg_send(&addrFrame, workerSocket, ZMQ_SNDMORE) == -1) {
+            logMessageSendError("Data processing request address frame", server->logger);
+        }
+        if(zmq_msg_send(&delimiterFrame, workerSocket, ZMQ_SNDMORE) == -1) {
+            logMessageSendError("Data processing request delimiter frame", server->logger);
+        }
+        if(zmq_msg_send(&headerFrame, workerSocket, ZMQ_SNDMORE) == -1) {
+            logMessageSendError("Data processing request header frame", server->logger);
+        }
+        if(proxyMultipartMessage(sock, workerSocket) == -1) {
+            logMessageSendError("Some frame while proxying data processing request", server->logger);
+        }
     } else {
         server->logger.warn("Unknown message type " + std::to_string(requestType) + " from client");
         //Send a protocol error back to the client

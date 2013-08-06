@@ -1,5 +1,9 @@
 #!/usr/bin/env python
-import zmq
+import platform
+if platform.python_implementation() == "PyPy":
+    import zmqpy as zmq
+else:
+    import zmq
 import struct
 from Exceptions import ParameterException
 
