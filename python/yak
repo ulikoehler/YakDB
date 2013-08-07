@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 #YakDB commandline tool
-import optparse
+import argparse
 import sys
 import YakDB
 
@@ -56,40 +56,61 @@ def compact(db, tableNo, fromKey, toKey):
     db.compactRange(tableNom, fromKey, toKey)
 
 if __name__ == "__main__":
-    parser = optparse.OptionParser()
+    parser = argparse.ArgumentParser(description="YakDB client tool")
     #Server options
-    serverOptsGroup = optparse.OptionGroup(parser, "Server options")
-    serverOptsGroup.add_option("-s","--server", help="Specifies server URL to connect to", default="tcp://localhost:7100", action='store', dest="serverURL")
-    serverOptsGroup.add_option("-g","--server-group", help="Specifies the server group to connect to for PUB/SUB connections", action='store', dest="serverGroup")
-    #Connect mode
-    connectModeGroup = optparse.OptionGroup(parser, "Connection modes")
-    connectModeGroup.add_option("-e","--request-reply", help="Use request-reply connect mode", action="store_const", const=ConnectMode.requestReply, dest="connectMode")
-    connectModeGroup.add_option("-p","--push-pull", help="Use push-pull connect mode", action="store_const", const=ConnectMode.pushPull, dest="connectMode")
-    connectModeGroup.add_option("-b","--pub-sub", help="Use public-subscribe connect mode", action="store_const", const=ConnectMode.pubSub, dest="connectMode")
+    serverOptsGroup = parser.add_argument_group(parser, "Server options")
+    serverOptsGroup.add_argument("-s, --server",
+                                 help="Specifies server URL to connect to",
+                                 default="tcp://localhost:7100",
+                                 action='store',
+                                 dest="serverURL")
+    serverOptsGroup.add_argument("-g, --server-group",
+                                 help="Specifies the server group to connect to for PUB/SUB connections",
+                                 action='store',
+                                 dest="serverGroup")
+    serverOptsGroup.add_argument("-c, --connection-mode",
+                                 choices=["PUB","PUSH","REQ"],
+                                 default="REQ",
+                                 action="store",
+                                 dest="connectMode",
+                                 help="The connection mode to use for requests. Most requests only work in REQ mode.")
     #Database options
-    dbOptsGroup = optparse.OptionGroup(parser, "Database options")
-    dbOptsGroup.add_option("-t","--table", help="Set table number to use", action="store", default=1, type="int", dest="tableNo")
+    dbOptsGroup = parser.add_argument_group(parser, "Database options")
+    dbOptsGroup.add_argument("-t, --table",
+                             help="Set table number to use",
+                             action="store",
+                             default=1,
+                             type=int,
+                             dest="tableNo")
     #CLI options
-    cliOptsGroup = optparse.OptionGroup(parser, "CLI options")
-    cliOptsGroup.add_option("-q","--quiet", help="Don't print connection info", action="store_true", dest="quiet", default=False)
-    cliOptsGroup.add_option("-r","--repl", help="Start into a REPL where db is the database connection", action="store_true", dest="repl")
-    #Add all opt groups
-    parser.add_option_group(serverOptsGroup)
-    parser.add_option_group(connectModeGroup)
-    parser.add_option_group(dbOptsGroup)
-    parser.add_option_group(cliOptsGroup)
+    cliOptsGroup = parser.add_argument_group(parser, "CLI options")
+    cliOptsGroup.add_argument("-q, --quiet",
+                              help="Don't print connection info",
+                              action="store_true",
+                              dest="quiet",
+                              default=False)
+    cliOptsGroup.add_argument("-r, --repl",
+                              help="Start into a REPL where db is the database connection",
+                              action="store_true",
+                              dest="repl")
+    #Create parsers for the individual commands
+    subparsers = parser.add_subparsers(title="Commands")
+    parserInfo = subparsers.add_parser("info")
+    parserInfo.set_defaults(func=info)
     #Parse
-    (opts, args) = parser.parse_args()
+    args = parser.parse_args()
+    print args
+    if not args.quiet:
+        sys.stderr.write("Connecting to %s\n" % args.serverURL)
+    db = YakDB.Connection()
+    args.func(args)
     #
     #Setup connection
     #
-    if not opts.quiet:
-        sys.stderr.write("Connecting to %s\n" % opts.serverURL)
-    db = YakDB.Connection()
     #Default is req/rep
-    if opts.connectMode is ConnectMode.pushPull:
+    if args.connectMode == "PUSH":
         db.usePushMode()
-    elif opts.connectMode is ConnectMode.pubSub:
+    elif arg.connectMode == "PUB":
         db.usePubMode()
     else:
         db.useRequestReplyMode()
