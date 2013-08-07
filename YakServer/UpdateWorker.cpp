@@ -554,8 +554,8 @@ void UpdateWorker::handleTableCloseRequest(zmq_msg_t* headerFrame, bool generate
 }
 
 void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool generateResponse) {
-    static const char* errorResponse = "\x31\x01\x03\x01";
-    static const char* ackResponse = "\x31\x01\x03s\x00";
+    static const char* errorResponse = "\x31\x01\x04\x01";
+    static const char* ackResponse = "\x31\x01\x04\x00";
     zmq_msg_close(headerFrame);
     uint32_t tableId;
     if (!parseUint32Frame(tableId, "Table ID frame", generateResponse,

@@ -475,11 +475,10 @@ class Connection:
         so this decreases latency and counteracts the possibility
         of work piling up for threads that are waiting for a table to be opened.
 
-        Additionally, this method of opening tables allows settings 
-#all
+        Additionally, this method of opening tables allows setting
         table parameters whereas on-the-fly-open always assumes defaults
 
-        @param tableNo The table number to truncate
+        @param tableNo The table number to open
         @param compression Set this to false to disable blocklevel snappy compression
         @param lruCacheSize The LRU cache size in bytes, or None to assume default
         @param tableBlocksize The table block size in bytes, or None to assume default
@@ -523,6 +522,23 @@ class Connection:
         self._sendBinary32(tableNo, 0) #No SNDMORE flag
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x04')
+    def closeTable(self, tableNo):
+        """
+        Close a table.
+        Usually not neccessary, unless you want to save memory
+        @param tableNo The table number to truncate
+        @return
+        """
+        #Check parameters and create binary-string only key list
+        self._checkParameterType(tableNo, int, "tableNo")
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send("\x31\x01\x02", zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo, more=False) #No SNDMORE flag
+        msgParts = self.socket.recv_multipart(copy=True)
+        self._checkHeaderFrame(msgParts,  '\x02')
     def compactRange(self, tableNo, fromKey=None, toKey=None):
         """
         Compact a range in a table.
