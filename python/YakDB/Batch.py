@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-from private.Conversion import ZMQBinaryUtil
+from Conversion import ZMQBinaryUtil
 from Exceptions import ParameterException
 
-class WriteBatch:
+class AutoWriteBatch:
     """
     An utility class that auto-batches write requests to a backend Connection
     When calling flush, a put request is issued to the backend.
@@ -11,7 +11,7 @@ class WriteBatch:
     """
     def __init__(self, conn, tableNo, batchSize=2500, partsync=False, fullsync=False):
         """
-        Create a new WriteBatch.
+        Create a new AutoWriteBatch.
         @param db The ZeroDB connection backend
         @param tableNo TConnectionhe table number this batch is related to.
         """
