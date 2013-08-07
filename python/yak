@@ -5,31 +5,47 @@ import argparse
 import sys
 import YakDB
 
-class ConnectMode:
-    requestReply = 0
-    pushPull = 1
-    pubSub = 2
+def info(db, args):
+    print(db.serverInfo())
+    
+def read(db, args):
+    tableNo = args.tableNo
+    keys = args.keys
+    output = db.read(tableNo, keys) #Always use custom mapping
+    #Convert value-only to key-->value map if not --print-raw is set
+    if args.printRaw:
+        for line in output:
+            print line
+    else:
+        outMap = {}
+        for index, inval in enumerate(keys):
+            outMap[inval] = output[index]
+        print(outMap)
 
-def exists(db, tableNo, keys):
-    output = db.exists(tableNo, keys)
-    #Convert value-only to key-->value map
-    outMap = {}
-    for index, inval in enumerate(keys):
-        outMap[inval] = output[index]
-    print(outMap)
-
-def read(db, tableNo, keys):
-    output = db.read(tableNo, keys)
-    #Convert value-only to key-->value map
-    outMap = {}
-    for index, inval in enumerate(keys):
-        outMap[inval] = output[index]
-    print(outMap)
-
-def put(db, tableNo, key, value):
+def put(db, args):
+    tableNo = args.tableNo
+    key = args.key
+    value = args.value
     db.put(tableNo, {key: value})
     #Convert value-only to key-->value map
-    print("Put '%s' --> '%s'" % (key, value))
+    print("Successfuly put '%s' --> '%s'" % (key, value))
+
+def exists(db, args):
+    tableNo = args.tableNo
+    keys = args.keys
+    result = db.exists(tableNo, keys)
+    if args.printNumeric:
+        result = map(lambda x: 1 if x else 0, result)
+    #Convert value-only to key-->value map
+    if args.printRaw:
+        for value in result:
+            print value
+    else: #Print dictionary
+        outMap = {}
+        for index, inval in enumerate(keys):
+            outMap[inval] = result[index]
+        print(outMap)
+
 
 def delete(db, tableNo, keys):
     db.delete(tableNo, keys)
@@ -49,8 +65,6 @@ def count(db, tableNo, fromKey, toKey):
 def deleteRange(db, tableNo, fromKey, toKey):
     db.deleteRange(tableNo, fromKey, toKey)
 
-def info(db):
-    print(db.serverInfo())
 
 def compact(db, tableNo, fromKey, toKey):
     db.compactRange(tableNom, fromKey, toKey)
@@ -58,17 +72,17 @@ def compact(db, tableNo, fromKey, toKey):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="YakDB client tool")
     #Server options
-    serverOptsGroup = parser.add_argument_group(parser, "Server options")
-    serverOptsGroup.add_argument("-s, --server",
+    serverArgsGroup = parser.add_argument_group(parser, "Server options")
+    serverArgsGroup.add_argument("-s, --server",
                                  help="Specifies server URL to connect to",
                                  default="tcp://localhost:7100",
                                  action='store',
                                  dest="serverURL")
-    serverOptsGroup.add_argument("-g, --server-group",
+    serverArgsGroup.add_argument("-g, --server-group",
                                  help="Specifies the server group to connect to for PUB/SUB connections",
                                  action='store',
                                  dest="serverGroup")
-    serverOptsGroup.add_argument("-c, --connection-mode",
+    serverArgsGroup.add_argument("-c, --connection-mode",
                                  choices=["PUB","PUSH","REQ"],
                                  default="REQ",
                                  action="store",
@@ -92,43 +106,88 @@ if __name__ == "__main__":
     cliOptsGroup.add_argument("-r, --repl",
                               help="Start into a REPL where db is the database connection",
                               action="store_true",
+                              default=False,
                               dest="repl")
+    ###
     #Create parsers for the individual commands
+    ###
+    #Info
     subparsers = parser.add_subparsers(title="Commands")
     parserInfo = subparsers.add_parser("info")
     parserInfo.set_defaults(func=info)
-    #Parse
+    #Info
+    parserRead = subparsers.add_parser("read")
+    parserRead.add_argument('keys',
+                            nargs='+',
+                            action="store",
+                            help="The keys to read")
+    parserRead.add_argument('-p, --print-raw',
+                            dest="printRaw",
+                            action="store_true",
+                            default=False,
+                            help="Print only the values read (separated by newline), not a dictionary")
+    parserRead.set_defaults(func=read)
+    #Put
+    parserPut = subparsers.add_parser("put")
+    parserPut.add_argument('key',
+                            action="store",
+                            help="The key to write")
+    parserPut.add_argument('value',
+                            action="store",
+                            help="The value to write")
+    parserPut.set_defaults(func=put)
+    #Exists
+    parserExists = subparsers.add_parser("exists")
+    parserExists.add_argument('keys',
+                            nargs='+',
+                            action="store",
+                            help="The keys to check for existence")
+    parserExists.add_argument('-n, --numeric-boolean',
+                            dest="printNumeric",
+                            action="store_true",
+                            default=False,
+                            help="Instead of printing True or False, print 1 or 0")
+    parserExists.add_argument('-p, --print-raw',
+                            dest="printRaw",
+                            action="store_true",
+                            default=False,
+                            help="Do not print a map from key to its existence value, but only the existence values in the same order as the keys")
+    parserExists.set_defaults(func=exists)
+    ###
+    #Parse and call the function
+    ###
     args = parser.parse_args()
     print args
+    db = YakDB.Connection()
     if not args.quiet:
         sys.stderr.write("Connecting to %s\n" % args.serverURL)
-    db = YakDB.Connection()
-    args.func(args)
+    db.connect(args.serverURL)
+    args.func(db, args)
     #
     #Setup connection
     #
     #Default is req/rep
     if args.connectMode == "PUSH":
         db.usePushMode()
-    elif arg.connectMode == "PUB":
+    elif args.connectMode == "PUB":
         db.usePubMode()
     else:
         db.useRequestReplyMode()
     #Connect
-    db.connect(opts.serverURL)
     #s
-    if opts.repl:
+    if args.repl:
         import code
-        code.InteractiveConsole(locals=globals()).interact("ZeroDB REPL -- Raw connection is available in 'db' variable")
+        code.InteractiveConsole(locals=globals()).interact("YakDB REPL -- Connection is available in 'db' variable")
     else: #Single-command mode
-        tableNo = opts.tableNo
+        tableNo = args.tableNo
+        sys.exit(0)
         cmd = args[0]
         #Extract other args
         arg1 = None
         arg2 = None
         if len(args) >= 2: arg1 = args[1]
         if len(args) >= 3: arg2 = args[2]
-        commands = ["open","read","exists","put","delete","deleterange","scan","scan+limit","count","info","compact"]
+        commands = ["open","exists","put","delete","deleterange","scan","scan+limit","count","info","compact"]
         if cmd not in commands:
             print("Command '%s' not available - available commands: %s" % (cmd, ", ".join(commands)))
             sys.exit(1)

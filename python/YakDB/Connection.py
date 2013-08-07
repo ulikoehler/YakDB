@@ -98,7 +98,6 @@ class Connection:
             raise ZeroDBProtocolException(
                 "Response status code is %d instead of 0x00 (ACK), error message: %s"
                 % (ord(msgParts[0][3]),  errorMsg))
-    @staticmethod
     def serverInfo(self):
         """
         Send a server info request to the client
@@ -220,7 +219,7 @@ class Connection:
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x21')
-    def readRaw(self, tableNo, keys,  mapKeys=False):
+    def read(self, tableNo, keys, mapKeys=False):
         """
         Read one or multiples values, identified by their keys, from a table.
 
