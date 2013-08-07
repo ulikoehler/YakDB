@@ -171,7 +171,8 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
         }
     } else if (requestType == RequestType::PutRequest
             || requestType == RequestType::DeleteRequest
-            || requestType == RequestType::DeleteRangeRequest) {
+            || requestType == RequestType::DeleteRangeRequest
+            || requestType == RequestType::LimitedDeleteRangeRequest) {
         void* workerSocket = server->updateWorkerController.workerPushSocket;
         /**
          * Only for partsync messages the routing info (addr + delim frame)

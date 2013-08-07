@@ -28,7 +28,8 @@ def put(db, args):
     value = args.value
     db.put(tableNo, {key: value})
     #Convert value-only to key-->value map
-    print("Successfuly put '%s' --> '%s'" % (key, value))
+    if not args.quiet:
+        print("Successfuly put '%s' --> '%s'" % (key, value))
 
 def exists(db, args):
     tableNo = args.tableNo
@@ -46,118 +47,197 @@ def exists(db, args):
             outMap[inval] = result[index]
         print(outMap)
 
-
-def delete(db, tableNo, keys):
+def delete(db, args):
+    tableNo = args.tableNo
+    keys = args.keys
     db.delete(tableNo, keys)
-    print("Deleted [%s]" % ", ".join(keys))
+    if not args.quiet:
+        print("Deleted [%s]" % ", ".join(keys))
 
-def scan(db, tableNo, fromKey, toKey):
-    #Data is remapped in connection class
-    print(db.scan(tableNo, fromKey, toKey))
+def deleteRange(db, args):
+    tableNo = args.tableNo
+    fromKey = args.fromKey
+    toKey = args.toKey
+    limit = args.scanLimit
+    if args.toKey is not None and args.scanLimit is not None:
+        sys.stderr.write("Error: can't use --to together with --limit")
+        sys.exit(1)
+    #Data is remapped into dictionary-form in connection class
+    if limit is None: #Use from->to scan
+        db.deleteRange(tableNo, fromKey, toKey)
+    else: #Use limited scan
+        db.deleteRangeLimited(tableNo, fromKey, limit)
+
+def scan(db, args):
+    tableNo = args.tableNo
+    fromKey = args.fromKey
+    toKey = args.toKey
+    limit = args.scanLimit
+    if args.toKey is not None and args.scanLimit is not None:
+        sys.stderr.write("Error: can't use --to together with --limit")
+        sys.exit(1)
+    #Data is remapped into dictionary-form in connection class
+    if limit is None: #Use from->to scan
+        print(db.scan(tableNo, fromKey, toKey))
+    else: #Use limited scan
+        print(db.scanWithLimit(tableNo, fromKey, limit))
     
-def scanLimit(db, tableNo, fromKey, limit):
-    #Data is remapped in connection class
-    print(db.scanWithLimit(tableNo, fromKey, int(limit)))
-    
-def count(db, tableNo, fromKey, toKey):
+def count(db, args):
+    tableNo = args.tableNo
+    fromKey = args.fromKey
+    toKey = args.toKey
     print(db.count(tableNo, fromKey, toKey))
-
-def deleteRange(db, tableNo, fromKey, toKey):
-    db.deleteRange(tableNo, fromKey, toKey)
-
 
 def compact(db, tableNo, fromKey, toKey):
     db.compactRange(tableNom, fromKey, toKey)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="YakDB client tool")
-    #Server options
+    #Server optionstype=int
     serverArgsGroup = parser.add_argument_group(parser, "Server options")
     serverArgsGroup.add_argument("-s, --server",
-                                 help="Specifies server URL to connect to",
-                                 default="tcp://localhost:7100",
-                                 action='store',
-                                 dest="serverURL")
+            help="Specifies server URL to connect to",
+            default="tcp://localhost:7100",
+            action='store',
+            dest="serverURL")
     serverArgsGroup.add_argument("-g, --server-group",
-                                 help="Specifies the server group to connect to for PUB/SUB connections",
-                                 action='store',
-                                 dest="serverGroup")
+            help="Specifies the server group to connect to for PUB/SUB connections",
+            action='store',
+            dest="serverGroup")
     serverArgsGroup.add_argument("-c, --connection-mode",
-                                 choices=["PUB","PUSH","REQ"],
-                                 default="REQ",
-                                 action="store",
-                                 dest="connectMode",
-                                 help="The connection mode to use for requests. Most requests only work in REQ mode.")
+            choices=["PUB","PUSH","REQ"],
+            default="REQ",
+            action="store",
+            dest="connectMode",
+            help="The connection mode to use for requests. Most requests only work in REQ mode.")
     #Database options
     dbOptsGroup = parser.add_argument_group(parser, "Database options")
     dbOptsGroup.add_argument("-t, --table",
-                             help="Set table number to use",
-                             action="store",
-                             default=1,
-                             type=int,
-                             dest="tableNo")
+            help="Set table number to use",
+            action="store",
+            default=1,
+            type=int,
+            dest="tableNo")
     #CLI options
     cliOptsGroup = parser.add_argument_group(parser, "CLI options")
+    #Data is remapped in connection class
     cliOptsGroup.add_argument("-q, --quiet",
-                              help="Don't print connection info",
-                              action="store_true",
-                              dest="quiet",
-                              default=False)
+            help="Don't print connection info",
+            action="store_true",
+            dest="quiet",
+            default=False)
     cliOptsGroup.add_argument("-r, --repl",
-                              help="Start into a REPL where db is the database connection",
-                              action="store_true",
-                              default=False,
-                              dest="repl")
+            help="Start into a REPL where db is the database connection",
+            action="store_true",
+            default=False,
+            dest="repl")
     ###
     #Create parsers for the individual commands
     ###
-    #Info
     subparsers = parser.add_subparsers(title="Commands")
+    #Info
     parserInfo = subparsers.add_parser("info")
     parserInfo.set_defaults(func=info)
-    #Info
+    #Read
     parserRead = subparsers.add_parser("read")
     parserRead.add_argument('keys',
-                            nargs='+',
-                            action="store",
-                            help="The keys to read")
+            nargs='+',
+            action="store",
+            help="The keys to read")
     parserRead.add_argument('-p, --print-raw',
-                            dest="printRaw",
-                            action="store_true",
-                            default=False,
-                            help="Print only the values read (separated by newline), not a dictionary")
+            dest="printRaw",
+            action="store_true",
+            default=False,
+            help="Print only the values read (separated by newline), not a dictionary")
     parserRead.set_defaults(func=read)
     #Put
     parserPut = subparsers.add_parser("put")
     parserPut.add_argument('key',
-                            action="store",
-                            help="The key to write")
+            action="store",
+            help="The key to write")
     parserPut.add_argument('value',
-                            action="store",
-                            help="The value to write")
+            action="store",
+            help="The value to write")
     parserPut.set_defaults(func=put)
     #Exists
     parserExists = subparsers.add_parser("exists")
     parserExists.add_argument('keys',
-                            nargs='+',
-                            action="store",
-                            help="The keys to check for existence")
+            nargs='+',
+            action="store",
+            help="The keys to check for existence")
     parserExists.add_argument('-n, --numeric-boolean',
-                            dest="printNumeric",
-                            action="store_true",
-                            default=False,
-                            help="Instead of printing True or False, print 1 or 0")
+            dest="printNumeric",
+            action="store_true",
+            default=False,
+            help="Instead of printing True or False, print 1 or 0")
     parserExists.add_argument('-p, --print-raw',
-                            dest="printRaw",
-                            action="store_true",
-                            default=False,
-                            help="Do not print a map from key to its existence value, but only the existence values in the same order as the keys")
+            dest="printRaw",
+            action="store_true",
+            default=False,
+            help="Do not print a map from key to its existence value, but only the existence values in the same order as the keys")
     parserExists.set_defaults(func=exists)
+    #Delete
+    parserDelete = subparsers.add_parser("delete")
+    parserDelete.add_argument('keys',
+            nargs='+',
+            action="store",
+            help="The keys to delete (keys that don't exist will be ignored)")
+    parserDelete.set_defaults(func=delete)
+    #Delete range
+    parserDeleteRange = subparsers.add_parser("delete-range")
+    parserDeleteRange.add_argument('--from',
+            action="store",
+            dest="fromKey",
+            default=None,
+            help="The key to start deleting at (inclusive)")
+    parserDeleteRange.add_argument('--to',
+            action="store",
+            dest="toKey",
+            default=None,
+            help="The key to stop deleting at (exclusive, must not be used together with --limit)")
+    parserDeleteRange.add_argument('--limit',
+            action="store",
+            dest="scanLimit",
+            type=int,
+            default=None,
+            help="The maximum number of keys to delete (must not be used together with --to)")
+    parserDeleteRange.set_defaults(func=deleteRange)
+    #Scan
+    parserScan = subparsers.add_parser("scan")
+    parserScan.add_argument('--from',
+            action="store",
+            dest="fromKey",
+            default=None,
+            help="The key to start scanning at (inclusive)")
+    parserScan.add_argument('--to',
+            action="store",
+            dest="toKey",
+            default=None,
+            help="The key to stop scanning at (exclusive, must not be used together with --limit)")
+    parserScan.add_argument('--limit',
+            action="store",
+            dest="scanLimit",
+            type=int,
+            default=None,
+            help="The maximum number of keys to scan (must not be used together with --to)")
+    parserScan.set_defaults(func=scan)
+    #Count
+    parserCount = subparsers.add_parser("count")
+    parserCount.add_argument('--from',
+            action="store",
+            dest="fromKey",
+            default=None,
+            help="The key to start scanning at (inclusive)")
+    parserCount.add_argument('--to',
+            action="store",
+            dest="toKey",
+            default=None,
+            help="The key to stop scanning at (exclusive, must not be used together with --limit)")
+    parserCount.set_defaults(func=count)
     ###
     #Parse and call the function
     ###
     args = parser.parse_args()
-    print args
     db = YakDB.Connection()
     if not args.quiet:
         sys.stderr.write("Connecting to %s\n" % args.serverURL)

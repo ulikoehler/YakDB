@@ -358,13 +358,13 @@ class Connection:
         #Send header frame
         self.socket.send("\x31\x01\x22", zmq.SNDMORE)
         #Send the table number frame
-        self._sendBinary32(tableNo)
+        self._sendBinary32(tableNo, more=True)
         #Send range. "" --> empty frame --> start/end of tabe
         self._sendRange(fromKey,  toKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x22')
-    def deleteLimitedRange(self, tableNo, fromKey, limit):
+    def deleteRangeLimited(self, tableNo, fromKey, limit):
         """
         Deletes a range of keys in the database. This is a version of deleteRange() that allows
         you to specify a maximum number of keys to scan, instead of an end key
@@ -385,9 +385,9 @@ class Connection:
         self._sendBinary32(tableNo)
         #Send range. "" --> empty frame --> start/end of tabe
         if fromKey is not None: fromKey = ZMQBinaryUtil.convertToBinary(fromKey)
-        if fromKey is None: fromKey = ""
+        else: fromKey = ""
         self.socket.send(fromKey, zmq.SNDMORE)
-        self._sendBinary64(limit)
+        self._sendBinary64(limit, more=False)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x23')
@@ -415,7 +415,7 @@ class Connection:
         self._sendRange(fromKey,  toKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x14')
+        self._checkHeaderFrame(msgParts,  '\x11')
         #Deserialize
         binaryCount = msgParts[1]
         count = struct.unpack("<Q", binaryCount)[0]
