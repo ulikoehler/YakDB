@@ -3,6 +3,7 @@
 #YakDB commandline tool
 import argparse
 import sys
+import code
 import YakDB
 
 def info(db, args):
@@ -88,8 +89,16 @@ def count(db, args):
     toKey = args.toKey
     print(db.count(tableNo, fromKey, toKey))
 
-def compact(db, tableNo, fromKey, toKey):
+def compact(db, args):
+    tableNo = args.tableNocount
+    fromKey = args.fromKey
+    toKey = args.toKey
     db.compactRange(tableNom, fromKey, toKey)
+    if not args.quiet:
+        print "Compaction finished"
+
+def repl(db, args):
+    code.InteractiveConsole(locals=globals()).interact("YakDB REPL -- Connection is available in 'db' variable")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="YakDB client tool")
@@ -136,10 +145,10 @@ if __name__ == "__main__":
     ###
     subparsers = parser.add_subparsers(title="Commands")
     #Info
-    parserInfo = subparsers.add_parser("info")
+    parserInfo = subparsers.add_parser("info", description="Request server information (features and version number)")
     parserInfo.set_defaults(func=info)
     #Read
-    parserRead = subparsers.add_parser("read")
+    parserRead = subparsers.add_parser("read", description="Read the values for one or more keys")
     parserRead.add_argument('keys',
             nargs='+',
             action="store",
@@ -151,7 +160,7 @@ if __name__ == "__main__":
             help="Print only the values read (separated by newline), not a dictionary")
     parserRead.set_defaults(func=read)
     #Put
-    parserPut = subparsers.add_parser("put")
+    parserPut = subparsers.add_parser("put", description="Write a single key-value pair")
     parserPut.add_argument('key',
             action="store",
             help="The key to write")
@@ -160,7 +169,7 @@ if __name__ == "__main__":
             help="The value to write")
     parserPut.set_defaults(func=put)
     #Exists
-    parserExists = subparsers.add_parser("exists")
+    parserExists = subparsers.add_parser("exists", description="Check if one or more keys exist in the table")
     parserExists.add_argument('keys',
             nargs='+',
             action="store",
@@ -177,24 +186,24 @@ if __name__ == "__main__":
             help="Do not print a map from key to its existence value, but only the existence values in the same order as the keys")
     parserExists.set_defaults(func=exists)
     #Delete
-    parserDelete = subparsers.add_parser("delete")
+    parserDelete = subparsers.add_parser("delete", description="Delete one or more keys")
     parserDelete.add_argument('keys',
             nargs='+',
             action="store",
             help="The keys to delete (keys that don't exist will be ignored)")
     parserDelete.set_defaults(func=delete)
     #Delete range
-    parserDeleteRange = subparsers.add_parser("delete-range")
+    parserDeleteRange = subparsers.add_parser("delete-range", description="Delete a range of keys")
     parserDeleteRange.add_argument('--from',
             action="store",
             dest="fromKey",
             default=None,
-            help="The key to start deleting at (inclusive)")
+            help="The key to start deleting at (inclusive), default: start of table")
     parserDeleteRange.add_argument('--to',
             action="store",
             dest="toKey",
             default=None,
-            help="The key to stop deleting at (exclusive, must not be used together with --limit)")
+            help="The key to stop deleting at (exclusive, must not be used together with --limit), default: end of table")
     parserDeleteRange.add_argument('--limit',
             action="store",
             dest="scanLimit",
@@ -203,17 +212,17 @@ if __name__ == "__main__":
             help="The maximum number of keys to delete (must not be used together with --to)")
     parserDeleteRange.set_defaults(func=deleteRange)
     #Scan
-    parserScan = subparsers.add_parser("scan")
+    parserScan = subparsers.add_parser("scan", description="Scan over a specified range in the table and return all key-value-pairs in that range")
     parserScan.add_argument('--from',
             action="store",
             dest="fromKey",
             default=None,
-            help="The key to start scanning at (inclusive)")
+            help="The key to start scanning at (inclusive), default: Start of table")
     parserScan.add_argument('--to',
             action="store",
             dest="toKey",
             default=None,
-            help="The key to stop scanning at (exclusive, must not be used together with --limit)")
+            help="The key to stop scanning at (exclusive, must not be used together with --limit), default: end of table")
     parserScan.add_argument('--limit',
             action="store",
             dest="scanLimit",
@@ -222,7 +231,7 @@ if __name__ == "__main__":
             help="The maximum number of keys to scan (must not be used together with --to)")
     parserScan.set_defaults(func=scan)
     #Count
-    parserCount = subparsers.add_parser("count")
+    parserCount = subparsers.add_parser("count", description="Count how many keys exist in a specified range of the table")
     parserCount.add_argument('--from',
             action="store",
             dest="fromKey",
@@ -234,6 +243,22 @@ if __name__ == "__main__":
             default=None,
             help="The key to stop scanning at (exclusive, must not be used together with --limit)")
     parserCount.set_defaults(func=count)
+    #Compact
+    parserCompact = subparsers.add_parser("compact", description="Compact a specified range of the table\nThis operation may take a long time, especially for large tables.")
+    parserCompact.add_argument('--from',
+            action="store",
+            dest="fromKey",
+            default=None,
+            help="The key to start compacting at (inclusive), default: start of table")
+    parserCompact.add_argument('--to',
+            action="store",
+            dest="toKey",
+            default=None,
+            help="The key to stop compacting at (exclusive, must not be used together with --limit), default: end of table")
+    parserCompact.set_defaults(func=compact)
+    #REPL
+    parserInfo = subparsers.add_parser("repl", description="Start a Read-eval-print loop (REPL) for interactive DB usage")
+    parserInfo.set_defaults(func=repl)
     ###
     #Parse and call the function
     ###
@@ -241,43 +266,11 @@ if __name__ == "__main__":
     db = YakDB.Connection()
     if not args.quiet:
         sys.stderr.write("Connecting to %s\n" % args.serverURL)
-    db.connect(args.serverURL)
-    args.func(db, args)
-    #
-    #Setup connection
-    #
-    #Default is req/rep
     if args.connectMode == "PUSH":
         db.usePushMode()
     elif args.connectMode == "PUB":
         db.usePubMode()
     else:
         db.useRequestReplyMode()
-    #Connect
-    #s
-    if args.repl:
-        import code
-        code.InteractiveConsole(locals=globals()).interact("YakDB REPL -- Connection is available in 'db' variable")
-    else: #Single-command mode
-        tableNo = args.tableNo
-        sys.exit(0)
-        cmd = args[0]
-        #Extract other args
-        arg1 = None
-        arg2 = None
-        if len(args) >= 2: arg1 = args[1]
-        if len(args) >= 3: arg2 = args[2]
-        commands = ["open","exists","put","delete","deleterange","scan","scan+limit","count","info","compact"]
-        if cmd not in commands:
-            print("Command '%s' not available - available commands: %s" % (cmd, ", ".join(commands)))
-            sys.exit(1)
-        elif cmd == "info": info(db)
-        elif cmd == "exists": exists(db, tableNo, args[1:])
-        elif cmd == "read": read(db, tableNo, args[1:])
-        elif cmd == "put": put(db, tableNo, arg1, arg2)
-        elif cmd == "delete": delete(db, tableNo, args[1:])
-        elif cmd == "scan": scan(db, tableNo, arg1, arg2)
-        elif cmd == "scan+limit": scanLimit(db, tableNo, arg1, arg2)
-        elif cmd == "deleterange": deleteRange(db, tableNo, arg1, arg2)
-        elif cmd == "count": count(db, tableNo, arg1, arg2)
-        elif cmd == "compact": compact(db, tableNo, arg1, arg2)
+    db.connect(args.serverURL)
+    args.func(db, args)
