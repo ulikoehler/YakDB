@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf8 -*-
 import platform
 if platform.python_implementation() == "PyPy":
     import zmqpy as zmq

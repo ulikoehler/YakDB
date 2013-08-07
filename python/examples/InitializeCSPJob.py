@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-import zerodb
+# Job initi
+import YakDB
 
-conn = zerodb.Connection()
+conn = YakDB.Connection()
 conn.connect("tcp://localhost:7100")

@@ -10,7 +10,7 @@ is_clean = subprocess.call(["git", "diff-index", "--quiet", config["git_rev"]]) 
 config["git_clean_version"] = 1 if is_clean else 0
 with open("include/autoconfig.h", "w") as configfile:
         configfile.write("""#ifndef AUTOCONFIG_H
-#define SERVER_VERSION "ZeroDB 0.1 pre-alpha"
+#define SERVER_VERSION "YakDB 0.1 alpha"
 #define AUTOCONFIG_H
 #define GIT_REVISION "%(git_rev)s"
 #define GIT_CLEAN_VERSION %(git_clean_version)s // == 0 means there had been uncomitted changes

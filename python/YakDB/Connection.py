@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf8 -*-
 import struct
 #Local imports
 from Conversion import ZMQBinaryUtil
@@ -474,7 +476,8 @@ class Connection:
         so this decreases latency and counteracts the possibility
         of work piling up for threads that are waiting for a table to be opened.
 
-        Additionally, this method of opening tables allows settings all
+        Additionally, this method of opening tables allows settings 
+#all
         table parameters whereas on-the-fly-open always assumes defaults
 
         @param tableNo The table number to truncate

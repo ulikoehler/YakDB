@@ -9,6 +9,7 @@ setup(name='YakDB',
       author_email='ukoehler@btronik.de',
       url='http://techoverflow.net/',
       packages=['YakDB'],
+      scripts=["yak"],
       classifiers = [
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
