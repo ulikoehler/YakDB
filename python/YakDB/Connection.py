@@ -91,7 +91,7 @@ class Connection:
         if len(msgParts[0]) < 4:
             raise ZeroDBProtocolException("Header frame has size of %d, but expected 4" % len(msgParts[0]))
         if msgParts[0][2] != expectedResponseType:
-            raise ZeroDBProtocolException("Response code received from server is"
+            raise ZeroDBProtocolException("Response code received from server is "
                         "%d instead of %d" % (ord(msgParts[0][2]),  ord(expectedResponseType)))
         if msgParts[0][3] != '\x00':
             errorMsg = msgParts[1] if len(msgParts) >= 2 else "<Unknown>"
