@@ -1,6 +1,6 @@
 import optparse
 import sys
-import zerodb
+import YakDB
 
 class ConnectMode:
     requestReply = 0
@@ -33,11 +33,11 @@ def delete(db, tableNo, keys):
     print("Deleted [%s]" % ", ".join(keys))
 
 def scan(db, tableNo, fromKey, toKey):
-    #Data is remapped in ZeroDB class
+    #Data is remapped in connection class
     print(db.scan(tableNo, fromKey, toKey))
     
 def scanLimit(db, tableNo, fromKey, limit):
-    #Data is remapped in ZeroDB class
+    #Data is remapped in connection class
     print(db.scanWithLimit(tableNo, fromKey, int(limit)))
     
 def count(db, tableNo, fromKey, toKey):
@@ -48,6 +48,9 @@ def deleteRange(db, tableNo, fromKey, toKey):
 
 def info(db):
     print(db.serverInfo())
+
+def compact(db, tableNo, fromKey, toKey):
+    db.compactRange(tableNom, fromKey, toKey)
 
 if __name__ == "__main__":
     parser = optparse.OptionParser()
@@ -79,7 +82,7 @@ if __name__ == "__main__":
     #
     if not opts.quiet:
         sys.stderr.write("Connecting to %s\n" % opts.serverURL)
-    db = zerodb.Connection()
+    db = YakDB.Connection()
     #Default is req/rep
     if opts.connectMode is ConnectMode.pushPull:
         db.usePushMode()
@@ -101,7 +104,7 @@ if __name__ == "__main__":
         arg2 = None
         if len(args) >= 2: arg1 = args[1]
         if len(args) >= 3: arg2 = args[2]
-        commands = ["open","read","exists","put","delete","deleterange","scan","scan+limit","count","info"]
+        commands = ["open","read","exists","put","delete","deleterange","scan","scan+limit","count","info","compact"]
         if cmd not in commands:
             print("Command '%s' not available - available commands: %s" % (cmd, ", ".join(commands)))
             sys.exit(1)
@@ -114,3 +117,4 @@ if __name__ == "__main__":
         elif cmd == "scan+limit": scanLimit(db, tableNo, arg1, arg2)
         elif cmd == "deleterange": deleteRange(db, tableNo, arg1, arg2)
         elif cmd == "count": count(db, tableNo, arg1, arg2)
+        elif cmd == "compact": compact(db, tableNo, arg1, arg2)

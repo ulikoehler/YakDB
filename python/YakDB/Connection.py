@@ -521,6 +521,23 @@ class Connection:
         self._sendBinary32(tableNo, 0) #No SNDMORE flag
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x04')
+    def compactRange(self, tableNo, fromKey=None, toKey=None):
+        """
+        Compact a range in a table.
+        This operation might take a long time and might not be useful at all
+        under certain circumstances
+        """
+        #Check parameters and create binary-string only key list
+        self._checkParameterType(tableNo, int, "tableNo")
+        #Check if this connection instance is setup correctly
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send("\x31\x01\x03", zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo, more=true)
+        self._sendRange(fromKey,  toKey)
+        msgParts = self.socket.recv_multipart(copy=True)
+        self._checkHeaderFrame(msgParts,  '\x03')
     def initializePassiveDataJob(self, tableNo, fromKey=None, toKey=None,  chunksize=None):
         """
         Initialize a job on the server that waits for client requests.

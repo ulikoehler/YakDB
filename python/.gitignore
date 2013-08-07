@@ -2,3 +2,5 @@
 .eric5project
 *.e4p
 __pycache__
+dist
+MANIFEST

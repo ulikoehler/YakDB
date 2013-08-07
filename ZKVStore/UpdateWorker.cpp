@@ -286,11 +286,13 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
             generateResponse);
     bool haveRangeStart = !(rangeStartStr.empty());
     bool haveRangeEnd = !(rangeEndStr.empty());
-    //Do the compaction (takes LONG)
+    //Do the compaction (takes LONG, so log it before)
+    logger.debug("Compacting table " + std::to_string(tableId));
     leveldb::Slice rangeStart(rangeStartStr);
     leveldb::Slice rangeEnd(rangeEndStr);
     db->CompactRange((haveRangeStart ? &rangeStart : nullptr),
             (haveRangeEnd ? &rangeEnd : nullptr));
+    logger.trace("Finished compacting table " + std::to_string(tableId));
     //Create the response if neccessary
     if (generateResponse) {
         sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
