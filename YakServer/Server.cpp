@@ -112,7 +112,6 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
     }
     //Extract the request type from the header
     char* headerData = (char*) zmq_msg_data(&headerFrame);
-    size_t headerSize = zmq_msg_size(&headerFrame);
     std::string errmsg; //The error message, if any, will be stored here
     RequestType requestType = (RequestType) (uint8_t) headerData[2];
     if (requestType == RequestType::ReadRequest
@@ -146,17 +145,6 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
          * In the future, this might be avoided by different worker scheduling
          * algorithms (post office style)
          */
-        //        cout << "XXXX" << endl;
-        //        zframe_t* firstFrame = zmsg_first(msg);
-        //        zframe_t* secondFrame = zmsg_next(msg);
-        //        cout << "F1x " << zframe_size(firstFrame) << endl;
-        //        if(true || zframe_size(firstFrame) != 5) {
-        //            for (int i = 0; i < zframe_size(firstFrame); i++) {
-        //                cout << "\t" << i << ":" << (int)zframe_data(firstFrame)[i] << endl;
-        //            }
-        //        }
-        //        cout << "F2x " << zframe_size(secondFrame) << endl;
-        //        cout << "YYYY" << endl;
         void* dstSocket = server->updateWorkerController.workerPushSocket;
         //Send the info frame (--> we have addr info)
         sendConstFrame("\x01", 1, dstSocket, server->logger,
@@ -296,19 +284,23 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     return 0;
 }
 
-KeyValueServer::KeyValueServer(bool dbCompressionEnabled) : ctx(zctx_new()),
+KeyValueServer::KeyValueServer(bool dbCompressionEnabled) :
+ctx(zctx_new()),
 tables(),
+externalRepSocket(nullptr),
+externalSubSocket(nullptr),
+externalPullSocket(nullptr),
+responseProxySocket(nullptr),
 tableOpenServer(ctx, tables.getDatabases(), dbCompressionEnabled),
-externalPullSocket(NULL),
-externalSubSocket(NULL),
-logServer(ctx),
 updateWorkerController(ctx, tables),
 readWorkerController(ctx, tables),
 asyncJobRouterController(ctx, tables),
-logger(ctx, "Request router") {
-    const char* reqRepUrl = "tcp://*:7100";
-    const char* writeSubscriptionUrl = "tcp://*:7101";
-    const char* errorPubUrl = "tcp://*:7102";
+logger(ctx, "Request router"),
+logServer(ctx)
+ {
+    static const char* reqRepUrl = "tcp://*:7100";
+    static const char* writeSubscriptionUrl = "tcp://*:7101";
+    static const char* errorPubUrl = "tcp://*:7102";
     //Start the log server
     logServer.addLogSink(new StderrLogSink());
     logServer.startInNewThread();
@@ -348,8 +340,8 @@ KeyValueServer::~KeyValueServer() {
 void KeyValueServer::start() {
     zloop_t *reactor = zloop_new();
     //The main thread listens to the external sockets and proxies responses from the worker thread
-    zmq_pollitem_t externalPoller = {externalRepSocket, 0, ZMQ_POLLIN};
-    if (zloop_poller(reactor, &externalPoller, handleRequestResponse, this)) {
+    zmq_pollitem_t reqRepPoller = {externalRepSocket, 0, ZMQ_POLLIN};
+    if (zloop_poller(reactor, &reqRepPoller, handleRequestResponse, this)) {
         debugZMQError("Add external poller to reactor", errno);
     }
     zmq_pollitem_t responsePoller = {responseProxySocket, 0, ZMQ_POLLIN};

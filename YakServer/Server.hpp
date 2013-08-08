@@ -19,7 +19,6 @@ public:
     void start();
     ~KeyValueServer();
     zctx_t* ctx;
-    LogServer logServer;
     Tablespace tables;
     //External sockets
     void* externalRepSocket; //ROUTER socket that receives remote req/rep READ requests can only use this socket
@@ -31,6 +30,7 @@ public:
     ReadWorkerController readWorkerController;
     AsyncJobRouterController asyncJobRouterController;
     Logger logger; //The log source of the server itself, only to be used from the main thread
+    LogServer logServer;
 };
 
 
