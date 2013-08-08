@@ -103,7 +103,6 @@ private:
      * @return true if and only if the value of this->scrubJobsRequested is > 0
      */
     bool isThereAnyScrubJobRequest();
-    zctx_t* ctx;
     std::map<uint64_t, void*> processSocketMap; //APID --> ZMQ socket
     std::map<uint64_t, std::thread*> processThreadMap; //APID --> ZMQ socket
     std::map<uint64_t, ThreadTerminationInfo*> apTerminationInfo; //APID --> TTI object
@@ -117,6 +116,7 @@ private:
      */
     std::atomic<unsigned int> scrubJobsRequested;
     SequentialIDGenerator apidGenerator;
+    zctx_t* ctx;
     Tablespace& tablespace;
 };
 

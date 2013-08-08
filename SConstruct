@@ -18,6 +18,6 @@ with open("include/autoconfig.h", "w") as configfile:
 """%config)
 
 #Build server
-SConscript(dirs='ZKVStore', variant_dir='build', src_dir='ZKVStore', duplicate=0)
+SConscript(dirs='YakServer', variant_dir='build', src_dir='YakServer', duplicate=0)
 #Build C++ client library
 SConscript(dirs='KVClient', variant_dir='clientbuild', src_dir='KVClient', duplicate=0)

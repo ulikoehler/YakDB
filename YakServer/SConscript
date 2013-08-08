@@ -1,11 +1,33 @@
 #Use colorgcc and C++11
 import os
-env = Environment(CXXFLAGS=["-std=c++0x","-march=core2","-Wall"],ENV =
-						{'PATH' : os.environ['PATH'],
+
+linkmode = ARGUMENTS.get("link","dynamic")
+
+linkflags=[]
+cxxflags=["-std=c++0x","-march=core2","-Wall"]
+if linkmode == "static":
+    cxxflags.append("-static")
+    linkflags.append("-static")
+elif linkmode == "dynamic":
+    pass
+else:
+    raise Exception("Error: Link mode %s invalid!" % link)
+
+linkflags.append("-pthread")
+#linkflags.append("-static-libgcc")
+
+env = Environment(CXXFLAGS=cxxflags,
+                  LINKFLAGS=linkflags,
+                  ENV = {'PATH' : os.environ['PATH'],
                          'TERM' : os.environ['TERM'],
                          'HOME' : os.environ['HOME']})
 
-libraries = ["zmq","czmq","leveldb","jemalloc"]
+malloc = ARGUMENTS.get("malloc","jemalloc")
+libraries = ["zmq","czmq","leveldb",malloc]
+if linkmode == "static":
+    #Somehow we need this
+    libraries.append("snappy")
+    #libraries.append("unwind")
 
 zkvSource =  ["zutil.cpp",
     "main.cpp",

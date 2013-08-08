@@ -126,7 +126,7 @@ static void clientSidePassiveWorkerThreadFn(
              * the router sends a stop msg.
              * We don't NEED to be super-clean here, but it won't do any harm either.
              */
-            for(int i = 0 ; i < bufferValidSize; i++) {
+            for(unsigned int i = 0 ; i < bufferValidSize; i++) {
                 zmq_msg_close(&keyMsgBuffer[i]);
                 zmq_msg_close(&valueMsgBuffer[i]);
             }
@@ -157,7 +157,7 @@ static void clientSidePassiveWorkerThreadFn(
             sendConstFrame(responseOK, 4, outSocket, logger, "Full data response header frame", ZMQ_SNDMORE);
         }
         //Send the data frames
-        for(int i = 0 ; i < (bufferValidSize - 1) ; i++) {
+        for(unsigned int i = 0 ; i < (bufferValidSize - 1) ; i++) {
             if(zmq_msg_send(&keyMsgBuffer[i], outSocket, ZMQ_SNDMORE) == -1) {
                 logMessageSendError("Key frame (not last)", logger);
             }
@@ -210,10 +210,10 @@ static void clientSidePassiveWorkerThreadFn(
 }
 
 COLD AsyncJobRouterController::AsyncJobRouterController(zctx_t* ctxArg, Tablespace& tablespace)
-    : childThread(nullptr),        
-        ctx(ctxArg),
+    : routerSocket(zsocket_new(ctxArg, ZMQ_PUSH)), 
+        childThread(nullptr),
         tablespace(tablespace),
-        routerSocket(zsocket_new(ctxArg, ZMQ_PUSH)) {
+        ctx(ctxArg) {
     //Create the PAIR socket to the job router
     zsocket_bind(routerSocket, asyncJobRouterAddr);
 }
@@ -230,11 +230,11 @@ void COLD AsyncJobRouterController::start() {
 
 COLD AsyncJobRouter::AsyncJobRouter(zctx_t* ctxArg, Tablespace& tablespaceArg) :
 AbstractFrameProcessor(ctxArg, ZMQ_PULL, ZMQ_PUSH, "Async job router"),
-ctx(ctxArg),
-apidGenerator("next-apid.txt"),
 processSocketMap(),
 processThreadMap(),
 apTerminationInfo(),
+apidGenerator("next-apid.txt"),
+ctx(ctxArg),
 tablespace(tablespaceArg) {
     //Connect the socket that is used by the send() member function
     if(zsocket_connect(processorInputSocket, asyncJobRouterAddr) == -1) {
