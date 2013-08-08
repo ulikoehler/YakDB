@@ -3,7 +3,7 @@
 import struct
 #Local imports
 from Conversion import ZMQBinaryUtil
-from Exceptions import ZeroDBProtocolException,  ParameterException
+from Exceptions import *
 import DataProcessor
 #Use ZMQPy inside PyPy
 import platform
@@ -22,7 +22,7 @@ class Connection:
             self.context = context
             self.cleanupContextOnDestruct = False
         self.socket = None
-        self.isConnected = False
+        self.numConnections = 0
     def __del__(self):
         """
         Cleanup ZMQ resources.
@@ -50,9 +50,18 @@ class Connection:
         if self.socket == None:
             self.useRequestReplyMode()
         self.socket.connect(endpoint)
-        self.isConnected = True
+        self.numConnections += 1
+    def _checkSingleConnection(self):
+        """
+        Check if the current instance is connected to
+        exactly one server. If not, raise an exception.
+        """
+        if self.numConnections > 1:
+            raise ConnectionStateException("This operation can only be executed with exactly one connection, but currently %d connections are active" % self.numConnections)
     def _checkRequestReply(self):
-        """Check if the current instance is correctly setup for req/rep, else raise an exception"""
+        """
+        Check if the current instance is correctly setup for REQ/REP, else raise an exception
+        """
         self._checkConnection()
         if self.mode is not zmq.REQ:
             raise Exception("Only request/reply connections support server info msgs")
@@ -60,7 +69,7 @@ class Connection:
         """Check if the current instance is correctly connected, else raise an exception"""
         if self.socket is None:
             raise Exception("Please connect to server before using serverInfo (use ZeroDBConnection.connect()!")
-        if not self.isConnected:
+        if self.numConnections <= 0:
             raise Exception("Current ZeroDBConnection is setup, but not connected. Please connect before usage!")
     def _sendBinary32(self, value, more=True): ZMQBinaryUtil.sendBinary32(self.socket,  value,  more)
     def _sendBinary64(self, value, more=True): ZMQBinaryUtil.sendBinary64(self.socket,  value,  more)
@@ -87,15 +96,15 @@ class Connection:
         This function throws an exception on check failure and exits normally on success
         """
         if len(msgParts) == 0:
-            raise ZeroDBProtocolException("Received empty reply message")
+            raise YakDBProtocolException("Received empty reply message")
         if len(msgParts[0]) < 4:
-            raise ZeroDBProtocolException("Header frame has size of %d, but expected 4" % len(msgParts[0]))
+            raise YakDBProtocolException("Header frame has size of %d, but expected 4" % len(msgParts[0]))
         if msgParts[0][2] != expectedResponseType:
-            raise ZeroDBProtocolException("Response code received from server is "
+            raise YakDBProtocolException("Response code received from server is "
                         "%d instead of %d" % (ord(msgParts[0][2]),  ord(expectedResponseType)))
         if msgParts[0][3] != '\x00':
             errorMsg = msgParts[1] if len(msgParts) >= 2 else "<Unknown>"
-            raise ZeroDBProtocolException(
+            raise YakDBProtocolException(
                 "Response status code is %d instead of 0x00 (ACK), error message: %s"
                 % (ord(msgParts[0][3]),  errorMsg))
     def serverInfo(self):
@@ -104,6 +113,7 @@ class Connection:
         @return The server version string
         """
         self._checkRequestReply()
+        self._checkSingleConnection()
         self.socket.send("\x31\x01\x00")
         #Check reply message
         replyParts = self.socket.recv_multipart(copy=True)
@@ -141,7 +151,7 @@ class Connection:
         self._checkParameterType(tableNo, int, "tableNo")
         self._checkParameterType(valueDict, dict, "valueDict")
         #Check if this connection instance is setup correctly
-        self._checkConnection()
+        self._checkRequestReply()
         #Before sending any frames, check the value dictionary for validity
         #Else, the socket could be left in an inconsistent state
         if len(valueDict) == 0:
@@ -190,6 +200,9 @@ class Connection:
                         floating point types are mapped to signed little-endian 64-bit IEEE754 values.
                         If you'd like to use another binary representation, use a binary string instead.
         """
+        #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
+        self._checkRequestReply()
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = []
@@ -201,8 +214,6 @@ class Connection:
         elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
             #We only have a single value
             convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
-        #Check if this connection instance is setup correctly
-        self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x21", zmq.SNDMORE)
         #Send the table number frame
@@ -234,6 +245,9 @@ class Connection:
                         rather than a value list. Mapping keys introduces additional overhead.
         @return A list of values, correspondent to the key order (or a dict, depends on mapKeys parameter)
         """
+        #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
+        self._checkRequestReply()
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = []
@@ -245,8 +259,6 @@ class Connection:
         elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
             #We only have a single value
             convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
-        #Check if this connection instance is setup correctly
-        self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x10", zmq.SNDMORE)
         #Send the table number frame
@@ -290,6 +302,7 @@ class Connection:
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x13", zmq.SNDMORE)
@@ -305,7 +318,8 @@ class Connection:
         for i in range(0,len(dataParts),2):
             mappedData[dataParts[i]] = dataParts[i+1]
         return mappedData
-    def scanWithLimit(self, tableNo, fromKey, limit):
+    def scanWithLimit(self, tableNo, fromK
+        self._checkSingleConnection()ey, limit):
         """
         Synchronous limited scan.
         Returns up to a given limit of key-value pairs, starting
@@ -323,6 +337,7 @@ class Connection:
         self._checkParameterType(tableNo, int, "tableNo")
         self._checkParameterType(limit, int, "limit")
         #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x14", zmq.SNDMORE)
@@ -354,6 +369,7 @@ class Connection:
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x22", zmq.SNDMORE)
@@ -378,6 +394,7 @@ class Connection:
         self._checkParameterType(tableNo, int, "tableNo")
         self._checkParameterType(limit, int, "limit")
         #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x23", zmq.SNDMORE)
@@ -386,7 +403,8 @@ class Connection:
         #Send range. "" --> empty frame --> start/end of tabe
         if fromKey is not None: fromKey = ZMQBinaryUtil.convertToBinary(fromKey)
         else: fromKey = ""
-        self.socket.send(fromKey, zmq.SNDMORE)
+        self.socket.send(fromKey, zmq.SNDM
+        self._checkSingleConnection()ORE)
         self._sendBinary64(limit, more=False)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
@@ -406,6 +424,7 @@ class Connection:
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x11", zmq.SNDMORE)
@@ -444,6 +463,7 @@ class Connection:
             #We only have a single value
             convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
         #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x12", zmq.SNDMORE)
@@ -492,6 +512,7 @@ class Connection:
         self._checkParameterType(writeBufferSize,  int,  "writeBufferSize",  allowNone=True)
         self._checkParameterType(bloomFilterBitsPerKey,  int,  "bloomFilterBitsPerKey",  allowNone=True)
         #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
         headerFrame = "\x31\x01\x01" + ("\x00" if compression else "\x01")
@@ -515,6 +536,7 @@ class Connection:
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x04", zmq.SNDMORE)
@@ -532,6 +554,7 @@ class Connection:
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x02", zmq.SNDMORE)
@@ -548,6 +571,7 @@ class Connection:
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x03", zmq.SNDMORE)
@@ -569,6 +593,7 @@ class Connection:
         self._checkParameterType(tableNo, int, "tableNo")
         self._checkParameterType(chunksize, int, "chunksize",  allowNone=True)
         #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x42",  zmq.SNDMORE)
@@ -581,7 +606,7 @@ class Connection:
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x42')
         if len(msgParts) < 2:
-            raise ZeroDBProtocolException("CSPTMIR response does not contain APID frame")
+            raise YakDBProtocolException("CSPTMIR response does not contain APID frame")
         #Get the APID and create a new job instance
         apid = struct.unpack('<q', msgParts[1])[0]
         return DataProcessor.ClientSidePassiveJob(self,  apid)
