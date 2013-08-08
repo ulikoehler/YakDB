@@ -342,7 +342,11 @@ void KeyValueServer::start() {
     //The main thread listens to the external sockets and proxies responses from the worker thread
     zmq_pollitem_t reqRepPoller = {externalRepSocket, 0, ZMQ_POLLIN};
     if (zloop_poller(reactor, &reqRepPoller, handleRequestResponse, this)) {
-        debugZMQError("Add external poller to reactor", errno);
+        debugZMQError("Add REP poller to reactor", errno);
+    }
+    zmq_pollitem_t pushPullPoller = {externalPullSocket, 0, ZMQ_POLLIN};
+    if (zloop_poller(reactor, &pushPullPoller, handlePull, this)) {
+        debugZMQError("Add PULL poller to reactor", errno);
     }
     zmq_pollitem_t responsePoller = {responseProxySocket, 0, ZMQ_POLLIN};
     if (zloop_poller(reactor, &responsePoller, proxyWorkerThreadResponse, this)) {

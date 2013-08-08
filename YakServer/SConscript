@@ -30,6 +30,7 @@ if linkmode == "static":
     #libraries.append("unwind")
 
 zkvSource =  ["zutil.cpp",
+    "FileUtils.cpp",
     "main.cpp",
     "TableOpenHelper.cpp",
     "Tablespace.cpp",

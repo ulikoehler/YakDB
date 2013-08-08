@@ -7,14 +7,9 @@
 
 #include "SequentialIDGenerator.hpp"
 #include "macros.hpp"
+#include "FileUtils.hpp"
 #include <cstdio>
-#include <sys/stat.h>
-#include <sys/types.h>
 
-bool COLD fexists(const std::string& file) {
-    struct stat buf;
-    return (stat(file.c_str(), &buf) == 0);
-}
 
 COLD SequentialIDGenerator::SequentialIDGenerator(const std::string& file) : filename(file), nextId(), noFilePersistence(false) {
     if (fexists(file)) {
