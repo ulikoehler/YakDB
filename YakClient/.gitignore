@@ -1,6 +1,8 @@
 kvc
+nbproject
 #Codelite stuff
 *.project
 *.tags
 *.workspace
 *.workspace.*
+
