@@ -41,9 +41,10 @@ class Graph:
         pass
     def __saveNode(self, node):
         """
-        Save a node and its basic attribute set into the database
+        Save a node and its basic attribute set into the database.
         """
         dbKey = node.id()
+        dbValue = node.basicAttributes().__serialize()
         #TODO
     def __saveNodeExtendedAttribute(self,  node,  key,  value):
         pass

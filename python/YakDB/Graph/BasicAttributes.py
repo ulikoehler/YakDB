@@ -1,31 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-def __parseAttributeSet(attrSet):
-    """
-    Parse a serialized attribute set.
-    
-    >>> __parseAttributeSet("k1\\x00val1\\x00key2\\x00value2\\x00")
-    {'key2': 'value2', 'k1': 'val1'}
-    """
-    ret = {}
-    currentlyInValue = False
-    currentKey = ""
-    currentValue = ""
-    for c in attrSet:
-        #Check for cstring NUL delimiter
-        if ord(c) == 0:
-            if currentlyInValue:
-                ret[currentKey] = currentValue
-                currentKey = ""
-                currentValue = ""
-            currentlyInValue = not currentlyInValue
-        else: #It's not a NUL terminator
-            if currentlyInValue:
-                currentValue += c
-            else:
-                currentKey += c
-    return ret
+
 
 class BasicAttributes(object):
     """
@@ -77,6 +53,47 @@ class BasicAttributes(object):
         save=False flag on previous changes. Any change without
         save=False automatically calls this method.
         """
+        pass
+    @staticmethod
+    def _parseAttributeSet(attrSet):
+        """
+        Parse a serialized attribute set.
+        
+        >>> BasicAttributes._parseAttributeSet("k1\\x00val1\\x00key2\\x00value2\\x00")
+        {'key2': 'value2', 'k1': 'val1'}
+        """
+        ret = {}
+        currentlyInValue = False
+        currentKey = ""
+        currentValue = ""
+        for c in attrSet:
+            #Check for cstring NUL delimiter
+            if ord(c) == 0:
+                if currentlyInValue:
+                    ret[currentKey] = currentValue
+                    currentKey = ""
+                    currentValue = ""
+                currentlyInValue = not currentlyInValue
+            else: #It's not a NUL terminator
+                if currentlyInValue:
+                    currentValue += c
+                else:
+                    currentKey += c
+        return ret
+    @staticmethod
+    def _serialize(attrDict):
+        """
+        Serializes a dictionary of attributes into its representation in the
+        database.
+        
+        >>> BasicAttributes._serialize({'key1': 'value1', 'k2': 'val2'})
+        'k2\\x00val2\\x00key1\\x00value1\\x00'
+        """
+        serializedAttrs = []
+        for key in attrDict.iterkeys():
+            serializedAttrs.append(key + b"\x00")
+            serializedAttrs.append(attrDict[key] + b"\x00")
+        return b"".join(serializedAttrs)
 
 if __name__ == "__main__":
     import doctest
