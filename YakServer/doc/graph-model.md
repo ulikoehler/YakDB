@@ -134,8 +134,11 @@ table for each entity that supports extended attributes
 
 The key shall be defined by the following EBNF grammar (where *Entity ID* is the respective entity iden:
     Key = Entity Identifier, '\x1D' (* ASCII Group separator *), Identifier (* Attribute key *)
-    Value = Identifier (* Attribute value *)
+    Value = {Byte} (* Attribute value *)
 where *Key* and *Value* denote the key and value of the database entry respectively.
+
+Note that in contrast to basic attributes, the extended attribute value does not need to fulfill
+the identifier constraints, so it can be any binary string.
 
 ## Nodes
 

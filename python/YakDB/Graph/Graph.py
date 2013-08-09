@@ -39,13 +39,25 @@ class Graph:
         @return True if and only if a node with the given ID exists within the database
         """
         pass
-    def __saveNode(self, node):
+    def _loadNodeBasicAttributes(self, node):
+        """
+        Load a node entry from the database (by node ID) and return
+        the value (= basic attributes)
+        """
+        return self.conn.read(self.nodeTableId,  node)
+    def _saveNode(self, node):
         """
         Save a node and its basic attribute set into the database.
         """
         dbKey = node.id()
         dbValue = node.basicAttributes().__serialize()
-        #TODO
+        self.conn.put(self.nodeTableId,  {dbKey : dbValue})
     def __saveNodeExtendedAttribute(self,  node,  key,  value):
-        pass
-        #TODO
+        """
+        Save a single extended attribute for a node.
+        @param node The node to serialize for
+        @param key The attribute key to write
+        @param value The attribute value to write
+        """
+        dbKey = "%s\x1D%s" % (node.id(),  key)
+        self.conn.put(self.nodeTableId,  {dbKey : value})

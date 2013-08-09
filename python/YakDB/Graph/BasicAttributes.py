@@ -1,20 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-
-
 class BasicAttributes(object):
     """
     An instance of this class, which is always
     related to an entity instance that has basic attributes,
     represents the set of basic attributes for that class.
     """
-    def __init__(self,  entity,  attrSet):
+    def __init__(self,  entity,  serializedAttrs=None):
         """
         Initialize a basic attribute set.
         """
         self.entity = entity
-        self.attrs = self.__parseAttributeSet(attrSet)
+        if serializedAttrs is None:
+            self.attrs = {}
+        else:
+            self.attrs = self.__parseAttributeSet(serializedAttrs)
     @staticmethod
     def getAttribute(self, key):
         """
@@ -23,29 +24,36 @@ class BasicAttributes(object):
         if key in self.attrs:
             return self.attrs[key]
         return None
-    def addAttribute(self,  key,  value):
+    def setAttribute(self,  key,  value, save=True):
         """
-        Add or replace an attribute
+        Set or an attribute. Replaces existing attributes.
         """
         self.attrs[key] = value
-    def deleteAttribute(self,  key):
+        if save:
+            self.save()
+    def setAttributes(self,  attrDict, save=True):
+        """
+        For any attribute in the given dictionary,
+        set or replace the corresponding attribute in the current instance.
+        """
+        for key in attrDict.iterkeys():
+            self.attrs[key] = attrDict[key]
+        if save:
+            self.save()
+    def deleteAttribute(self,  key,  save=True):
         """
         Delete a single attribute by key.
         The call is ignored if the attribute does not exist.
         """
         if key in self.attrs:
             del self.attrs[key]
+        if save:
+            self.save()
     def getAttributes(self):
         """
         Get a dictionary of all attributes
         """
         return self.attrs
-    def reload(self):
-        """
-        Reload the basic attribute set from the database.
-        Replaces the currently stored attribute set.
-        """
-        self.attrs = self.entity.__reloadBasicAttributes()
     def save(self):
         """
         Save the current set of attributes to the database.
@@ -53,7 +61,7 @@ class BasicAttributes(object):
         save=False flag on previous changes. Any change without
         save=False automatically calls this method.
         """
-        pass
+        self.entity._save()
     @staticmethod
     def _parseAttributeSet(attrSet):
         """

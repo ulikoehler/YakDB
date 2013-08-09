@@ -318,8 +318,7 @@ class Connection:
         for i in range(0,len(dataParts),2):
             mappedData[dataParts[i]] = dataParts[i+1]
         return mappedData
-    def scanWithLimit(self, tableNo, fromK
-        self._checkSingleConnection()ey, limit):
+    def scanWithLimit(self, tableNo, fromKey, limit):
         """
         Synchronous limited scan.
         Returns up to a given limit of key-value pairs, starting
@@ -569,7 +568,10 @@ class Connection:
         under certain circumstances
         """
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
+        self._checkParameterType(tables basic attribute set into the database
+        """
+        dbKey = node.id()
+        self.conn()No, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
