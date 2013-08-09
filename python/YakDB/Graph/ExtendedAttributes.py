@@ -1,44 +1,22 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-def __parseAttributeSet(attrSet):
+def __serializeExtendedAttributeKey(entityId,  key):
     """
-    Parse a serialized attribute set.
-    
-    >>> __parseAttributeSet("k1\\x00val1\\x00key2\\x00value2\\x00")
-    {'key2': 'value2', 'k1': 'val1'}
+    Serialize the database key for an extended attributes
     """
-    ret = {}
-    currentlyInValue = False
-    currentKey = ""
-    currentValue = ""
-    for c in attrSet:
-        #Check for cstring NUL delimiter
-        if ord(c) == 0:
-            if currentlyInValue:
-                ret[currentKey] = currentValue
-                currentKey = ""
-                currentValue = ""
-            currentlyInValue = not currentlyInValue
-        else: #It's not a NUL terminator
-            if currentlyInValue:
-                currentValue += c
-            else:
-                currentKey += c
-    return ret
 
-class BasicAttributes(object):
+class ExtendedAttributes(object):
     """
     An instance of this class, which is always
     related to an entity instance that has basic attributes,
     represents the set of basic attributes for that class.
     """
-    def __init__(self,  entity,  attrSet):
+    def __init__(self,  entity):
         """
         Initialize a basic attribute set.
         """
         self.entity = entity
-        self.attrs = self.__parseAttributeSet(attrSet)
     @staticmethod
     def getAttribute(self, key):
         """
@@ -70,14 +48,3 @@ class BasicAttributes(object):
         Replaces the currently stored attribute set.
         """
         self.attrs = self.entity.__reloadBasicAttributes()
-    def save(self):
-        """
-        Save the current set of attributes to the database.
-        There is no need to call this explicitly unless you used
-        save=False flag on previous changes. Any change without
-        save=False automatically calls this method.
-        """
-
-if __name__ == "__main__":
-    import doctest
-    doctest.testmod()

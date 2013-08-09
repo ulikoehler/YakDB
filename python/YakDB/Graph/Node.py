@@ -11,7 +11,21 @@ class Node(object):
     def __init__(self, nodeId,  graph,  basicAttrString=None):
         self.id = nodeId
         self.graph = graph
-        self.basicAttrs = BasicAttributes(self, basicAttrString)
-    def getID(self): return self.id
-    def getBasicAttributes(self):
-        return self.basicAttrs
+        if basicAttrString == None:
+            self.basicAttributes = BasicAttributes(self, basicAttrString)
+        else:
+            self.basicAttributes = None
+    @property
+    def id(self):
+        """
+        Get the ID that is used as key in the database
+        """
+        return self.id
+    @property
+    def basicAttributes(self):
+        """
+        The basic attributes for the current node
+        """
+        if self.basicAttrs == None:
+            pass #TODO: load basic attributes
+        return self.basicAttributes

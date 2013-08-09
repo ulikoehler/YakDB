@@ -18,6 +18,7 @@ yaklibSrc = ["src/MetaRequests.cpp",
     "src/dbclient.cpp"
 ]
 
-env.Library(target="yaklib",source=yaklibSrc,CPPPATH="include")
+env.Library(target="yakclient",source=yaklibSrc,CPPPATH="include")
+env.SharedLibrary(target="yakclient",source=yaklibSrc,CPPPATH="include")
 #env.Program(target="kvc", source=zkvSource,LIBS=libraries)
 

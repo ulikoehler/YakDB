@@ -39,3 +39,12 @@ class Graph:
         @return True if and only if a node with the given ID exists within the database
         """
         pass
+    def __saveNode(self, node):
+        """
+        Save a node and its basic attribute set into the database
+        """
+        dbKey = node.id()
+        #TODO
+    def __saveNodeExtendedAttribute(self,  node,  key,  value):
+        pass
+        #TODO
