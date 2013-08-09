@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-def __serializeExtendedAttributeKey(entityId,  key):
-    """
-    Serialize the database key for an extended attributes
-    """
+from Identifier import Identifier
+from YakDB.Exceptions import ParameterException
 
 class ExtendedAttributes(object):
     """
@@ -22,29 +20,43 @@ class ExtendedAttributes(object):
         """
         Get a single attribute by key
         """
-        if key in self.attrs:
-            return self.attrs[key]
-        return None
+        return self.entity._getExtendedAttribute(key)
     def addAttribute(self,  key,  value):
         """
         Add or replace an attribute
         """
-        self.attrs[key] = value
+        self.entity._saveExtendedAttributes({key: value})
+    def setAttributes(self,  attrDict):
+        """
+        For any attribute in the given dictionary,
+        set or replace the corresponding attribute in the current instance.
+        """
+        if type(attrDict) is not dict:
+            raise ParameterException("attrDict parameter must be a Dictionary!")
+        self.entity._saveExtendedAttributes(attrDict)
     def deleteAttribute(self,  key):
         """
         Delete a single attribute by key.
         The call is ignored if the attribute does not exist.
         """
-        if key in self.attrs:
-            del self.attrs[key]
-    def getAttributes(self):
+        self.entity._deleteExtendedAttributes([key])
+    def getAttributes(self,  startKey="",  limit=1000):
         """
-        Get a dictionary of all attributes
+        Get a dictionary of all attributes.
+        @param startKey The first attribute to get (inclusive)
+        @param limit The maximum number of keys to get
         """
-        return self.attrs
-    def reload(self):
+        return self.entity._getExtendedAttributes(startKey,  limit)
+    @staticmethod
+    def _serializeKey(entityId, key):
         """
-        Reload the basic attribute set from the database.
-        Replaces the currently stored attribute set.
+        Serialize the database key for an extended attribute.
+        >>> ExtendedAttributes._serializeKey("myId","thekey")
+        'myId\\x1dthekey'
         """
-        self.attrs = self.entity.__reloadBasicAttributes()
+        Identifier.checkIdentifier(key)
+        return "%s\x1D%s" % (entityId,  key)
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()

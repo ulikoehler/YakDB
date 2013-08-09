@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
+from YakDB.Exceptions import ParameterException
+
 class BasicAttributes(object):
     """
     An instance of this class, which is always
@@ -36,6 +38,8 @@ class BasicAttributes(object):
         For any attribute in the given dictionary,
         set or replace the corresponding attribute in the current instance.
         """
+        if type(attrDict) is not dict:
+            raise ParameterException("attrDict parameter must be a Dictionary!")
         for key in attrDict.iterkeys():
             self.attrs[key] = attrDict[key]
         if save:

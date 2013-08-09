@@ -14,12 +14,13 @@ class Identifier:
         @return True if the given string is a valid identifier
         """
         for c in bytearray(id):
-            if ord(c) < 32:
+            if c < 32:
                 return False
         return True
+    @staticmethod
     def checkIdentifier(id):
         """
         If the given string is not an identifier
         """
-        if not isIdentifier(id):
+        if not Identifier.isIdentifier(id):
             raise IdentifierException("String '%s' is not a valid identifier! Ensure its binary representation only contains characters >= 32")

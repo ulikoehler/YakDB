@@ -402,14 +402,14 @@ class Connection:
         #Send range. "" --> empty frame --> start/end of tabe
         if fromKey is not None: fromKey = ZMQBinaryUtil.convertToBinary(fromKey)
         else: fromKey = ""
-        self.socket.send(fromKey, zmq.SNDM
-        self._checkSingleConnection()ORE)
+        self.socket.send(fromKey, zmq.SNDMORE)
         self._sendBinary64(limit, more=False)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x23')
     def count(self, tableNo, fromKey, toKey):
         """
+        self._checkSingleConnection()
         Count a range of
 
         See self.read() documentation for an explanation of how
@@ -529,6 +529,7 @@ class Connection:
     def truncateTable(self, tableNo):
         """
         Close & truncate a table.
+        self._checkSingleConnection()
         @param tableNo The table number to truncate
         @return
         """
@@ -568,10 +569,7 @@ class Connection:
         under certain circumstances
         """
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tables basic attribute set into the database
-        """
-        dbKey = node.id()
-        self.conn()No, int, "tableNo")
+        self._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
