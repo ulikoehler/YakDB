@@ -64,10 +64,7 @@ def deleteRange(db, args):
         sys.stderr.write("Error: can't use --to together with --limit")
         sys.exit(1)
     #Data is remapped into dictionary-form in connection class
-    if limit is None: #Use from->to scan
-        db.deleteRange(tableNo, fromKey, toKey)
-    else: #Use limited scan
-        db.deleteRangeLimited(tableNo, fromKey, limit)
+    db.deleteRange(tableNo, fromKey, toKey, limit)
 
 def scan(db, args):
     tableNo = args.tableNo
@@ -78,10 +75,7 @@ def scan(db, args):
         sys.stderr.write("Error: can't use --to together with --limit")
         sys.exit(1)
     #Data is remapped into dictionary-form in connection class
-    if limit is None: #Use from->to scan
-        print(db.scan(tableNo, fromKey, toKey))
-    else: #Use limited scan
-        print(db.scanWithLimit(tableNo, fromKey, limit))
+    print(db.scan(tableNo, fromKey, toKey, limit))
     
 def count(db, args):
     tableNo = args.tableNo
@@ -240,10 +234,10 @@ if __name__ == "__main__":
             dest="toKey",
             default=None,
             help="The key to stop deleting at (exclusive, must not be used together with --limit), default: end of table")
-    parserDeleteRange.add_argument('--limit',
+    parserDeleteRange.add_argument('-l,--limit',
             action="store",
             dest="scanLimit",
-            type=int,
+            type=int,scan
             default=None,
             help="The maximum number of keys to delete (must not be used together with --to)")
     parserDeleteRange.set_defaults(func=deleteRange)
@@ -259,7 +253,7 @@ if __name__ == "__main__":
             dest="toKey",
             default=None,
             help="The key to stop scanning at (exclusive, must not be used together with --limit), default: end of table")
-    parserScan.add_argument('--limit',
+    parserScan.add_argument('-l,--limit',
             action="store",
             dest="scanLimit",
             type=int,

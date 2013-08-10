@@ -117,8 +117,6 @@ bool UpdateWorker::processNextMessage() {
         handleTableTruncateRequest(&headerFrame, haveReplyAddr);
     } else if (requestType == DeleteRangeRequest) {
         handleDeleteRangeRequest(&headerFrame, haveReplyAddr);
-    } else if (requestType == LimitedDeleteRangeRequest) {
-        handleLimitedDeleteRangeRequest(&headerFrame, haveReplyAddr);
     } else {
         logger.error(std::string("Internal routing error: request type ")
                 + std::to_string(requestType) + " routed to update worker thread!");
@@ -315,7 +313,21 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
         return;
     }
     //Check if there is a range frames
-    if (!expectNextFrame("Only table ID frame found in compact request, range missing",
+    if (!expectNextFrame("Only table ID frame found in delete rangee request, ĺimit frame missing",
+            generateResponse,
+            errorResponse)) {
+        return;
+    }
+    //Parse limit frame. For now we just assume UINT64_MAX is close enough to infinite
+    uint64_t scanLimit;
+    if (!parseUint64FrameOrAssumeDefault(scanLimit,
+                std::numeric_limits<uint64_t>::max(),
+                "Receive scan limit frame",
+                true, errorResponse)) {
+        return;
+    }
+    //Check if there is a range frames
+    if (!expectNextFrame("Only table ID frame found in delete range request, range missing",
             generateResponse,
             errorResponse)) {
         return;
@@ -352,102 +364,21 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     //Iterate over all key-values in the range
     for (; it->Valid(); it->Next()) {
         count++;
-        leveldb::Slice key = it->key();
-        if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
-            break;
-        }
-        batch.Delete(key);
-    }
-    //Check if any error occured during iteration
-    if (!checkLevelDBStatus(it->status(), "LevelDB error while processing delete request", true, errorResponse)) {
-        delete it;
-        return;
-    }
-    delete it;
-    //Apply the batch
-    status = db->Write(writeOptions, &batch);
-    //If something went wrong, send an error response
-    if (!checkLevelDBStatus(status,
-            "Database error while processing delete request: ",
-            generateResponse,
-            errorResponse)) {
-        return;
-    }
-    //Create the response if neccessary
-    if (generateResponse) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
-    }
-}
-
-void UpdateWorker::handleLimitedDeleteRangeRequest(zmq_msg_t* headerFrame, bool generateResponse) {
-    static const char* errorResponse = "\x31\x01\x23\x01";
-    static const char* ackResponse = "\x31\x01\x23\x00";
-    //Process the flags
-    uint8_t flags = getWriteFlags(headerFrame);
-    bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
-    //Convert options to LevelDB
-    leveldb::WriteOptions writeOptions;
-    writeOptions.sync = fullsync;
-    zmq_msg_close(headerFrame);
-    //Parse table ID
-    uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse)) {
-        return;
-    }
-    //Check if there is a range frames
-    if (!expectNextFrame("Only table ID frame found in compact request, range missing",
-            generateResponse,
-            errorResponse)) {
-        return;
-    }
-    //Get the table
-    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
-    //
-    //Parse the from range and the limit
-    //
-    zmq_msg_t rangeStartMsg;
-    zmq_msg_init(&rangeStartMsg);
-    if (!receiveMsgHandleError(&rangeStartMsg, "Receive limited scan range start frame", errorResponse, true)) {
-        return;
-    }
-    if (!expectNextFrame("Only range start frame found in limited scan request, limit frame missing", true, errorResponse)) {
-        return;
-    }
-    uint64_t scanLimit;
-    if (!parseUint64Frame(scanLimit, "Receive limited scan range start frame", true, errorResponse)) {
-        return;
-    }
-    bool haveRangeStart = (zmq_msg_size(&rangeStartMsg) != 0);
-    //Convert the range start frame to a slice
-    leveldb::Slice rangeStartSlice((char*) zmq_msg_data(&rangeStartMsg), zmq_msg_size(&rangeStartMsg));
-    //Do the compaction (takes LONG)
-    //Create the response object
-    leveldb::ReadOptions readOptions;
-    leveldb::Status status;
-    //Create the iterator
-    leveldb::Iterator* it = db->NewIterator(readOptions);
-    //All deletes are applied in one batch
-    // This also avoids construct like deleting while iterating
-    leveldb::WriteBatch batch;
-    if (haveRangeStart) {
-        it->Seek(rangeStartSlice);
-    } else {
-        it->SeekToFirst();
-    }
-    //Iterate over all key-values in the range
-    for (; it->Valid(); it->Next()) {
-        leveldb::Slice key = it->key();
-        //Check if we have to stop here
+        //Check limit
         if (scanLimit <= 0) {
             break;
         }
         scanLimit--;
+        //Check range end
+        leveldb::Slice key = it->key();
+        if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
+            break;
+        }
+        //Both checks passed, delete it
         batch.Delete(key);
     }
     //Check if any error occured during iteration
-    if (!checkLevelDBStatus(it->status(),
-            "LevelDB error while processing limited range delete request",
-            true, errorResponse)) {
+    if (!checkLevelDBStatus(it->status(), "LevelDB error while processing delete request", true, errorResponse)) {
         delete it;
         return;
     }

@@ -327,13 +327,16 @@ class Connection:
         for i in range(0,len(dataParts),2):
             mappedData[dataParts[i]] = dataParts[i+1]
         return mappedData
-    def deleteRange(self, tableNo, fromKey, toKey):
+    def deleteRange(self, tableNo, fromKey, toKey,  limit=None):
         """
         Deletes a range of keys in the database
+        The deletion stops at the table end, toKey (exclusive) or when
+        *limit* keys have been read, whatever occurs first
 
         @param tableNo The table number to scan in
         @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @param limit The maximum number of keys to delete, or None, if no limit shall be imposed
         @return A dictionary of the returned key/value pairs
         """
         #Check parameters and create binary-string only key list
@@ -350,34 +353,6 @@ class Connection:
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x22')
-    def deleteRangeLimited(self, tableNo, fromKey, limit):
-        """
-        Deletes a range of keys in the database. This is a version of deleteRange() that allows
-        you to specify a maximum number of keys to scan, instead of an end key
-
-        @param tableNo The table number to scan in
-        @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
-        @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
-        @return A dictionary of the returned key/value pairs
-        """
-        #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
-        self._checkParameterType(limit, int, "limit")
-        #Check if this connection instance is setup correctly
-        self._checkSingleConnection()
-        self._checkRequestReply()
-        #Send header frame
-        self.socket.send("\x31\x01\x23", zmq.SNDMORE)
-        #Send the table number frame
-        self._sendBinary32(tableNo)
-        #Send range. "" --> empty frame --> start/end of tabe
-        if fromKey is not None: fromKey = ZMQBinaryUtil.convertToBinary(fromKey)
-        else: fromKey = ""
-        self.socket.send(fromKey, zmq.SNDMORE)
-        self._sendBinary64(limit, more=False)
-        #Wait for reply
-        msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x23')
     def count(self, tableNo, fromKey, toKey):
         """
         self._checkSingleConnection()

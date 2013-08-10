@@ -241,7 +241,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     uint64_t scanLimit;
     if (!parseUint64FrameOrAssumeDefault(scanLimit,
                 std::numeric_limits<uint64_t>::max(),
-                "Receive limited scan range start frame",
+                "Receive scan limit frame",
                 true, errorResponse)) {
         return;
     }

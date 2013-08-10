@@ -332,17 +332,16 @@ None of the frames may be empty under any circumstances. Empty frames may lead t
 
 ##### Delete range request:
 
+Deletes data until one of these events occurs:
+- The end of the table is reached
+- The end key is reached (if any)
+- The limit is reached (if any)
+
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x22 Request type (Delete range request)] [Optional: Write flags, defaults to 0x00]
 * Frame 1: 4-byte unsigned table number
+* Frame 1: 8-byte unsigned limit (or zero-length frame --> no limit)
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 3: End key (exclusive). If this has zero length, the count ends at the last key
-
-##### Limited delete range request:
-
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x23 Request type (Delete range request)] [Optional: Write flags, defaults to 0x00]
-* Frame 1: 4-byte unsigned table number
-* Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
-* Frame 3: 64-bit unsigned integer, interpreted as the maximum number of keys to delete, starting at (inclusive) the given start key
 
 ##### Multi-table write request:
 
