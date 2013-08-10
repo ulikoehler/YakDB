@@ -44,22 +44,22 @@ class Node(object):
         are generally lazy-loaded and not persistently stored in API classes
         """
         return self.extendedAttributes
-    def _getExtendedAttributes(startKey,  limit):
+    def _getExtendedAttributes(self, startKey,  limit):
+        """
+        Internal function, should only be called by ExtendedAttributes instances
+        """
+        return self.graph._getNodeExtendedAttributes()
+    def _getExtendedAttribute(self, key):
         """
         Internal function, should only be called by ExtendedAttributes instances
         """
         pass
-    def _getExtendedAttribute(startKey,  limit):
+    def _deleteExtendedAttributes(self, startKey,  limit):
         """
         Internal function, should only be called by ExtendedAttributes instances
         """
         pass
-    def _deleteExtendedAttributes(startKey,  limit):
-        """
-        Internal function, should only be called by ExtendedAttributes instances
-        """
-        pass
-    def _saveExtendedAttributes(startKey,  limit):
+    def _saveExtendedAttributes(self, startKey,  limit):
         """
         Internal function, should only be called by ExtendedAttributes instances
         """

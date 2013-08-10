@@ -38,13 +38,12 @@ The numeric identifiers of these tables may be specified at runtime,
 in order to allow multiple graphs to be stored in the same ZCDB instance.
     - Node table
     - Edge table
-    - Node extended attribute table (optional)
-    - Edge extended attribute table (optional)
+    - Extended attribute
 
 The detailed purpose and format of these tables are described below.
 
-It is not only allowed but encouraged to use the same node table
-with different edge tables (and vice versa).
+It is allowed to e.g. use the same node table
+with different edge tables.
 
 Edges in the edge table that do not correspond to a node in the respective
 node table shall be ignored, unless special cleanup operations (that e.g.
@@ -82,7 +81,7 @@ The graph API shall support arbitrary key-value attributes for both nodes and ed
 
 There shall be two types of attributes:
     - Basic attributes, which are saved in the same table as the entity (as part of the value part of the entry) and
-    - Extended attributes, which are saved in a separate tables
+    - Extended attributes, which are saved in a separate table
 
 Basic attributes are retrieved together with the entity entry and therefore do not
 introduce any additional request overhead. However, if they grow too large,
@@ -96,7 +95,7 @@ some overhead.
 Extended attributes are stored in a separate table, occupying one key-value-pair
 per attribute. Fetching them introduces additional request overhead, but
 as they can be accessed in a sequentially ordered manner (and not neccessarily all-at-once)
-the extended attributes for any stored entity might grow arbitrarily large.
+the extended attributes for any stored rentity might grow arbitrarily large.
 Retrieval of attributes will not consume memory proportional to the total
 amount of key/value data for that entity.
 
@@ -129,8 +128,7 @@ where *Serialized attribute set* denotes the value that shall be written to the 
 
 ## Extended attribute serialization format
 
-Extended attributes shall be saved in a specific table. There shall be one such
-table for each entity that supports extended attributes
+Extended attributes shall be saved in a specific table.
 
 The key shall be defined by the following EBNF grammar (where *Entity ID* is the respective entity iden:
     Key = Entity Identifier, '\x1D' (* ASCII Group separator *), Identifier (* Attribute key *)

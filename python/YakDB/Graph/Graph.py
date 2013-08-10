@@ -9,15 +9,14 @@ class Graph:
     as adjacency list in multiple tables in a YakDB database.
     
     """
-    def __init__(self,  conn, nodeTableId=2,  edgeTableId=3,  nodeExtAttrTableId=4,  edgeExtAttrId=5):
+    def __init__(self,  conn, nodeTableId=2,  edgeTableId=3,   extendedAttributesTable=4):
         """
         Create a new graph from a YakDB connection.
         """
         self.conn = conn
         self.nodeTableId = nodeTableId
-        self.edgeTableId = edgeTableId,
-        self.nodeExtAttrTableId = nodeExtAttrTableId
-        self.edgeExtAttrId = edgeExtAttrId
+        self.edgeTableId = edgeTableId
+        self.extendedAttributesTable = extendedAttributesTable
     def createNode(self,  nodeId,  basicAttributes):
         """
         Add a node to the graph.
@@ -53,26 +52,40 @@ class Graph:
         """
         dbValue = node.basicAttributes().__serialize()
         self.conn.put(self.nodeTableId,  {node.id() : dbValue})
-    def _loadNodeExtendedAttributes(self,  node, keys):
+    def _loadExtendedAttributes(self,  entityId,  keys):
         """
-        Load the extended attribute for a node.
+        Load a list of extended attributes
         @param keys A single key identifier or a list of identifiers.
         @return An array of values, in the same order as the keys.
         """
         dbKeys = []
         if type(keys) is list:
             for key in keys:
-                dbKeys.append(ExtendedAttributes._serializeKey(node.id(),  key))
+                dbKeys.append(ExtendedAttributes._serializeKey(entityId,  key))
         else: #Single key
-            dbKeys.append(ExtendedAttributes._serializeKey(node.id(),  keys))
+            dbKeys.append(ExtendedAttributes._serializeKey(entityId,  keys))
         #Write
-        return self.conn.read(self.nodeExtAttrTableId,  dbKeys)
-    def _saveNodeExtendedAttribute(self,  node,  key,  value):
+        return self.conn.read(self.exte,  dbKeys)
+    def _loadExtendedAttributesWithLimit(self,  entityId,  startKey,  limit):
+        """
+        Loads a list of extended attributes, with a maximum limit on how many attributes to load.
+        @param keys A single key identifier or a list of identifiers.
+        @return An array of values, in the same order as the keys.
+        """
+        dbKeys = []
+        if type(keys) is list:
+            for key in keys:
+                dbKeys.append(ExtendedAttributes._serializeKey(entityId,  key))
+        else: #Single key
+            dbKeys.append(ExtendedAttributes._serializeKey(entityId,  keys))
+        #Write
+        return self.conn.read(self.exte,  dbKeys)
+    def _saveExtendedAttribute(self,  entity,  key,  value):
         """
         Save a single extended attribute for a node.
         @param node The node to serialize for
         @param key The attribute key to write
         @param value The attribute value to write
         """
-        dbKey = ExtendedAttributes._serializeKey(node.id(),  key)
-        self.conn.put(self.nodeTableId,  {dbKey : value})
+        dbKey = ExtendedAttributes._serializeKey(entity.id(),  key)
+        self.conn.put(self.extendedAttributesTable,  {dbKey : value})

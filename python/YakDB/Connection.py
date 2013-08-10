@@ -287,9 +287,11 @@ class Connection:
             for i in range(len(values)):
                 res[keys[i]] = values[i]
             return res
-    def scan(self, tableNo, fromKey=None, toKey=None):
+    def scan(self, tableNo, fromKey=None, toKey=None, limit=None):
         """
         Synchronous scan. Scans an entire range at once.
+        The scan stops at the table end, toKey (exclusive) or when
+        *limit* keys have been read, whatever occurs first
 
         See self.read() documentation for an explanation of how
         non-str values are mapped.
@@ -297,10 +299,12 @@ class Connection:
         @param tableNo The table number to scan in
         @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @param limit The maximum number of keys to read, or None, if no limit shall be imposed
         @return A dictionary of the returned key/value pairs
         """
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
+        self._checkParameterType(limit, int, "limit",  allowNone=True)
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -308,49 +312,16 @@ class Connection:
         self.socket.send("\x31\x01\x13", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
+        #Send limit frame
+        if limit is None:
+            self.socket.send("", zmq.SNDMORE)
+        else: #We have a limit
+            self._sendBinary64(limit)
         #Send range. "" --> empty frame --> start/end of table
         self._sendRange(fromKey,  toKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x13') #Remap the returned key/value pairs to a dict
-        dataParts = msgParts[1:]
-        mappedData = {}
-        for i in range(0,len(dataParts),2):
-            mappedData[dataParts[i]] = dataParts[i+1]
-        return mappedData
-    def scanWithLimit(self, tableNo, fromKey, limit):
-        """
-        Synchronous limited scan.
-        Returns up to a given limit of key-value pairs, starting
-        at the given start key
-
-        See self.read() documentation for an explanation of how
-        non-str values are mapped.
-
-        @param tableNo The table number to scan in
-        @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
-        @param limit The maximum number of keys to return
-        @return A dictionary of the returned key/value pairs
-        """
-        #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
-        self._checkParameterType(limit, int, "limit")
-        #Check if this connection instance is setup correctly
-        self._checkSingleConnection()
-        self._checkRequestReply()
-        #Send header frame
-        self.socket.send("\x31\x01\x14", zmq.SNDMORE)
-        #Send the table number frame
-        self._sendBinary32(tableNo)
-        #Send range. "" --> empty frame --> start/end of tabe
-        if fromKey is not None: fromKey = ZMQBinaryUtil.convertToBinary(fromKey)
-        if fromKey is None: fromKey = ""
-        self.socket.send(fromKey, zmq.SNDMORE)
-        self._sendBinary64(limit, more=False)
-        #Wait for reply
-        msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x14')
-        #Remap the returned key/value pairs to a dict
         dataParts = msgParts[1:]
         mappedData = {}
         for i in range(0,len(dataParts),2):
