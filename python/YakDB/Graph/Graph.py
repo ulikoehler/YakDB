@@ -50,11 +50,11 @@ class Graph:
         """
         Save a node and its basic attribute set into the database.
         """
-        dbValue = node.basicAttributes().__serialize()
+        dbValue = node.basicAttributes()._serialize()
         self.conn.put(self.nodeTableId,  {node.id() : dbValue})
-    def _loadExtendedAttributes(self,  entityId,  keys):
+    def _loadExtendedAttributeSet(self,  entityId,  keys):
         """
-        Load a list of extended attributes
+        Load a list of extended attributes by key set
         @param keys A single key identifier or a list of identifiers.
         @return An array of values, in the same order as the keys.
         """
@@ -66,20 +66,29 @@ class Graph:
             dbKeys.append(ExtendedAttributes._serializeKey(entityId,  keys))
         #Write
         return self.conn.read(self.exte,  dbKeys)
-    def _loadExtendedAttributesWithLimit(self,  entityId,  startKey,  limit):
+    def _loadExtendedAttributes(self,  entityId,  startKey,  limit=None):
         """
-        Loads a list of extended attributes, with a maximum limit on how many attributes to load.
-        @param keys A single key identifier or a list of identifiers.
-        @return An array of values, in the same order as the keys.
+        Load a set of extended attributes by scanning the extended attribute range.
+        The end key is automatically determined by the entity ID
+        @param limit Set this to a integer to impose a limit on the number of keys. None means no limit.
+        @return A dictionary of the extended attributes, 
         """
-        dbKeys = []
-        if type(keys) is list:
-            for key in keys:
-                dbKeys.append(ExtendedAttributes._serializeKey(entityId,  key))
-        else: #Single key
-            dbKeys.append(ExtendedAttributes._serializeKey(entityId,  keys))
-        #Write
-        return self.conn.read(self.exte,  dbKeys)
+        #End key: entity ID with last character incremented
+        #TODO For now we assume the last char is NOT \xFF. Fix that.
+        if entityId.find("\xFF") != -1:
+            raise Exception("Entity IDs containing the FF character are currently not implemented")
+        entityIdBytes = bytearray(entityId)
+        entityIdBytes[-1] += 1
+        endKey = str(entityIdBytes)
+        #Do the scan
+        scanResult = self.conn.scan(self.extendedAttributesTable, startKey,  endKey,  limit)
+        #Strip the entity name from the scan keys
+        ret = {}
+        for key in scanResult.iterkeys():
+            attrKey = ExtendedAttributes._getAttributeKeyFromDBKey(key)
+            attrValue = scanResult[key]
+            ret[attrKey] = attrValue
+        return ret
     def _saveExtendedAttribute(self,  entity,  key,  value):
         """
         Save a single extended attribute for a node.

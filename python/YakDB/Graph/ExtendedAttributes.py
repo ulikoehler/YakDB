@@ -56,6 +56,16 @@ class ExtendedAttributes(object):
         """
         Identifier.checkIdentifier(key)
         return "%s\x1D%s" % (entityId,  key)
+    @staticmethod
+    def _getAttributeKeyFromDBKey(dbKey):
+        """
+        Given an extended attribute database key, extracts the key from it
+        >>> ExtendedAttributes._getAttributeKeyFromDBKey("node1\x1Dattr1")
+        'attr1'
+        >>> ExtendedAttributes._getAttributeKeyFromDBKey("mynode\x1Dtest")
+        'test'
+        """
+        return dbKey[dbKey.find("\x1D")+1:]
 
 if __name__ == "__main__":
     import doctest
