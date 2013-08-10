@@ -237,7 +237,7 @@ if __name__ == "__main__":
     parserDeleteRange.add_argument('-l,--limit',
             action="store",
             dest="scanLimit",
-            type=int,scan
+            type=int,
             default=None,
             help="The maximum number of keys to delete (must not be used together with --to)")
     parserDeleteRange.set_defaults(func=deleteRange)
