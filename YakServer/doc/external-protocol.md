@@ -359,7 +359,7 @@ The PARTSYNC flag is not allowed (and therefore ignored), because
 the multi-table put request is internally translated to multiple individual put requests.
 Response to this request type will therefore always be async.
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x24 Request type (Put request)] [Optional: Write flags, defaults to 0x00]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x23 Request type (Put request)] [Optional: Write flags, defaults to 0x00]
 
 An arbitrary number of *modification messages* follow frame 0. Modification messages consist of (frame numbering relative to the mod msg start):
 * Frame 0: [32-bit table no][32-bit number of valuesets in request][8-bit request type]
