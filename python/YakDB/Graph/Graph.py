@@ -78,11 +78,15 @@ class Graph:
         node = Node.Node(nodeId, self)
         node.delete()
         #TODO delete extattrs
-        
-    def __convertToNode(obj):
+    def _scanEdges(startKey, endKey, limit=None):
         """
-        
+        Do a scan over the edge table.
+        @param startKey The edge table start key
+        @param endKey The edge table start key
+        @return a list of edge objects
         """
+        scanResult = self.conn.scan(self.edgeTableId, startKey, endKey, limit)
+        for 
     def nodeExists(self, nodeId):
         """
         Check if a node exists within the database

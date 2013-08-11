@@ -2,6 +2,7 @@
 # -*- coding: utf8 -*-
 
 from YakDB.Graph.Exceptions import ConsistencyException
+from YakDB.Exceptions import ParameterException
 from BasicAttributes import BasicAttributes
 from ExtendedAttributes import ExtendedAttributes
 
@@ -82,3 +83,68 @@ class Edge(object):
         self.graph._writeEdge(self.activeKey,
                               self.passiveKey,
                               self.basicAttrs.serialize())
+    @staticmethod
+    def _getAllEdgesScanKeysc(nodeId, type=""):
+        """
+        Get the scan keys to scan for ALL edges for a given node.
+        @param type The edge type
+        @return (startKey, endKey) The scan start and end keys
+        """
+        formatTuple = (type, nodeId)
+        return ("%s\x1F%s\x0E" % formatTuple, "%s\x1F%s\x10" % formatTuple)
+    @staticmethod
+    def _getIngoingEdgesScanKeys(nodeId, type=""):
+        """
+        Get the scan keys to scan for INGOING edges for a given node.
+        @param type The edge type
+        @return (startKey, endKey) The scan start and end keys
+        """
+        formatTuple = (type, nodeId)
+        return ("%s\x1F%s\x0F" % formatTuple, "%s\x1F%s\x10" % formatTuple)
+    @staticmethod
+    def _getOutgoingEdgesScanKeys(nodeId, type=""):
+        """
+        Get the scan keys to scan for OUTGOING edges for a given node.
+        @param type The edge type
+        @return (startKey, endKey) The scan start and end keys
+        """
+        formatTuple = (type, nodeId)
+        return ("%s\x1F%s\x0E" % formatTuple, "%s\x1F%s\x0F" % formatTuple)
+    @staticmethod
+    def _deserializeEdge(key):
+        """
+        Deserializes an edge database key
+        @return A tuple (sourceId, targetId, type) deserialized from the database key
+        
+        >>> Edge._deserializeEdge("\\x1Fa\\x0Eb")
+        ('a', 'b', '')
+        >>> Edge._deserializeEdge("\\x1Fa\\x0Fb")
+        ('b', 'a', '')
+        >>> Edge._deserializeEdge("mytype\\x1Fa\\x0Eb")
+        ('a', 'b', 'mytype')
+        >>> Edge._deserializeEdge("mytype\\x1Fa\\x0Fb")
+        ('b', 'a', 'mytype')
+        """
+        #Split the typeplanetexplorers.pathea.net
+        typeSeparatorIndex = key.find("\x1F")
+        if typeSeparatorIndex == -1:
+            raise ParameterException("Could not find     type separator in edge key!")
+        edgeType = key[0:typeSeparatorIndex]
+        key = key[typeSeparatorIndex+1:]
+        #Split the source and target node
+        outgoingIndex = key.find("\x0E")
+        ingoingIndex = key.find("\x0F")
+        if outgoingIndex == -1 and ingoingIndex == -1:
+            raise ParameterException("Could not find OUT or IN separator in edge key!")
+        isIngoing = (outgoingIndex == -1)
+        splitKey = (ingoingIndex if isIngoing else outgoingIndex)
+        firstNodeIndex = key[0:splitKey]
+        secondNodeIndex = key[splitKey+1:]
+        sourceNode = (secondNodeIndex if isIngoing else firstNodeIndex)
+        targetNode = (firstNodeIndex if isIngoing else secondNodeIndex)
+        #Create and return the tuple
+        return (sourceNode, targetNode, edgeType)
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
