@@ -2,9 +2,9 @@
 # -*- coding: utf8 -*-
 import struct
 #Local imports
-from Conversion import ZMQBinaryUtil
-from Exceptions import *
-import DataProcessor
+from YakDB.Conversion import ZMQBinaryUtil
+from YakDB.Exceptions import ParameterException
+import YakDB.DataProcessor
 #Use ZMQPy inside PyPy
 import platform
 if platform.python_implementation() == "PyPy":
@@ -14,7 +14,15 @@ else:
 
 
 class Connection:
-    def __init__(self, context=None):
+    """
+    An instance of this class represents a connection to a YakDB database.
+    """
+    def __init__(self, endpoints=None, context=None):
+        """
+        Create a new YakDB connection instance.
+        @param endpoints An endpoint string or list of endpoints to connect to.
+            New endpoints can be added dynamicallys
+        """
         if context is None:
             self.context = zmq.Context()
             self.cleanupContextOnDestruct = True
@@ -23,6 +31,16 @@ class Connection:
             self.cleanupContextOnDestruct = False
         self.socket = None
         self.numConnections = 0
+        #Connect to the endpoints, if any
+        if endpoints is None:
+            pass
+        elif type(endpoints) is str:
+            self.connect(endpoints)
+        elif type(endpoints) is list:
+            for endpoint in endpoints:
+                self.connect(endpoint)
+        else: #Unknown parameter type
+            raise ParameterException("Endpoints parameter is a '%s' but expected a list or a string!" % (str(type(endpoints))))
     def __del__(self):
         """
         Cleanup ZMQ resources.
@@ -45,7 +63,11 @@ class Connection:
         self.socket = self.context.socket(zmq.PUB)
         self.mode = zmq.PUB
     def connect(self, endpoint):
-        """Connect to a ZeroDB server"""
+        """
+        Connect to a YakDB server.
+        @param endpoint The ZMQ endpoint to connect to, e.g. tcp://localhost:7100.
+        """
+        self._checkParameterType(endpoint, str, "endpoint")
         #Use request/reply as default
         if self.socket == None:
             self.useRequestReplyMode()
@@ -71,8 +93,16 @@ class Connection:
             raise Exception("Please connect to server before using serverInfo (use ZeroDBConnection.connect()!")
         if self.numConnections <= 0:
             raise Exception("Current ZeroDBConnection is setup, but not connected. Please connect before usage!")
-    def _sendBinary32(self, value, more=True): ZMQBinaryUtil.sendBinary32(self.socket,  value,  more)
-    def _sendBinary64(self, value, more=True): ZMQBinaryUtil.sendBinary64(self.socket,  value,  more)
+    def _sendBinary32(self, value, more=True):
+        """
+        Send a binary 32-bit number (little-endian) over the current socket
+        """
+        ZMQBinaryUtil.sendBinary32(self.socket,  value,  more)
+    def _sendBinary64(self, value, more=True):
+        """
+        Send a binary 32-bit number (little-endian) over the current socket
+        """
+        ZMQBinaryUtil.sendBinary64(self.socket,  value,  more)
     def _sendRange(self, fromKey,  toKey,  more=False):
         """
         Send a dual-frame range over the socket.
@@ -98,7 +128,8 @@ class Connection:
         if len(msgParts) == 0:
             raise YakDBProtocolException("Received empty reply message")
         if len(msgParts[0]) < 4:
-            raise YakDBProtocolException("Header frame has size of %d, but expected 4" % len(msgParts[0]))
+            raise YakDBProtocolException("Header frame has size of %d, but expected 4"
+                                         % len(msgParts[0]))
         if msgParts[0][2] != expectedResponseType:
             raise YakDBProtocolException("Response code received from server is "
                         "%d instead of %d" % (ord(msgParts[0][2]),  ord(expectedResponseType)))
@@ -118,10 +149,12 @@ class Connection:
         #Check reply message
         replyParts = self.socket.recv_multipart(copy=True)
         if len(replyParts) != 2:
-            raise Exception("Expected to receive 2-part message from the server, but got %d" % len(replyParts))
+            raise Exception("Expected to receive 2-part message from the server, but got %d"
+                            % len(replyParts))
         responseHeader = replyParts[0]
         if not responseHeader.startswith("\x31\x01\x00"):
-            raise Exception("Response header frame contains invalid header: %d %d %d" % (ord(responseHeader[0]), ord(responseHeader[1]), ord(responseHeader[2])))
+            raise Exception("Response header frame contains invalid header: %d %d %d"
+                            % (ord(responseHeader[0]), ord(responseHeader[1]), ord(responseHeader[2])))
         #Return the server version string
         return replyParts[1]
     def _checkParameterType(self, value, expectedType, name,  allowNone=False):

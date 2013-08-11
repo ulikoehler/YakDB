@@ -12,20 +12,37 @@ class ExtendedAttributes(object):
     """
     def __init__(self,  entity):
         """
-        Initialize a basic attribute set.
+        Initialize a new extended attribute set.
         """
         self.entity = entity
-    @staticmethod
+        self.entityId = entity.id()
+        self.graph = entity.graph()
     def getAttribute(self, key):
         """
         Get a single attribute by key
         """
-        return self.entity._getExtendedAttribute(key)
-    def addAttribute(self,  key,  value):
+        dbKey = ExtendedAttributes._serializeKey(self.entityId, key)
+        return self.graph._loadExtendedAttributeSet(dbKey)
+    def getAttribute(self, keys):
+        """
+        Get a list of attributes by key.
+        @param keys An array of keys to read
+        """
+        dbKeys = [self._serializeKey(self.entityId, key) for key in keys]
+        return self.graph._loadExtendedAttributeSet(dbKeys)
+    def getAttributeRange(self,  startKey="",  limit=1000):
+        """
+        Get a dictionary of all attributes.
+        @param startKey The first attribute to get (inclusive)
+        @param limit The maximum number of keys to get
+        """
+        return self.entity._getExtendedAttributes(startKey,  limit)
+    def setAttribute(self,  key,  value):
         """
         Add or replace an attribute
         """
-        self.entity._saveExtendedAttributes({key: value})
+        Identifier.checkIdentifier(key)
+        self.graph._saveExtendedAttributes({key: value})
     def setAttributes(self,  attrDict):
         """
         For any attribute in the given dictionary,
@@ -33,20 +50,13 @@ class ExtendedAttributes(object):
         """
         if type(attrDict) is not dict:
             raise ParameterException("attrDict parameter must be a Dictionary!")
-        self.entity._saveExtendedAttributes(attrDict)
+        self.entity.graph()._saveExtendedAttributes(self.entity.id(), attrDict)
     def deleteAttribute(self,  key):
         """
         Delete a single attribute by key.
         The call is ignored if the attribute does not exist.
         """
-        self.entity._deleteExtendedAttributes([key])
-    def getAttributes(self,  startKey="",  limit=1000):
-        """
-        Get a dictionary of all attributes.
-        @param startKey The first attribute to get (inclusive)
-        @param limit The maximum number of keys to get
-        """
-        return self.entity._getExtendedAttributes(startKey,  limit)
+        self.entity.graph()._deleteExtendedAttributes([key])
     @staticmethod
     def _serializeKey(entityId, key):
         """
@@ -66,6 +76,24 @@ class ExtendedAttributes(object):
         'test'
         """
         return dbKey[dbKey.find("\x1D")+1:]
+    @staticmethod
+    def _getEntityStartKey(id):
+        """
+        Get the start key for scanning all extended attributes of an entity
+        
+        >>> ExtendedAttributes._getEntityStartKey("mynode")
+        'mynode\\x1d'
+        """
+        return "%s\x1D" % id
+    @staticmethod
+    def _getEntityEndKey(id):
+        """
+        Get the end key for scanning all extended attributes of an entity
+        
+        >>> ExtendedAttributes._getEntityEndKey("mynode")
+        'mynode\\x1e'
+        """
+        return "%s\x1E" % id
 
 if __name__ == "__main__":
     import doctest

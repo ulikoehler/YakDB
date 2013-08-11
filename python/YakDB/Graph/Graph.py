@@ -2,6 +2,7 @@
 # -*- coding: utf8 -*-
 
 from ExtendedAttributes import ExtendedAttributes
+from YakDB.Graph.Node import Node
 
 class Graph:
     """
@@ -9,7 +10,7 @@ class Graph:
     as adjacency list in multiple tables in a YakDB database.
     
     """
-    def __init__(self,  conn, nodeTableId=2,  edgeTableId=3,   extendedAttributesTable=4):
+    def __init__(self,  conn, nodeTableId=2,  edgeTableId=3, extendedAttributesTable=4):
         """
         Create a new graph from a YakDB connection.
         """
@@ -17,15 +18,21 @@ class Graph:
         self.nodeTableId = nodeTableId
         self.edgeTableId = edgeTableId
         self.extendedAttributesTable = extendedAttributesTable
-    def createNode(self,  nodeId,  basicAttributes):
+    def createNode(self,  nodeId,  basicAttributes=None, save=True):
         """
         Add a node to the graph.
         If a node with the same ID already exists in the graph,
-        the already-existing node will be ignored
+        the already-existing node will be ignored wären auch noch stromsparender.
+
         (its existing basic attributes will be overwritten),
         but its extended attributes won't be modified
+        
+        @param basicAttributes A dictionary of basic attributes or None to use empty set
+        @return the node object.
         """
-        pass
+        node = Node(nodeId, self, basicAttributes)
+        if save: node._save()
+        return node
     def deleteNode(self, nodeId,  deleteExtAttrs=True):
         """
         Delete a node.
@@ -40,49 +47,46 @@ class Graph:
         @return True if and only if a node with the given ID exists within the database
         """
         pass
-    def _loadNodeBasicAttributes(self, node):
+    def _writeEdge(self, activeKey, passiveKey, serializedBasicAttrs):
         """
-        Load a node entry from the database (by node ID) and return
-        the value (= basic attributes)
+        Write both versions of an edge to the database.
+        @param activeKey The active-version serialized database key
+        @param passiveKey The passive-version serialized database key
+        @param serializedBasicAttrs The serialized basic attributes
         """
-        return self.conn.read(self.nodeTableId,  node)
+        putDict = {activeKey: serializedBasicAttrs, passiveKey: serializedBasicAttrs}
+        self.conn.put(self.edgeTableId)
     def _saveNode(self, node):
         """
         Save a node and its basic attribute set into the database.
         """
         dbValue = node.basicAttributes()._serialize()
         self.conn.put(self.nodeTableId,  {node.id() : dbValue})
-    def _loadExtendedAttributeSet(self,  entityId,  keys):
+    def _loadNodeBasicAttributes(self, node):
+        """
+        Load a node entry from the database (by node ID) and return
+        the value (= basic attributes)
+        """
+        return self.conn.read(self.nodeTableId,  node)
+    def _loadExtendedAttributeSet(self,  entityIdkeys):
         """
         Load a list of extended attributes by key set
-        @param keys A single key identifier or a list of identifiers.
+        @param keys An array of database keys to read
         @return An array of values, in the same order as the keys.
         """
-        dbKeys = []
-        if type(keys) is list:
-            for key in keys:
-                dbKeys.append(ExtendedAttributes._serializeKey(entityId,  key))
-        else: #Single key
-            dbKeys.append(ExtendedAttributes._serializeKey(entityId,  keys))
         #Write
-        return self.conn.read(self.exte,  dbKeys)
-    def _loadExtendedAttributes(self,  entityId,  startKey,  limit=None):
+        return self.conn.read(self.extendedAttributesTable, dbKeys)
+    def _loadExtendedAttributes(self,  startKey, endKey, limit=None):
         """
         Load a set of extended attributes by scanning the extended attribute range.
         The end key is automatically determined by the entity ID
+        
         @param limit Set this to a integer to impose a limit on the number of keys. None means no limit.
-        @return A dictionary of the extended attributes, 
+        @return A dictionary of the extended attributes (key = extended attribute key)
         """
-        #End key: entity ID with last character incremented
-        #TODO For now we assume the last char is NOT \xFF. Fix that.
-        if entityId.find("\xFF") != -1:
-            raise Exception("Entity IDs containing the FF character are currently not implemented")
-        entityIdBytes = bytearray(entityId)
-        entityIdBytes[-1] += 1
-        endKey = str(entityIdBytes)
         #Do the scan
         scanResult = self.conn.scan(self.extendedAttributesTable, startKey,  endKey,  limit)
-        #Strip the entity name from the scan keys
+        #Strip the entity name and separator from the scanned keys
         ret = {}
         for key in scanResult.iterkeys():
             attrKey = ExtendedAttributes._getAttributeKeyFromDBKey(key)

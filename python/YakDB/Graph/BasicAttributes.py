@@ -9,15 +9,16 @@ class BasicAttributes(object):
     related to an entity instance that has basic attributes,
     represents the set of basic attributes for that class.
     """
-    def __init__(self,  entity,  serializedAttrs=None):
+    def __init__(self,  entity,  attrs=None):
         """
         Initialize a basic attribute set.
+        @param attrs The attributes, or None to use empty set
         """
         self.entity = entity
-        if serializedAttrs is None:
+        if attrs is None:
             self.attrs = {}
         else:
-            self.attrs = self.__parseAttributeSet(serializedAttrs)
+            self.attrs = attrs
     @staticmethod
     def getAttribute(self, key):
         """
@@ -40,8 +41,8 @@ class BasicAttributes(object):
         """
         if type(attrDict) is not dict:
             raise ParameterException("attrDict parameter must be a Dictionary!")
-        for key in attrDict.iterkeys():
-            self.attrs[key] = attrDict[key]
+        for key, value in attrDict.iteritemns():
+            self.attrs[key] = value
         if save:
             self.save()
     def deleteAttribute(self,  key,  save=True):
@@ -71,6 +72,8 @@ class BasicAttributes(object):
         """
         Parse a serialized attribute set.
         
+        @return A dictionary of the parsed values
+        
         >>> BasicAttributes._parseAttributeSet("k1\\x00val1\\x00key2\\x00value2\\x00")
         {'key2': 'value2', 'k1': 'val1'}
         """
@@ -86,7 +89,7 @@ class BasicAttributes(object):
                     currentKey = ""
                     currentValue = ""
                 currentlyInValue = not currentlyInValue
-            else: #It's not a NUL terminator
+            else: #It's not a NUL delimiter
                 if currentlyInValue:
                     currentValue += c
                 else:
@@ -102,9 +105,9 @@ class BasicAttributes(object):
         'k2\\x00val2\\x00key1\\x00value1\\x00'
         """
         serializedAttrs = []
-        for key in attrDict.iterkeys():
-            serializedAttrs.append(key + b"\x00")
-            serializedAttrs.append(attrDict[key] + b"\x00")
+        for key, value in attrDict.iteritems():
+            serializedAttrs.append("%s\x00" % key)
+            serializedAttrs.append("%s\x00" % value)
         return b"".join(serializedAttrs)
 
 if __name__ == "__main__":

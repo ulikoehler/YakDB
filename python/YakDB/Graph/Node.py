@@ -1,23 +1,32 @@
-#!/usr/bin/env python
+r#!/usr/bin/env python
 # -*- coding: utf8 -*-
 
 from BasicAttributes import BasicAttributes
 from ExtendedAttributes import ExtendedAttributes
+from Identifier import Identifier
+from YakDB.Graph import Graph
+from YakDB.Exceptions import ParameterException
 
 class Node(object):
     """
     An instance of this class represents a
     single node within a graph.
     """
-    def __init__(self, nodeId,  graph,  serializedBasicAttrs=None):
+    def __init__(self, nodeId,  graph,  basicAttrs=None):
+        """
+        Create a new node instance.
+        
+        @param nodeId The ID of the node (must be an identifier)
+        @param graph The graph 
+        @param basicAttrs The set of basic attributes or None to use empty set
+        """
+        Identifier.checkIdentifier(nodeId)
+        if not isinstance(graph, Graph):
+            raise ParameterException("The graph argument is no Graph object")
         self.id = nodeId
         self.graph = graph
-        #Initialize the basic attributes
-        if serializedBasicAttrs == None: #Node was created by reading DB entry
-            self.basicAttributes = BasicAttributes(self, serializedBasicAttrs)
-        else: #Node was created de-novo without a related DB entry
-            self.basicAttributes = BasicAttributes(self)
-        #Initialize the extended attributes (lazy-loaded
+        #Initialize the basic and extended attributes
+        self.basicAttributes = BasicAttributes(self, basicAttrs)
         self.extendedAttributes = ExtendedAttributes(self)
     def _save(self):
         """
@@ -44,23 +53,9 @@ class Node(object):
         are generally lazy-loaded and not persistently stored in API classes
         """
         return self.extendedAttributes
-    def _getExtendedAttributes(self, startKey,  limit):
+    @property
+    def graph(self):
         """
-        Internal function, should only be called by ExtendedAttributes instances
+        The graph this node relates to
         """
-        return self.graph._getNodeExtendedAttributes()
-    def _getExtendedAttribute(self, key):
-        """
-        Internal function, should only be called by ExtendedAttributes instances
-        """
-        pass
-    def _deleteExtendedAttributes(self, startKey,  limit):
-        """
-        Internal function, should only be called by ExtendedAttributes instances
-        """
-        pass
-    def _saveExtendedAttributes(self, startKey,  limit):
-        """
-        Internal function, should only be called by ExtendedAttributes instances
-        """
-        pass
+        return self.graph

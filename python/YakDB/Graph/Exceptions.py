@@ -8,3 +8,11 @@ class IdentifierException(Exception):
     """
     def __init__(self, message):
         Exception.__init__(self, message)
+
+class ConsistencyException(Exception):
+    """
+    An exception that indicates that two arguments
+    are not consistent with each other.
+    """
+    def __init__(self, message):
+        Exception.__init__(self, message)

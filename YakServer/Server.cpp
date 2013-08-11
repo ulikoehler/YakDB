@@ -284,6 +284,7 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
 
 KeyValueServer::KeyValueServer(bool dbCompressionEnabled) :
 ctx(zctx_new()),
+logServer(ctx),
 tables(),
 externalRepSocket(nullptr),
 externalSubSocket(nullptr),
@@ -293,8 +294,7 @@ tableOpenServer(ctx, tables.getDatabases(), dbCompressionEnabled),
 updateWorkerController(ctx, tables),
 readWorkerController(ctx, tables),
 asyncJobRouterController(ctx, tables),
-logger(ctx, "Request router"),
-logServer(ctx)
+logger(ctx, "Request router")
  {
     static const char* reqRepUrl = "tcp://*:7100";
     static const char* writeSubscriptionUrl = "tcp://*:7101";

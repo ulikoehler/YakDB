@@ -170,7 +170,7 @@ Edges are entities that are uniquely identified by:
     - A destination node
     - (Implicitly) a direction
 
-### Ingoing and outgoin edge forms
+### Ingoing and outgoing edge forms
 
 In order to support fast retrieal of both ingoing and outgoing edges of nodes,
 both forms need to be represented in the database (for the same node)
@@ -233,6 +233,9 @@ Both directions should be written in the same write batch/transaction.
 
 The ASCII 0xE (Shift Out) and 0xF (Shift In) have been chosen because of the similarity
 of their names to the edge directions, even if their original purpose is different.
+
+For extended attributes, only the 0xE (Shift Out) edge version shall be used as key
+in order to avoid overhead
 
 Additionally, because of the requirement that identifiers only have characters >= 0x20,
 edge identifiers are generally unique in respect to source & destination nodes.
