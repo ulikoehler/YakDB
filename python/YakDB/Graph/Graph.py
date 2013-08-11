@@ -77,8 +77,28 @@ class Graph:
             Otherwise, when creating a node with the same ID, it will automatically inherit the extended attributes left in the database.
         """
         node = Node.Node(nodeId, self)
-        node.delete()
+        node.delete() #TODO implement
         #TODO delete extattrs
+    
+    def nodes():
+        """
+        
+        """
+    def _scanNodes(self, startKey="", endKey="", limit=None):
+        """
+        Do a scan over the node table.
+        @return A list of Node objects
+        """
+        nodes = []
+        scanResult = self.conn.scan(self.nodeTableId, startKey, endKey, limit)
+        for (key, value) in scanResult.iteritems():
+            #If the edge and node table are the same, we need to skip edges
+            if key.find("\x1F"): #Type separator
+                continue
+            basicAttrs = BasicAttributes._parseAttributeSet(value)
+            node = Node.Node(key, self, basicAttrs)
+            nodes.push(node)x
+        return nodes
     def _scanEdges(self, startKey, endKey, limit=None):
         """
         Do a scan over the edge table.
