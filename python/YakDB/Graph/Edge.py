@@ -62,19 +62,19 @@ class Edge(object):
         """
         The ID of the source node
         """
-        return self.source
+        return self.sourceNodeId
     @property
     def target(self):
         """
         The ID of the target node
         """
-        return self.target
+        return self.targetNodeId
     @property
     def type(self):
         """
         The edge type
         """
-        return self.sedgeType
+        return self.edgeType
     def _save(self):
         """
         Writes the edge (both passive and active versions)
@@ -93,9 +93,9 @@ class Edge(object):
         formatTuple = (type, nodeId)
         return ("%s\x1F%s\x0E" % formatTuple, "%s\x1F%s\x10" % formatTuple)
     @staticmethod
-    def _getIngoingEdgesScanKeys(nodeId, type=""):
+    def _getIncomingEdgesScanKeys(nodeId, type=""):
         """
-        Get the scan keys to scan for INGOING edges for a given node.
+        Get the scan keys to scan for Incoming edges for a given node.
         @param type The edge type
         @return (startKey, endKey) The scan start and end keys
         """
@@ -104,7 +104,7 @@ class Edge(object):
     @staticmethod
     def _getOutgoingEdgesScanKeys(nodeId, type=""):
         """
-        Get the scan keys to scan for OUTGOING edges for a given node.
+        Get the scan keys to scan for OUtgoing edges for a given node.
         @param type The edge type
         @return (startKey, endKey) The scan start and end keys
         """
@@ -133,21 +133,20 @@ class Edge(object):
         key = key[typeSeparatorIndex+1:]
         #Split the source and target node
         outgoingIndex = key.find("\x0E")
-        ingoingIndex = key.find("\x0F")
-        if outgoingIndex == -1 and ingoingIndex == -1:
+        incomingIndex = key.find("\x0F")
+        if outgoingIndex == -1 and incomingIndex == -1:
             raise ParameterException("Could not find OUT or IN separator in edge key!")
-        isIngoing = (outgoingIndex == -1)
-        splitKey = (ingoingIndex if isIngoing else outgoingIndex)
+        isIncoming = (outgoingIndex == -1)
+        splitKey = (incomingIndex if isIncoming else outgoingIndex)
         firstNodeIndex = key[0:splitKey]
         secondNodeIndex = key[splitKey+1:]
-        sourceNode = (secondNodeIndex if isIngoing else firstNodeIndex)
-        targetNode = (firstNodeIndex if isIngoing else secondNodeIndex)
+        sourceNode = (secondNodeIndex if isIncoming else firstNodeIndex)
+        targetNode = (firstNodeIndex if isIncoming else secondNodeIndex)
         #Create and return the tuple
         return (sourceNode, targetNode, edgeType)
     def __str__(self):
         formatTuple = (self.source, self.target, self.type, self.basicAttrs.getAttributes())
-        return "Edge(source=%s, target=%s, type=%s, basicAttrs=%s)" % formatTuple
-
+        return "Edge(source='%s', target='%s', type='%s', basicAttrs=%s)" % formatTuple
 
 if __name__ == "__main__":
     import doctest

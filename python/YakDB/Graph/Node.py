@@ -6,6 +6,7 @@ from ExtendedAttributes import ExtendedAttributes
 from Identifier import Identifier
 from YakDB.Graph import Graph
 from YakDB.Exceptions import ParameterException
+from Edge import Edge
 
 class Node(object):
     """
@@ -40,12 +41,12 @@ class Node(object):
         """
         (startKey, endKey) = Edge._getAllEdgesScanKeys(self.id)
         return self.graph._scanEdges(startKey, endKey, limit)
-    def getIngoingEdges(self, limit=None):
+    def getIncomingEdges(self, limit=None):
         """
         Get a list all edges for the current node
         @return A list of Edge instances.
         """
-        (startKey, endKey) = Edge._getIngoingEdgesScanKeys(self.id)
+        (startKey, endKey) = Edge._getIncomingEdgesScanKeys(self.id)
         return self.graph._scanEdges(startKey, endKey, limit)
     def getOutgoingEdges(self, limit=None):
         """

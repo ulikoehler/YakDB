@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
+from BasicAttributes import BasicAttributes
 from ExtendedAttributes import ExtendedAttributes
-import Node
-import Edge
+import Node as Node
+import Edge as Edge
 from Identifier import Identifier
 
 class Graph:
@@ -78,7 +79,7 @@ class Graph:
         node = Node.Node(nodeId, self)
         node.delete()
         #TODO delete extattrs
-    def _scanEdges(startKey, endKey, limit=None):
+    def _scanEdges(self, startKey, endKey, limit=None):
         """
         Do a scan over the edge table.
         Internally used by the node class.
@@ -90,10 +91,10 @@ class Graph:
         edges = []
         for (key, value) in scanResult.iteritems():
             #Deserialize key and value
-            edgeTuple = Edge._deserializeEdge(key)
+            edgeTuple = Edge.Edge._deserializeEdge(key)
             basicAttrs = BasicAttributes._parseAttributeSet(value)
             edge = Edge.Edge(edgeTuple[0], edgeTuple[1], self, edgeTuple[2], basicAttrs)
-            edges.push(edge)
+            edges.append(edge)
         return edges
     def nodeExists(self, nodeId):
         """

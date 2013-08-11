@@ -11,11 +11,15 @@ graph = Graph.Graph(conn)
 nodeX = graph.createNode("x")
 nodeY = graph.createNode("y")
 nodeZ = graph.createNode("z")
-graph.createEdge("x","y")
+edgeXY = graph.createEdge("x","y")
 graph.createEdge("y","z")
 graph.createEdge("z","x")
 #Print some node info
 print "Node 'x': %s" % nodeX
+print "Edge 'x->y': %s" % edgeXY
+print "Node 'x' edges: %s" % nodeX.getEdges()
+print "Node 'x' incoming edges: %s" % nodeX.getIncomingEdges()
+print "Node 'x' outgoing edges: %s" % nodeX.getOutgoingEdges()
 #Create some nodes with basic attributes
 nodeA = graph.createNode("a", basicAttrs={"nodeText":"This is node a"})
 nodeB = graph.createNode("b", basicAttrs={"nodeText":"This is node b"})
