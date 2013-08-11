@@ -20,7 +20,7 @@ class Graph:
         self.nodeTableId = nodeTableId
         self.edgeTableId = edgeTableId
         self.extendedAttributesTable = extendedAttributesTable
-    def createNode(self,  nodeId,  basicAttributes=None, save=True):
+    def createNode(self,  nodeId, basicAttrs=None, save=True):
         """
         Add a node to the graph.
         If a node with the same ID already exists in the graph,
@@ -33,10 +33,10 @@ class Graph:
         @param save Set this to false to avoid writing the node to the database.
         @return the node object.
         """
-        node = Node.Node(nodeId, self, basicAttributes)
+        node = Node.Node(nodeId, self, basicAttrs)
         if save: node._save()
         return node
-    def createEdge(self, sourceNode, targetNode, type="", basicAttributes=None, save=True):
+    def createEdge(self, sourceNode, targetNode, type="", basicAttrs=None, save=True):
         """
         Create a directed edge between two nodes.
         
@@ -65,7 +65,7 @@ class Graph:
         if isinstance(targetNode, Node.Node):
             targetNode = targetNode.id
         #Create the edge and save it to the database
-        edge = Edge.Edge(sourceNode, targetNode, self, type, basicAttributes)
+        edge = Edge.Edge(sourceNode, targetNode, self, type, basicAttrs)
         if save: edge._save()
         return edge
     def deleteNode(self, nodeId,  deleteExtAttrs=True):
@@ -75,7 +75,10 @@ class Graph:
         @param deleteExtAttrs If this is set to true, all node extended attributes will be deleted as well.
             Otherwise, when creating a node with the same ID, it will automatically inherit the extended attributes left in the database.
         """
-        pass
+        node = Node.Node(nodeId, self)
+        node.delete()
+        #TODO delete extattrs
+        
     def __convertToNode(obj):
         """
         

@@ -111,8 +111,7 @@ class BasicAttributes(object):
         """
         serializedAttrs = []
         for key, value in attrDict.iteritems():
-            serializedAttrs.append("%s\x00" % key)
-            serializedAttrs.append("%s\x00" % value)
+            serializedAttrs.append("%s\x00%s\x00" % (key,value))
         return b"".join(serializedAttrs)
 
 if __name__ == "__main__":
