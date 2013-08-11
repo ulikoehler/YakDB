@@ -67,6 +67,11 @@ class BasicAttributes(object):
         save=False automatically calls this method.
         """
         self.entity._save()
+    def serialize(self):
+        """
+        Serialize the current attribute set
+        """
+        return BasicAttributes._serialize(self.attrs)
     @staticmethod
     def _parseAttributeSet(attrSet):
         """

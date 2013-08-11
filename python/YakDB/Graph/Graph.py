@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 from ExtendedAttributes import ExtendedAttributes
-from YakDB.Graph.Node import Node
+import Node
 
 class Graph:
     """
@@ -30,7 +30,7 @@ class Graph:
         @param basicAttributes A dictionary of basic attributes or None to use empty set
         @return the node object.
         """
-        node = Node(nodeId, self, basicAttributes)
+        node = Node.Node(nodeId, self, basicAttributes)
         if save: node._save()
         return node
     def deleteNode(self, nodeId,  deleteExtAttrs=True):
@@ -60,8 +60,8 @@ class Graph:
         """
         Save a node and its basic attribute set into the database.
         """
-        dbValue = node.basicAttributes()._serialize()
-        self.conn.put(self.nodeTableId,  {node.id() : dbValue})
+        dbValue = node.basicAttributes.serialize()
+        self.conn.put(self.nodeTableId,  {node.id : dbValue})
     def _loadNodeBasicAttributes(self, node):
         """
         Load a node entry from the database (by node ID) and return

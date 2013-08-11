@@ -15,8 +15,8 @@ class ExtendedAttributes(object):
         Initialize a new extended attribute set.
         """
         self.entity = entity
-        self.entityId = entity.id()
-        self.graph = entity.graph()
+        self.entityId = entity.id
+        self.graph = entity.graph
     def getAttribute(self, key):
         """
         Get a single attribute by key

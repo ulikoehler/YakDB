@@ -1,4 +1,4 @@
-r#!/usr/bin/env python
+#!/usr/bin/env python
 # -*- coding: utf8 -*-
 
 from BasicAttributes import BasicAttributes
@@ -21,41 +21,41 @@ class Node(object):
         @param basicAttrs The set of basic attributes or None to use empty set
         """
         Identifier.checkIdentifier(nodeId)
-        if not isinstance(graph, Graph):
+        if not isinstance(graph, Graph.Graph):
             raise ParameterException("The graph argument is no Graph object")
-        self.id = nodeId
-        self.graph = graph
+        self.nodeId = nodeId
+        self.graphAttr = graph
         #Initialize the basic and extended attributes
-        self.basicAttributes = BasicAttributes(self, basicAttrs)
-        self.extendedAttributes = ExtendedAttributes(self)
+        self.basicAttr = BasicAttributes(self, basicAttrs)
+        self.extendedAttr = ExtendedAttributes(self)
     def _save(self):
         """
         Save the current entity in the database
         """
-        self.graph._saveNode(self,  self.basicAttributes)
+        self.graph._saveNode(self)
     @property
     def id(self):
         """
         Get the ID that is used as key in the database.
         The ID of a node must not be changed.
         """
-        return self.id
+        return self.nodeId
     @property
     def basicAttributes(self):
         """
         The basic attributes for the current node
         """
-        return self.basicAttributes
+        return self.basicAttr
     @property
     def extendedAttributes(self):
         """
         Get the extended attributes. Note that extended attributes
         are generally lazy-loaded and not persistently stored in API classes
         """
-        return self.extendedAttributes
+        return self.extendedAttr
     @property
     def graph(self):
         """
         The graph this node relates to
         """
-        return self.graph
+        return self.graphAttr

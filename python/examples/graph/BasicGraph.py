@@ -6,7 +6,7 @@ import YakDB
 
 #Initialize graph
 conn = YakDB.Connection("tcp://localhost:7100")
-graph = Graph(conn)
+graph = Graph.Graph(conn)
 #Create the graph
 graph.createNode("a")
 graph.createNode("b")
