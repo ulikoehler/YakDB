@@ -65,7 +65,7 @@ class Graph:
         if isinstance(targetNode, Node.Node):
             targetNode = targetNode.id
         #Create the edge and save it to the database
-        edge = Edge.Edge(sourceNode, targetNode, self, basicAttributes)
+        edge = Edge.Edge(sourceNode, targetNode, self, type, basicAttributes)
         if save: edge._save()
         return edge
     def deleteNode(self, nodeId,  deleteExtAttrs=True):
@@ -94,7 +94,7 @@ class Graph:
         @param serializedBasicAttrs The serialized basic attributes
         """
         putDict = {activeKey: serializedBasicAttrs, passiveKey: serializedBasicAttrs}
-        self.conn.put(self.edgeTableId)
+        self.conn.put(self.edgeTableId, putDict)
     def _saveNode(self, node):
         """
         Save a node and its basic attribute set into the database.

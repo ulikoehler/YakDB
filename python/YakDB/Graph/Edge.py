@@ -2,12 +2,14 @@
 # -*- coding: utf8 -*-
 
 from YakDB.Graph.Exceptions import ConsistencyException
+from BasicAttributes import BasicAttributes
+from ExtendedAttributes import ExtendedAttributes
 
 class Edge(object):
     """
     Represents a directed edge in a graph.
     """
-    def __init__(self, sourceNodeId, targetNodeId, graph, type="", basicAttrs=None):
+    def __init__(self, sourceNodeId, targetNodeId, graph, edgeType="", basicAttrs=None):
         """
         Create a new edge instance.
         Usually this constructor shall not be used directly
@@ -20,9 +22,10 @@ class Edge(object):
         self.sourceNodeId = sourceNodeId
         self.targetNodeId = targetNodeId
         self.graphAttr = graph
+        self.edgeType = edgeType
         #Serialize the edge database keys
-        self.activeKey = "%s\x1F%s\x0E%s" % (type, self.sourceNodeId, self.targetNodeId)
-        self.passiveKey = "%s\x1F%s\x0F%s" % (type, self.targetNodeId, self.sourceNodeId)
+        self.activeKey = "%s\x1F%s\x0E%s" % (edgeType, self.sourceNodeId, self.targetNodeId)
+        self.passiveKey = "%s\x1F%s\x0F%s" % (edgeType, self.targetNodeId, self.sourceNodeId)
         #Initialize basic and extended attributes
         self.basicAttrs = BasicAttributes(self, basicAttrs)
         self.extendedAttrs = ExtendedAttributes(self)
@@ -65,7 +68,13 @@ class Edge(object):
         The ID of the target node
         """
         return self.targetNodeId
-    def _save():
+    @property
+    def type(self):
+        """
+        The edge type
+        """
+        return self.sedgeType
+    def _save(self):
         """
         Writes the edge (both passive and active versions)
         to the database
