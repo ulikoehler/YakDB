@@ -3,6 +3,8 @@
 
 from ExtendedAttributes import ExtendedAttributes
 import Node
+import Edge
+from Identifier import Identifier
 
 class Graph:
     """
@@ -28,11 +30,44 @@ class Graph:
         but its extended attributes won't be modified
         
         @param basicAttributes A dictionary of basic attributes or None to use empty set
+        @param save Set this to false to avoid writing the node to the database.
         @return the node object.
         """
         node = Node.Node(nodeId, self, basicAttributes)
         if save: node._save()
         return node
+    def createEdge(self, sourceNode, targetNode, type="", basicAttributes=None, save=True):
+        """
+        Create a directed edge between two nodes.
+        
+        If you use node IDs instead of nodes as parameters,
+        the nodes will not be saved automatically and will not contain
+        any basic attributes.
+        You can save the nodes
+        
+        @param sourceNode A source node identifier or a Node instance that acts as source
+        @param targetNode A target node identifier or a Node instance that acts as target
+        @param type The type of the edge
+        @return The edge instance
+        """
+        #Check if both nodes are from the same graph.
+        if isinstance(sourceNode, Node.Node) and isinstance(targetNode, Node.Node):
+            if sourceNode.graph() != targetNode.graph():
+                raise ConsistencyException("Source and target node are not from the same graph")
+        #If the arguments are strings, ensure they're proper identifiers
+        if isinstance(sourceNode, str):
+            Identifier.checkIdentifier(sourceNode)
+        if isinstance(targetNode, str):
+            Identifier.checkIdentifier(targetNode)
+        #Ensure we have strings because the edge constructor takes them
+        if isinstance(sourceNode, Node.Node):
+            sourceNode = sourceNode.id
+        if isinstance(targetNode, Node.Node):
+            targetNode = targetNode.id
+        #Create the edge and save it to the database
+        edge = Edge.Edge(sourceNode, targetNode, self, basicAttributes)
+        if save: edge._save()
+        return edge
     def deleteNode(self, nodeId,  deleteExtAttrs=True):
         """
         Delete a node.
@@ -41,6 +76,10 @@ class Graph:
             Otherwise, when creating a node with the same ID, it will automatically inherit the extended attributes left in the database.
         """
         pass
+    def __convertToNode(obj):
+        """
+        
+        """
     def nodeExists(self, nodeId):
         """
         Check if a node exists within the database

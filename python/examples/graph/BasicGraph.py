@@ -10,3 +10,7 @@ graph = Graph.Graph(conn)
 #Create the graph
 graph.createNode("a")
 graph.createNode("b")
+graph.createNode("c")
+graph.createEdge("a","b")
+graph.createEdge("b","c")
+graph.createEdge("c","a")
