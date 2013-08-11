@@ -145,8 +145,9 @@ class Edge(object):
         #Create and return the tuple
         return (sourceNode, targetNode, edgeType)
     def __str__(self):
-        formatTuple = (self.source, self.target, self.type, self.basicAttrs.getAttributes())
+        formatTuple = (self.sourceNodeId, self.targetNodeId, self.type, self.basicAttrs.getAttributes())
         return "Edge(source='%s', target='%s', type='%s', basicAttrs=%s)" % formatTuple
+    def __repr__(self): return self.__str__()
 
 if __name__ == "__main__":
     import doctest
