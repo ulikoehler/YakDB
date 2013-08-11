@@ -9,32 +9,51 @@ class BasicAttributes(object):
     related to an entity instance that has basic attributes,
     represents the set of basic attributes for that class.
     """
-    def __init__(self,  entity,  attrs=None):
+    def __init__(self,  entity,  attrs=None, autosave=True):
         """
         Initialize a basic attribute set.
         @param attrs The attributes, or None to use empty set
+        @param autosave If this is set to true, write-[] operators (__setitem__, __delitem__
+            cause immediate writes to the database.
         """
         self.entity = entity
+        self.autosave = autosave
         if attrs is None:
             self.attrs = {}
         else:
             self.attrs = attrs
-    @staticmethod
-    def getAttribute(self, key):
+    def __getitem__(self, key):
         """
-        Get a single attribute by key
+        Get an attribute by key
         """
         if key in self.attrs:
             return self.attrs[key]
         return None
-    def setAttribute(self,  key,  value, save=True):
+    def __setitem__(self, key, value):
         """
-        Set or an attribute. Replaces existing attributes.
+        Set an attribute.
+        This always s
         """
-        self.attrs[key] = value
-        if save:
+        if key in self.attrs:
+            return self.attrs[key]
+        return None
+    def __getitem__(self, key):
+        """
+        Get an attribute by key
+        """
+        if key in self.attrs:
+            return self.attrs[key]
+        return None
+    def __delitem__(self, key):
+        """
+        Delete an attribute from the current attributes.
+        """
+        del self.attrs[key]
+        if self.autosave:
             self.save()
-    def setAttributes(self,  attrDict, save=True):
+    def __iter__(self):
+        return self.attrs.__iter__()
+    def setAttributes(self, attrDict, save=True):
         """
         For any attribute in the given dictionary,
         set or replace the corresponding attribute in the current instance.
@@ -43,15 +62,6 @@ class BasicAttributes(object):
             raise ParameterException("attrDict parameter must be a Dictionary!")
         for key, value in attrDict.iteritemns():
             self.attrs[key] = value
-        if save:
-            self.save()
-    def deleteAttribute(self,  key,  save=True):
-        """
-        Delete a single attribute by key.
-        The call is ignored if the attribute does not exist.
-        """
-        if key in self.attrs:
-            del self.attrs[key]
         if save:
             self.save()
     def getAttributes(self):
@@ -77,10 +87,13 @@ class BasicAttributes(object):
         """
         Parse a serialized attribute set.
         
+        @param attrSet A string containing the serialized attributes
         @return A dictionary of the parsed values
         
         >>> BasicAttributes._parseAttributeSet("k1\\x00val1\\x00key2\\x00value2\\x00")
         {'key2': 'value2', 'k1': 'val1'}
+        >>> BasicAttributes._parseAttributeSet("")
+        {}
         """
         ret = {}
         currentlyInValue = False
@@ -109,9 +122,8 @@ class BasicAttributes(object):
         >>> BasicAttributes._serialize({'key1': 'value1', 'k2': 'val2'})
         'k2\\x00val2\\x00key1\\x00value1\\x00'
         """
-        serializedAttrs = []
-        for key, value in attrDict.iteritems():
-            serializedAttrs.append("%s\x00%s\x00" % (key,value))
+        serializedAttrs = ["%s\x00%s\x00" % (key,value)
+                           for key, value in attrDict.iteritems()]
         return b"".join(serializedAttrs)
 
 if __name__ == "__main__":

@@ -81,12 +81,20 @@ class Graph:
     def _scanEdges(startKey, endKey, limit=None):
         """
         Do a scan over the edge table.
+        Internally used by the node class.
         @param startKey The edge table start key
         @param endKey The edge table start key
         @return a list of edge objects
         """
         scanResult = self.conn.scan(self.edgeTableId, startKey, endKey, limit)
-        for 
+        edges = []
+        for (key, value) in scanResult.iteritems():
+            #Deserialize key and value
+            edgeTuple = Edge._deserializeEdge(key)
+            basicAttrs = BasicAttributes._parseAttributeSet(value)
+            edge = Edge.Edge(edgeTuple[0], edgeTuple[1], self, edgeTuple[2], basicAttrs)
+            edges.push(edge)
+        return edges
     def nodeExists(self, nodeId):
         """
         Check if a node exists within the database

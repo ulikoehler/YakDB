@@ -10,18 +10,18 @@ class Edge(object):
     """
     Represents a directed edge in a graph.
     """
-    def __init__(self, sourceNodeId, targetNodeId, graph, edgeType="", basicAttrs=None):
+    def __init__(self, source, target, graph, edgeType="", basicAttrs=None):
         """
         Create a new edge instance.
         Usually this constructor shall not be used directly
         
-        @param sourceNodeId The node instance that acts as the source node.
-        @param targetNode The node instance that acts as the target node
+        @param source The node instance that acts as the source node.
+        @param target The node instance that acts as the target node
         @param The edge type
         @param basicAttrs The basic attributes, or None to use empty set.
         """
-        self.sourceNodeId = sourceNodeId
-        self.targetNodeId = targetNodeId
+        self.sourceNodeId = source
+        self.targetNodeId = target
         self.graphAttr = graph
         self.edgeType = edgeType
         #Serialize the edge database keys
@@ -62,13 +62,13 @@ class Edge(object):
         """
         The ID of the source node
         """
-        return self.sourceNodeId
+        return self.source
     @property
     def target(self):
         """
         The ID of the target node
         """
-        return self.targetNodeId
+        return self.target
     @property
     def type(self):
         """
@@ -84,8 +84,8 @@ class Edge(object):
                               self.passiveKey,
                               self.basicAttrs.serialize())
     @staticmethod
-    def _getAllEdgesScanKeysc(nodeId, type=""):
-        """
+    def _getAllEdgesScanKeys(nodeId, type=""):
+        """ee
         Get the scan keys to scan for ALL edges for a given node.
         @param type The edge type
         @return (startKey, endKey) The scan start and end keys
@@ -144,6 +144,10 @@ class Edge(object):
         targetNode = (firstNodeIndex if isIngoing else secondNodeIndex)
         #Create and return the tuple
         return (sourceNode, targetNode, edgeType)
+    def __str__(self):
+        formatTuple = (self.source, self.target, self.type, self.basicAttrs.getAttributes())
+        return "Edge(source=%s, target=%s, type=%s, basicAttrs=%s)" % formatTuple
+
 
 if __name__ == "__main__":
     import doctest
