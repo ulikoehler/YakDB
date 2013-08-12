@@ -158,7 +158,6 @@ class Graph:
     def _loadExtendedAttributeRange(self,  startKey, endKey, limit=None):
         """
         Load a set of extended attributes by scanning the extended attribute range.
-        The end key is automatically determined by the entity ID
         
         @param limit Set this to a integer to impose a limit on the number of keys. None means no limit.
         @return A dictionary of the extended attributes (key = extended attribute key)

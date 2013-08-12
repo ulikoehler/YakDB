@@ -222,7 +222,7 @@ class Connection:
         if self.mode is zmq.REQ:
             msgParts = self.socket.recv_multipart(copy=True)
             self._checkHeaderFrame(msgParts,  '\x20')
-    def delete(self, tableNo, keys):
+    def delete(self, tableNo, keys, partsync=False, fullsync=False):
         """
         Delete one or multiples values, identified by their keys, from a table.
 

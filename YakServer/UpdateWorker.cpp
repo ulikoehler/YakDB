@@ -105,7 +105,6 @@ bool UpdateWorker::processNextMessage() {
     if (requestType == PutRequest) {
         handleUpdateRequest(&headerFrame, haveReplyAddr);
     } else if (requestType == DeleteRequest) {
-        logger.trace("DR");
         handleDeleteRequest(&headerFrame, haveReplyAddr);
     } else if (requestType == OpenTableRequest) {
         handleTableOpenRequest(&headerFrame, haveReplyAddr);
@@ -221,7 +220,6 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
         //Convert to LevelDB
         leveldb::Slice keySlice((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
         batch.Delete(keySlice);
-        logger.trace(keySlice.ToString());
         //Check if we have more frames
         haveMoreData = zmq_msg_more(&keyFrame);
         //Cleanup
