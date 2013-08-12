@@ -22,14 +22,15 @@ class ExtendedAttributes(object):
         Get an attribute by key
         """
         dbKey = ExtendedAttributes._serializeKey(self.entityId, key)
-        return self.graph._loadExtendedAttributeSet(dbKey)
+        return self.graph._loadExtendedAttributes(dbKey)[0]
     def __setitem__(self, key, value):
         """
         Set an attribute.
-        This always s
+        This always saves the attribute in the database
         """
         Identifier.checkIdentifier(key)
-        self.graph._saveExtendedAttributes({key: value})
+        dbKey = ExtendedAttributes._serializeKey(self.entityId, key)
+        self.graph._saveExtendedAttributes({dbKey: value})
     def __delitem__(self, key):
         """
         Delete an attribute from the current attributes.
@@ -42,14 +43,28 @@ class ExtendedAttributes(object):
         @param keys An array of keys to read
         """
         dbKeys = [self._serializeKey(self.entityId, key) for key in keys]
-        return self.graph._loadExtendedAttributeSet(dbKeys)
-    def getAttributeRange(self,  startKey="",  limit=1000):
+        return self.graph._loadExtendedAttributes(dbKeys)
+    def getAllAttributes(self,  startKey="", limit=None):
+        """
+        Get a dictionary of all attributes.
+        """
+        return self.getAttributeRange()
+    def getAttributeRange(self,  startKey=None, endKey=None, limit=None):
         """
         Get a dictionary of all attributes.
         @param startKey The first attribute to get (inclusive)
+        @param endKey The last attribute to get (exclusive)
         @param limit The maximum number of keys to get
         """
-        return self.entity._getExtendedAttributes(startKey,  limit)
+        #Serialize the database range keys
+        dbStartKey = ExtendedAttributes._getEntityStartKey(self.entityId)
+        dbEndKey = ExtendedAttributes._getEntityEndKey(self.entityId)
+        if startKey is not None:
+            dbStartKey = ExtendedAttributes._serializeKey(self.entityId, startKey)
+        if endKey is not None:
+            dbEndKey = ExtendedAttributes._serializeKey(self.entityId, endKey)
+        #Scan
+        return self.graph._loadExtendedAttributeRange(dbStartKey, dbEndKey, limit=limit)
     def setAttributes(self,  attrDict):
         """
         For any attribute in the given dictionary,
@@ -59,8 +74,9 @@ class ExtendedAttributes(object):
             raise ParameterException("attrDict parameter must be a Dictionary!")
         dbDict = {}
         for key, value in attrDict.iteritems():
-            dbKey = ExtendedAttributes._serializeKey(entity.id,  key)
-        self.graph._saveExtendedAttributes(self.entity.id, dbDict)
+            dbKey = ExtendedAttributes._serializeKey(self.entityId,  key)
+            dbDict[dbKey] = value
+        self.graph._saveExtendedAttributes(dbDict)
     def deleteAttribute(self,  key):
         """
         Delete a single attribute by key.
@@ -86,23 +102,23 @@ class ExtendedAttributes(object):
         """
         return dbKey[dbKey.find("\x1D")+1:]
     @staticmethod
-    def _getEntityStartKey(id):
+    def _getEntityStartKey(entityId):
         """
         Get the start key for scanning all extended attributes of an entity
         
         >>> ExtendedAttributes._getEntityStartKey("mynode")
         'mynode\\x1d'
         """
-        return "%s\x1D" % id
+        return "%s\x1D" % entityId
     @staticmethod
-    def _getEntityEndKey(id):
+    def _getEntityEndKey(entityId):
         """
         Get the end key for scanning all extended attributes of an entity
         
         >>> ExtendedAttributes._getEntityEndKey("mynode")
         'mynode\\x1e'
         """
-        return "%s\x1E" % id
+        return "%s\x1E" % entityId
 
 if __name__ == "__main__":
     import doctest

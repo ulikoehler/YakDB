@@ -147,15 +147,15 @@ class Graph:
         the value (= basic attributes)
         """
         return self.conn.read(self.nodeTableId,  node)
-    def _loadExtendedAttributeSet(self,  entityIdkeys):
+    def _loadExtendedAttributes(self,  dbKeys):
         """
         Load a list of extended attributes by key set
-        @param keys An array of database keys to read
-        @return An array of values, in the same order as the keys.
+        @param dbKeys An array of database keys to read
+        @return An array of values, in the same order as the keys. A single string is also allowed.
         """
         #Write
         return self.conn.read(self.extendedAttributesTable, dbKeys)
-    def _loadExtendedAttributes(self,  startKey, endKey, limit=None):
+    def _loadExtendedAttributeRange(self,  startKey, endKey, limit=None):
         """
         Load a set of extended attributes by scanning the extended attribute range.
         The end key is automatically determined by the entity ID
@@ -179,3 +179,9 @@ class Graph:
         @param kvDict A dictionary from database key to value
         """
         self.conn.put(self.extendedAttributesTable, kvDict, partsync=self.partsync)
+    def _deleteExtendedAttributes(self,  keyList):
+        """
+        Executes a deletion on the extended attribute tables
+        @param keyList A list of database keys to delete
+        """
+        self.conn.delete(self.extendedAttributesTable, keyList, partsync=self.partsync)

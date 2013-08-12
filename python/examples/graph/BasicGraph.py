@@ -33,5 +33,7 @@ nodeA.basicAttributes["myattr"] = "myvalue"
 print "Nodes in the graph: %s" % graph.nodes()
 #Create some extended attributes
 extAttrsX = nodeX.extendedAttributes
-extAttrsX["foo"] = "bar"
 assert extAttrsX["foo"] == "bar"
+extAttrsX.setAttributes({"a":"b","c":"d","e":"f"})
+del extAttrsX["foo"]
+print "Node X extended attributes: %s" % str(extAttrsX.getAllAttributes())

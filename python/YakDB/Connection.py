@@ -248,7 +248,11 @@ class Connection:
             #We only have a single value
             convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
         #Send header frame
-        self.socket.send("\x31\x01\x21", zmq.SNDMORE)
+        flags = 0
+        if partsync: flags |= 1
+        if fullsync: flags |= 2
+        headerStr = "\x31\x01\x21" + chr(flags)
+        self.socket.send(headerStr, zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send key list
