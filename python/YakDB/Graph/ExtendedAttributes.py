@@ -17,15 +17,28 @@ class ExtendedAttributes(object):
         self.entity = entity
         self.entityId = entity.id
         self.graph = entity.graph
-    def getAttribute(self, key):
+    def __getitem__(self, key):
         """
-        Get a single attribute by key
+        Get an attribute by key
         """
         dbKey = ExtendedAttributes._serializeKey(self.entityId, key)
         return self.graph._loadExtendedAttributeSet(dbKey)
-    def getAttribute(self, keys):
+    def __setitem__(self, key, value):
+        """
+        Set an attribute.
+        This always s
+        """
+        Identifier.checkIdentifier(key)
+        self.graph._saveExtendedAttributes({key: value})
+    def __delitem__(self, key):
+        """
+        Delete an attribute from the current attributes.
+        """
+        self.graph._deleteExtendedAttributes([key])
+    def getAttributes(self, keys):
         """
         Get a list of attributes by key.
+        Using this function is faster that individual key reads
         @param keys An array of keys to read
         """
         dbKeys = [self._serializeKey(self.entityId, key) for key in keys]
@@ -37,12 +50,6 @@ class ExtendedAttributes(object):
         @param limit The maximum number of keys to get
         """
         return self.entity._getExtendedAttributes(startKey,  limit)
-    def setAttribute(self,  key,  value):
-        """
-        Add or replace an attribute
-        """
-        Identifier.checkIdentifier(key)
-        self.graph._saveExtendedAttributes({key: value})
     def setAttributes(self,  attrDict):
         """
         For any attribute in the given dictionary,
@@ -50,13 +57,15 @@ class ExtendedAttributes(object):
         """
         if type(attrDict) is not dict:
             raise ParameterException("attrDict parameter must be a Dictionary!")
-        self.entity.graph()._saveExtendedAttributes(self.entity.id(), attrDict)
+        dbDict = {}
+        for key, value in attrDict.iteritems():
+            dbKey = ExtendedAttributes._serializeKey(entity.id,  key)
+        self.graph._saveExtendedAttributes(self.entity.id, dbDict)
     def deleteAttribute(self,  key):
         """
         Delete a single attribute by key.
         The call is ignored if the attribute does not exist.
         """
-        self.entity.graph()._deleteExtendedAttributes([key])
     @staticmethod
     def _serializeKey(entityId, key):
         """

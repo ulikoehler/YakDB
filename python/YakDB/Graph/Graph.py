@@ -13,14 +13,18 @@ class Graph:
     as adjacency list in multiple tables in a YakDB database.
     
     """
-    def __init__(self,  conn, nodeTableId=2,  edgeTableId=3, extendedAttributesTable=4):
+    def __init__(self,  conn, nodeTableId=2,  edgeTableId=3, extendedAttributesTable=4, partsync=True):
         """
         Create a new graph from a YakDB connection.
+        @param partsync Set this to false if you do not need to assume any write
+            guarantees subsequent reads to return the written value.
+            A False value guarantees better write performance.
         """
         self.conn = conn
         self.nodeTableId = nodeTableId
         self.edgeTableId = edgeTableId
         self.extendedAttributesTable = extendedAttributesTable
+        self.partsync = partsync
     def createNode(self,  nodeId, basicAttrs=None, save=True):
         """
         Add a node to the graph.
@@ -130,7 +134,7 @@ class Graph:
         @param serializedBasicAttrs The serialized basic attributes
         """
         putDict = {activeKey: serializedBasicAttrs, passiveKey: serializedBasicAttrs}
-        self.conn.put(self.edgeTableId, putDict)
+        self.conn.put(self.edgeTableId, putDict, partsync=self.partsync)
     def _saveNode(self, node):
         """
         Save a node and its basic attribute set into the database.
@@ -168,12 +172,10 @@ class Graph:
             attrValue = scanResult[key]
             ret[attrKey] = attrValue
         return ret
-    def _saveExtendedAttribute(self,  entity,  key,  value):
+    def _saveExtendedAttributes(self,  kvDict):
         """
         Save a single extended attribute for a node.
         @param node The node to serialize for
-        @param key The attribute key to write
-        @param value The attribute value to write
+        @param kvDict A dictionary from database key to value
         """
-        dbKey = ExtendedAttributes._serializeKey(entity.id(),  key)
-        self.conn.put(self.extendedAttributesTable,  {dbKey : value})
+        self.conn.put(self.extendedAttributesTable, kvDict, partsync=self.partsync)

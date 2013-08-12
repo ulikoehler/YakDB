@@ -34,16 +34,9 @@ class BasicAttributes(object):
         Set an attribute.
         This always s
         """
-        if key in self.attrs:
-            return self.attrs[key]
-        return None
-    def __getitem__(self, key):
-        """
-        Get an attribute by key
-        """
-        if key in self.attrs:
-            return self.attrs[key]
-        return None
+        self.attrs[key] = value
+        if self.autosave:
+            self.save()
     def __delitem__(self, key):
         """
         Delete an attribute from the current attributes.
