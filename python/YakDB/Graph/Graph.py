@@ -79,11 +79,11 @@ class Graph:
         node = Node.Node(nodeId, self)
         node.delete() #TODO implement
         #TODO delete extattrs
-    
-    def nodes():
+    def nodes(self):
         """
-        
+        Get a list of all nodes in the graph
         """
+        return self._scanNodes()
     def _scanNodes(self, startKey="", endKey="", limit=None):
         """
         Do a scan over the node table.
@@ -93,11 +93,11 @@ class Graph:
         scanResult = self.conn.scan(self.nodeTableId, startKey, endKey, limit)
         for (key, value) in scanResult.iteritems():
             #If the edge and node table are the same, we need to skip edges
-            if key.find("\x1F"): #Type separator
+            if key.find("\x1F") != -1: #Type separator
                 continue
             basicAttrs = BasicAttributes._parseAttributeSet(value)
             node = Node.Node(key, self, basicAttrs)
-            nodes.push(node)x
+            nodes.append(node)
         return nodes
     def _scanEdges(self, startKey, endKey, limit=None):
         """

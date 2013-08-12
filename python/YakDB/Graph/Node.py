@@ -83,3 +83,5 @@ class Node(object):
         return self.graphAttr
     def __str__(self):
         return "Node(id='%s')" % self.id
+    def __repr__(self):
+        return self.__str__()
