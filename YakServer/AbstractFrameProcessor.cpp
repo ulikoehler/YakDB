@@ -16,7 +16,8 @@ AbstractFrameProcessor::AbstractFrameProcessor(zctx_t* ctx,
 context(ctx),
 processorInputSocket(zsocket_new(ctx, inputSocketType)),
 processorOutputSocket(zsocket_new(ctx, outputSocketType)),
-logger(context, loggerName) {
+logger(context, loggerName),
+contextInterrupted(false) {
 }
 
 AbstractFrameProcessor::~AbstractFrameProcessor() {
@@ -248,6 +249,11 @@ bool AbstractFrameProcessor::receiveMsgHandleError(zmq_msg_t* msg,
         const char* errorResponse,
         bool generateResponse) {
     if (unlikely(zmq_msg_recv(msg, processorInputSocket, 0) == -1)) {
+        //Check context termination condition
+        if(zctx_interrupted) {
+            this->contextInterrupted = true;
+            return false;
+        }
         std::string errstr = "Error while receiving message part: "
                 + std::string(zmq_strerror(zmq_errno()))
                 + " in " + std::string(errName);
@@ -267,6 +273,11 @@ bool AbstractFrameProcessor::sendMsgHandleError(zmq_msg_t* msg,
         const char* errorResponse,
         bool generateResponse) {
     if (unlikely(zmq_msg_send(msg, processorOutputSocket, flags) == -1)) {
+        //Check context termination condition
+        if(zctx_interrupted) {
+            this->contextInterrupted = true;
+            return false;
+        }
         std::string errstr = "Error while sending message part: "
                 + std::string(zmq_strerror(zmq_errno()))
                 + " in " + std::string(errName);
@@ -287,6 +298,11 @@ void AbstractFrameProcessor::disposeRemainingMsgParts() {
     zmq_msg_init(&msg);
     while (socketHasMoreFrames(processorInputSocket)) {
         if (unlikely(zmq_msg_recv(&msg, processorInputSocket, 0) == -1)) {
+            //Check context termination condition
+            if(zctx_interrupted) {
+                this->contextInterrupted = true;
+                break;
+            }
             logger.warn("ZMQ error while trying to clear remaining messages from queue: "
                     + std::string(zmq_strerror(zmq_errno())));
             numErrors++;

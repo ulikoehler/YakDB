@@ -27,9 +27,13 @@ AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Update worker"),
 tableOpenHelper(ctx),
 tablespace(tablespace) {
     //Connect the socket that is used to proxy requests to the external req/rep socket
-    zsocket_connect(processorOutputSocket, externalRequestProxyEndpoint);
+    if(zsocket_connect(processorOutputSocket, externalRequestProxyEndpoint) == -1) {
+        logOperationError("Connect Update worker processor output socket", logger);
+    }
     //Connect the socket that is used by the send() member function
-    zsocket_connect(processorInputSocket, updateWorkerThreadAddr);
+    if(zsocket_connect(processorInputSocket, updateWorkerThreadAddr)) {
+        logOperationError("Connect Update worker processor input socket", logger);
+    }
     logger.debug("Update worker thread starting");
 }
 
@@ -40,6 +44,10 @@ UpdateWorker::~UpdateWorker() {
 }
 
 bool UpdateWorker::processNextMessage() {
+    //Check context termination condition
+    if(unlikely(contextInterrupted)) {
+        return false;
+    }
     /**
      * Parse the header
      * At this point it is unknown if

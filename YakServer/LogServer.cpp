@@ -53,7 +53,7 @@ void HOT LogServer::start() {
         if (unlikely(!msg)) {
             //Interrupted (e.g. by SIGINT), but loggers might still want to log something
             // so we can't exit yet.
-            if(errno == ETERM && zctx_interrupted) {
+            if(zctx_interrupted) {
                 //Context was terminated (ctrl+c or other signal source), exit gracefully
                 break;
             } else {

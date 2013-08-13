@@ -60,6 +60,13 @@ std::string frameToString(zmq_msg_t* msg) {
     
 }
 
+void COLD logOperationError(const char* operation, Logger& logger) {
+    logger.error("Error '"
+                + std::string(zmq_strerror(errno))
+                + "' while trying to do operation: '"
+                + std::string(operation) + "'");
+}
+
 void COLD logMessageOperationError(const char* frameDesc, const char* operation, Logger& logger) {
     logger.error("Error '"
                 + std::string(zmq_strerror(errno))

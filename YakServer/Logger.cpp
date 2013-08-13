@@ -21,7 +21,7 @@
  */
 static inline void checkLogSendError(int rc, const std::string& loggerName, const std::string& message) {
 	if(unlikely(rc == -1)) {
-		if(errno == ETERM && zctx_interrupted) {
+		if(zctx_interrupted) {
 			return;
 		}
 		fprintf(stderr,

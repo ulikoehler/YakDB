@@ -14,6 +14,12 @@
 #include "macros.hpp"
 
 /**
+ * Log an error during a ZMQ operation, evaluating errno
+ * @param operation A description of the operation the error occured at
+ * @param logger The logger to log the error message to (loglevel: error)
+ */
+void COLD logOperationError(const char* operation, Logger& logger);
+/**
  * Log an error during the ZMQ msg lifecycle, evaluating errno
  * @param frameDesc A description of the frame that is related to the error
  * @param operation The phase during the message lifecycle the error occured at

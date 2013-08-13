@@ -30,6 +30,16 @@ protected:
     void* processorOutputSocket;
     Logger logger;
     /**
+     * This variable is false by default.
+     * Checked send functions set this to true if they encounter an errno == ETERM
+     * and at the same time zctx_interrupted is true. The method that encountered
+     * this condition does not log any error, but just returns the error return code.
+     *
+     * Subclasses shall check this flag in the receive loop and terminate properly
+     * if this is true.
+     */
+    bool contextInterrupted;
+    /**
      * Parse a table ID frame, as little endian 32 bit unsigned integer in one frame.
      * Automatically receives the frame from replyProxySocket.
      * Automatically checks if there is a frame available
