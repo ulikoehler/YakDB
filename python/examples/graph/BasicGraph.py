@@ -30,9 +30,10 @@ graph.createEdge("c", "a", basicAttrs={"text":"This is an edge from c to a"})
 #Set some additional attributes
 nodeA.basicAttributes["myattr"] = "myvalue"
 #Print the node list
-print "Nodes in the graph: %s" % graph.nodes()
+print "Nodes in the graph: %s" % graph.nodes
 #Create some extended attributes
 extAttrsX = nodeX.extendedAttributes
+extAttrsX["foo"] = "bar"
 assert extAttrsX["foo"] == "bar"
 extAttrsX.setAttributes({"a":"b","c":"d","e":"f"})
 del extAttrsX["foo"]

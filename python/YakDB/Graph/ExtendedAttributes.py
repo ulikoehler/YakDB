@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-from Identifier import Identifier
+from YakDB.Graph.Identifier import Identifier
 from YakDB.Exceptions import ParameterException
 
 class ExtendedAttributes(object):
@@ -21,34 +21,31 @@ class ExtendedAttributes(object):
         """
         Get an attribute by key
         """
-        dbKey = ExtendedAttributes._serializeKey(self.entityId, key)
-        return self.graph._loadExtendedAttributes(dbKey)[0]
+        return self.graph.readExtendedAttributes(self.entityId, key)[0]
     def __setitem__(self, key, value):
         """
         Set an attribute.
         This always saves the attribute in the database
         """
         Identifier.checkIdentifier(key)
-        dbKey = ExtendedAttributes._serializeKey(self.entityId, key)
-        self.graph._saveExtendedAttributes({dbKey: value})
+        self.graph.saveExtendedAttributes(self.entityId, {key: value})
     def __delitem__(self, key):
         """
-        Delete an attribute from the current attributes.
+        Delete an attribute from tahe current attributes.
         """
-        self.graph._deleteExtendedAttributes([key])
+        self.deleteAttributes([key])
     def getAttributes(self, keys):
         """
         Get a list of attributes by key.
         Using this function is faster that individual key reads
         @param keys An array of keys to read
         """
-        dbKeys = [self._serializeKey(self.entityId, key) for key in keys]
-        return self.graph._loadExtendedAttributes(dbKeys)
-    def getAllAttributes(self,  startKey="", limit=None):
+        return self.graph._readExtendedAttributes(dbKeys)
+    def getAllAttributes(self,  limit=None):
         """
         Get a dictionary of all attributes.
         """
-        return self.getAttributeRange()
+        return self.getAttributeRange(limit=limit)
     def getAttributeRange(self,  startKey=None, endKey=None, limit=None):
         """
         Get a dictionary of all attributes.
@@ -56,32 +53,31 @@ class ExtendedAttributes(object):
         @param endKey The last attribute to get (exclusive)
         @param limit The maximum number of keys to get
         """
-        #Serialize the database range keys
-        dbStartKey = ExtendedAttributes._getEntityStartKey(self.entityId)
-        dbEndKey = ExtendedAttributes._getEntityEndKey(self.entityId)
-        if startKey is not None:
-            dbStartKey = ExtendedAttributes._serializeKey(self.entityId, startKey)
-        if endKey is not None:
-            dbEndKey = ExtendedAttributes._serializeKey(self.entityId, endKey)
-        #Scan
-        return self.graph._loadExtendedAttributeRange(dbStartKey, dbEndKey, limit=limit)
+        return self.graph.scanExtendedAttributes(self.entityId, startKey, endKey, limit=limit)
     def setAttributes(self,  attrDict):
         """
         For any attribute in the given dictionary,
         set or replace the corresponding attribute in the current instance.
+        @param attrDict The attribute dictionary to set
         """
-        if type(attrDict) is not dict:
-            raise ParameterException("attrDict parameter must be a Dictionary!")
-        dbDict = {}
-        for key, value in attrDict.iteritems():
-            dbKey = ExtendedAttributes._serializeKey(self.entityId,  key)
-            dbDict[dbKey] = value
-        self.graph._saveExtendedAttributes(dbDict)
-    def deleteAttribute(self,  key):
+        self.graph.saveExtendedAttributes(self.entityId, attrDict)
+    def deleteAttributes(self,  keys):
         """
-        Delete a single attribute by key.
-        The call is ignored if the attribute does not exist.
+        Delete a list of attributes at once.
+        Attributes that dont exist are ignored silently
+        @param keys An array of strings or a single string that represent keys to delete.
         """
+        self.graph.deleteExtendedAttributes(self.entityId, keys)
+    def deleteAll(self):
+        """
+        Deletes ALL extended attributes for the current node.
+        """
+        self.deleteAttributeRange() #Default args = everything
+    def deleteAttributeRange(self, startKey=None, endKey=None, limit=None):
+        """
+        Deletes a range of attributes.
+        """
+        self.graph.deleteExtendedAttributeRange(entityId, startKey, endKey, limit)
     @staticmethod
     def _serializeKey(entityId, key):
         """
@@ -119,6 +115,14 @@ class ExtendedAttributes(object):
         'mynode\\x1e'
         """
         return "%s\x1E" % entityId
+    @staticmethod
+    def _getEntityScanKeys(entityId):
+        """
+        @return (_getEntityStartkey(id), _getEntityEndKey(id))
+        """
+        
+        return (ExtendedAttributes._getEntityStartKey(entityId),
+                ExtendedAttributes._getEntityEndKey(entityId))
 
 if __name__ == "__main__":
     import doctest

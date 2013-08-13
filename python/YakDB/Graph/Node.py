@@ -1,19 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-from BasicAttributes import BasicAttributes
-from ExtendedAttributes import ExtendedAttributes
-from Identifier import Identifier
-from YakDB.Graph import Graph
+from YakDB.Graph.Edge import Edge
+from YakDB.Graph.Identifier import Identifier
+from YakDB.Graph.Entity import Entity
 from YakDB.Exceptions import ParameterException
-from Edge import Edge
 
-class Node(object):
+class Node(Entity):
     """
     An instance of this class represents a
     single node within a graph.
     """
-    def __init__(self, nodeId,  graph,  basicAttrs=None):
+    def __init__(self, nodeId, graph, basicAttrs=None):
         """
         Create a new node instance.
         
@@ -22,18 +20,17 @@ class Node(object):
         @param basicAttrs The set of basic attributes or None to use empty set
         """
         Identifier.checkIdentifier(nodeId)
-        if not isinstance(graph, Graph.Graph):
-            raise ParameterException("The graph argument is no Graph object")
-        self.nodeId = nodeId
-        self.graphAttr = graph
-        #Initialize the basic and extended attributes
-        self.basicAttr = BasicAttributes(self, basicAttrs)
-        self.extendedAttr = ExtendedAttributes(self)
-    def _save(self):
+        #if not isinstance(graph, Graph):
+        #   raise ParameterException("The graph argument is no Graph object")
+        self.id = nodeId
+        self.graph = graph
+        #Initialize basic and extended attributes
+        self.initializeAttributes(basicAttrs)
+    def save(self):
         """
         Save the current entity in the database
         """
-        self.graph._saveNode(self)
+        self.graph.saveNode(self)
     def getEdges(self, limit=None):
         """
         Get a list all edges for the current node
@@ -55,32 +52,11 @@ class Node(object):
         """
         (startKey, endKey) = Edge._getOutgoingEdgesScanKeys(self.id)
         return self.graph._scanEdges(startKey, endKey, limit)
-    @property
-    def id(self):
+    def delete(self):
         """
-        Get the ID that is used as key in the database.
-        The ID of a node must not be changed.
+        Deletes the current node.
         """
-        return self.nodeId
-    @property
-    def basicAttributes(self):
-        """
-        The basic attributes for the current node
-        """
-        return self.basicAttr
-    @property
-    def extendedAttributes(self):
-        """
-        Get the extended attributes. Note that extended attributes
-        are generally lazy-loaded and not persistently stored in API classes
-        """
-        return self.extendedAttr
-    @property
-    def graph(self):
-        """
-        The graph this node relates to
-        """
-        return self.graphAttr
+        self.graph.deleteNode(self.id)
     def __str__(self):
         return "Node(id='%s')" % self.id
     def __repr__(self):

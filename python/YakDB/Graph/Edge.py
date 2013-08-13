@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
+import Node
 from YakDB.Graph.Exceptions import ConsistencyException
 from YakDB.Exceptions import ParameterException
 from BasicAttributes import BasicAttributes
 from ExtendedAttributes import ExtendedAttributes
+from Identifier import Identifier
+from Entity import Entity
 
-class Edge(object):
+class Edge(Entity):
     """
     Represents a directed edge in a graph.
     """
@@ -15,40 +18,30 @@ class Edge(object):
         Create a new edge instance.
         Usually this constructor shall not be used directly
         
-        @param source The node instance that acts as the source node.
+        @param source A node instance
         @param target The node instance that acts as the target node
+        @param graph The graph this edge belongs to
         @param The edge type
         @param basicAttrs The basic attributes, or None to use empty set.
         """
-        self.sourceNodeId = source
-        self.targetNodeId = target
-        self.graphAttr = graph
-        self.edgeType = edgeType
+        #Ensure we have valid ID strings
+        if isinstance(source, str):
+            Identifier.checkIdentifier(source)
+        elif isinstance(source, Node):
+            target = source.id
+        if isinstance(target, str):
+            Identifier.checkIdentifier(target)
+        elif isinstance(source, Node):
+            source = target.id
+        self.source = source
+        self.target = target
+        self.graph = graph
+        self.type = edgeType
         #Serialize the edge database keys
-        self.activeKey = "%s\x1F%s\x0E%s" % (edgeType, self.sourceNodeId, self.targetNodeId)
-        self.passiveKey = "%s\x1F%s\x0F%s" % (edgeType, self.targetNodeId, self.sourceNodeId)
+        self.activeKey = "%s\x1F%s\x0E%s" % (edgeType, self.source, self.target)
+        self.passiveKey = "%s\x1F%s\x0F%s" % (edgeType, self.target, self.source)
         #Initialize basic and extended attributes
-        self.basicAttrs = BasicAttributes(self, basicAttrs)
-        self.extendedAttrs = ExtendedAttributes(self)
-    @property
-    def basicAttributes(self):
-        """
-        The basic attributes for the current node
-        """
-        return self.basicAttrs
-    @property
-    def extendedAttributes(self):
-        """
-        Get the extended attributes. Note that extended attributes
-        are generally lazy-loaded and not persistently stored in API classes
-        """
-        return self.extendedAttrs
-    @property
-    def graph(self):
-        """
-        The graph this node relates to
-        """
-        return self.graphAttr
+        self.initializeAttributes(basicAttrs)
     @property
     def id(self):
         """
@@ -57,58 +50,43 @@ class Edge(object):
         is the active edge, so we return that here.
         """
         return self.activeKey
-    @property
-    def source(self):
-        """
-        The ID of the source node
-        """
-        return self.sourceNodeId
-    @property
-    def target(self):
-        """
-        The ID of the target node
-        """
-        return self.targetNodeId
-    @property
-    def type(self):
-        """
-        The edge type
-        """
-        return self.edgeType
-    def _save(self):
+    def save(self):
         """
         Writes the edge (both passive and active versions)
         to the database
         """
-        self.graph._writeEdge(self.activeKey,
-                              self.passiveKey,
-                              self.basicAttrs.serialize())
+        self.graph.saveEdge(self)
+    def delete(self, deleteExtendedAttributes=True):
+        """
+        Deletes the current edge instance
+        @param deleteExtendedAttributes Whether to delete the extended attributes
+        """
     @staticmethod
-    def _getAllEdgesScanKeys(nodeId, type=""):
-        """ee
+    def _getAllEdgesScanKeys(nodeId, edgeType=""):
+        """
         Get the scan keys to scan for ALL edges for a given node.
-        @param type The edge type
+        @param edgeType The edge type
         @return (startKey, endKey) The scan start and end keys
         """
-        formatTuple = (type, nodeId)
+        formatTuple = (edgeType, nodeId)
         return ("%s\x1F%s\x0E" % formatTuple, "%s\x1F%s\x10" % formatTuple)
     @staticmethod
-    def _getIncomingEdgesScanKeys(nodeId, type=""):
+    def _getIncomingEdgesScanKeys(nodeId, edgeType=""):
         """
         Get the scan keys to scan for Incoming edges for a given node.
-        @param type The edge type
+        @param edgeType The edge type
         @return (startKey, endKey) The scan start and end keys
         """
-        formatTuple = (type, nodeId)
+        formatTuple = (edgeType, nodeId)
         return ("%s\x1F%s\x0F" % formatTuple, "%s\x1F%s\x10" % formatTuple)
     @staticmethod
-    def _getOutgoingEdgesScanKeys(nodeId, type=""):
+    def _getOutgoingEdgesScanKeys(nodeId, edgeType=""):
         """
         Get the scan keys to scan for OUtgoing edges for a given node.
-        @param type The edge type
+        @param edgeType The edge type
         @return (startKey, endKey) The scan start and end keys
         """
-        formatTuple = (type, nodeId)
+        formatTuple = (edgeType, nodeId)
         return ("%s\x1F%s\x0E" % formatTuple, "%s\x1F%s\x0F" % formatTuple)
     @staticmethod
     def _deserializeEdge(key):
@@ -145,7 +123,12 @@ class Edge(object):
         #Create and return the tuple
         return (sourceNode, targetNode, edgeType)
     def __str__(self):
-        formatTuple = (self.sourceNodeId, self.targetNodeId, self.type, self.basicAttrs.getAttributes())
+        """
+        Creates a printable repr-ish string from the edge
+        that allows the user to identify source, target and type.
+        The Graph is not included.
+        """
+        formatTuple = (self.source, self.target, self.type, self.basicAttributes.getAttributes())
         return "Edge(source='%s', target='%s', type='%s', basicAttrs=%s)" % formatTuple
     def __repr__(self): return self.__str__()
 

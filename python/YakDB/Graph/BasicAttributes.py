@@ -69,7 +69,7 @@ class BasicAttributes(object):
         save=False flag on previous changes. Any change without
         save=False automatically calls this method.
         """
-        self.entity._save()
+        self.entity.save()
     def serialize(self):
         """
         Serialize the current attribute set
