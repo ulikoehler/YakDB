@@ -43,11 +43,13 @@ void zmsg_remove_destroy(zmsg_t* msg, zframe_t** frame) {
 void* zsocket_new_bind(zctx_t* context, int type, const char* endpoint) {
     void* sock = zsocket_new(context, type);
     zsocket_bind(sock, endpoint);
+    return sock;
 }
 
 void* zsocket_new_connect(zctx_t* context, int type, const char* endpoint) {
     void* sock = zsocket_new(context, type);
-    zsocket_bind(sock, endpoint);
+    zsocket_connect(sock, endpoint);
+    return sock;
 }
 
 std::string frameToString(zframe_t* frame) {

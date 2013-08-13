@@ -22,16 +22,14 @@ inline static bool isStopServerMessage(zframe_t* headerFrame) {
     return zframe_data(headerFrame)[2] == '\xFF';
 }
 
-LogServer::LogServer(zctx_t* ctx, LogLevel logLevel, const std::string& endpoint)
-: ctx(ctx),
+LogServer::LogServer(zctx_t* ctxParam, LogLevel logLevel, const std::string& endpoint)
+: internalSocket(zsocket_new_bind(ctxParam, ZMQ_PULL, endpoint.c_str())),
+ctx(ctxParam),
 logLevel(logLevel),
 thread(nullptr),
 logger(ctx, "Log server") {
-    internalSocket = zsocket_new(ctx, ZMQ_PULL);
-    const char* subscription = "";
-    if (unlikely(zsocket_bind(internalSocket, endpoint.c_str()))) {
-        fprintf(stderr, "Failed to connect log source to endpoint %s", endpoint.c_str());
-    }
+    //Check if the socket initialization succeeded
+    assert(internalSocket);
 }
 using namespace std;
 
