@@ -45,8 +45,11 @@ struct TableOpenParameters {
  *              \x02 for close & truncate (--> rm -r) table
  *          - A 4-byte frame containing the binary ID
  */
-static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) {
-    Logger logger(context, "Table open server");
+static void HOT tableOpenWorkerThread(zctx_t* context,
+                                      void* repSocket,
+                                      std::vector<leveldb::DB*>& databases,
+                                      Logger& logger,
+                                      bool dbCompressionEnabled) {
     while (true) {
         zmsg_t* msg = zmsg_recv(repSocket);
         if (unlikely(!msg)) {
@@ -184,21 +187,25 @@ static void HOT tableOpenWorkerThread(zctx_t* context, void* repSocket, std::vec
             zmsg_destroy(&msg);
         }
     }
-    logger.debug("Stopping table open server");
+    if(!zctx_interrupted) {
+        logger.debug("Stopping table open server");
+    }
     //We received an exit msg, cleanup
     zsocket_destroy(context, repSocket);
 }
 
-COLD TableOpenServer::TableOpenServer(zctx_t* context, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled) : context(context) {
+COLD TableOpenServer::TableOpenServer(zctx_t* context, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled)
+: context(context),
+logger(context, "Table open server") {
     //We need to bind the inproc transport synchronously in the main thread because zmq_connect required that the endpoint has already been bound
     assert(context);
     void* repSocket = zsocket_new(context, ZMQ_REP);
     assert(repSocket);
-    if (unlikely(zmq_bind(repSocket, tableOpenEndpoint))) {
+    if (unlikely(zsocket_bind(repSocket, tableOpenEndpoint) == -1)) {
         Logger logger(context, "Table open server");
         logger.critical("Table open server REP socket bind failed: " + std::string(zmq_strerror(errno)));
     }
-    workerThread = new std::thread(tableOpenWorkerThread, context, repSocket, std::ref(databases), dbCompressionEnabled);
+    workerThread = new std::thread(tableOpenWorkerThread, context, repSocket, std::ref(databases), std::ref(logger), dbCompressionEnabled);
 }
 
 COLD TableOpenServer::~TableOpenServer() {

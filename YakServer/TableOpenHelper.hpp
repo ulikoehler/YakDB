@@ -32,6 +32,7 @@ public:
 private:
     zctx_t* context;
     std::thread* workerThread;
+    Logger logger;
 };
 
 /**

@@ -25,7 +25,7 @@ static const char* const ESCAPE_CYAN_FOREGROUND = "\x1B[36m";
 static const char* const ESCAPE_WHITE_FOREGROUND = "\x1B[37m";
 
 inline static void HOT printDateTime(uint64_t timestamp, std::ostream& stream) {
-    //Get microsecond precision time
+    //Convert timestamp to timeval
     struct timeval tv;
     tv.tv_sec = timestamp / 1000;
     tv.tv_usec = (timestamp % 1000) * 1000;
@@ -36,10 +36,6 @@ inline static void HOT printDateTime(uint64_t timestamp, std::ostream& stream) {
     //Format the subsecond part
     snprintf(dateBuffer + formattedLength, 32 - formattedLength, ".%03lu", (unsigned long) (tv.tv_usec / 1000));
     stream << '[' << dateBuffer << ']';
-}
-
-inline static int checkLogHeaderFrame(zframe_t* headerFrame) {
-
 }
 
 /**
@@ -59,50 +55,43 @@ StderrLogSink::StderrLogSink() {
 void HOT StderrLogSink::log(LogLevel logLevel, uint64_t timestamp, const std::string& senderName, const std::string& logMessage) {
 
     switch (logLevel) {
-        case LogLevel::Critical:
-        {
+        case LogLevel::Critical: {
             std::cerr << ESCAPE_BOLD << ESCAPE_RED_FOREGROUND;
             printDateTime(timestamp, std::cerr);
             std::cerr << "[Error] " << senderName << " - " << logMessage << ESCAPE_NORMALFONT << ESCAPE_BLACK_FOREGROUND << std::endl;
             break;
         }
-        case LogLevel::Error:
-        {
+        case LogLevel::Error: {
             std::cerr << ESCAPE_RED_FOREGROUND;
             printDateTime(timestamp, std::cerr);
             std::cerr << "[Error] " << senderName << " - " << ESCAPE_BLACK_FOREGROUND << logMessage << std::endl;
             break;
         }
-        case LogLevel::Warn:
-        {
+        case LogLevel::Warn: {
             std::cerr << ESCAPE_YELLOW_FOREGROUND;
             printDateTime(timestamp, std::cerr);
             std::cerr << "[Warning] " << senderName << " - " << ESCAPE_BLACK_FOREGROUND << logMessage << std::endl;
             break;
         }
-        case LogLevel::Info:
-        {
+        case LogLevel::Info: {
             std::cerr << ESCAPE_GREEN_FOREGROUND;
             printDateTime(timestamp, std::cerr);
             std::cerr << "[Info] " << senderName << " - " << ESCAPE_BLACK_FOREGROUND << logMessage << std::endl;
             break;
         }
-        case LogLevel::Debug:
-        {
+        case LogLevel::Debug: {
             std::cerr << ESCAPE_BLUE_FOREGROUND;
             printDateTime(timestamp, std::cerr);
             std::cerr << "[Debug] " << senderName << " - " << ESCAPE_BLACK_FOREGROUND << logMessage << std::endl;
             break;
         }
-        case LogLevel::Trace:
-        {
+        case LogLevel::Trace: {
             std::cerr << ESCAPE_CYAN_FOREGROUND;
             printDateTime(timestamp, std::cerr);
             std::cerr << "[Trace] " << senderName << " - " << ESCAPE_BLACK_FOREGROUND << logMessage << std::endl;
             break;
         }
-        default:
-        {
+        default: {
             printDateTime(timestamp, std::cerr);
             std::cerr << "[Unknown] " << senderName << " - " << logMessage << std::endl;
             break;
@@ -110,7 +99,11 @@ void HOT StderrLogSink::log(LogLevel logLevel, uint64_t timestamp, const std::st
     }
 }
 
-LogServer::LogServer(zctx_t* ctx, LogLevel logLevel, const std::string& endpoint) : ctx(ctx), logLevel(logLevel), thread(nullptr) {
+LogServer::LogServer(zctx_t* ctx, LogLevel logLevel, const std::string& endpoint)
+: ctx(ctx),
+logLevel(logLevel),
+thread(nullptr),
+logger(ctx, "Log server") {
     internalSocket = zsocket_new(ctx, ZMQ_PULL);
     const char* subscription = "";
     if (unlikely(zsocket_bind(internalSocket, endpoint.c_str()))) {
@@ -120,8 +113,10 @@ LogServer::LogServer(zctx_t* ctx, LogLevel logLevel, const std::string& endpoint
 using namespace std;
 
 LogServer::~LogServer() {
-    fprintf(stderr, "GADGADGQE$QWREZAF\n");
-    fflush(stderr);
+    if(!zctx_interrupted) {
+        logger.info("Log server shutting down");
+    }
+    //Stop thread, if any
     if (thread) {
         //Send the STOP message (single empty frame);
         zframe_t* frame = zframe_new("\x55\x01\xFF", 3);
@@ -132,15 +127,19 @@ LogServer::~LogServer() {
 }
 
 void HOT LogServer::start() {
-    Logger logger(ctx, "Log server");
     while (true) {
         zmsg_t* msg = zmsg_recv(internalSocket);
         if (unlikely(!msg)) {
             //Interrupted (e.g. by SIGINT), but loggers might still want to log something
             // so we can't exit yet.
-            fprintf(stderr, "-----------------Stopping log server--------------- %s\n", zmq_strerror(errno));
-            fflush(stderr);
-            continue;
+            if(errno == ETERM && zctx_interrupted) {
+                //Context was terminated (ctrl+c or other signal source), exit gracefully
+                break;
+            } else {
+                fprintf(stderr, "\x1B[31;1m[Error] Error while receiving log message in log server: %s \x1B[0;30m\n", zmq_strerror(errno));
+                fflush(stderr);
+                continue;
+            }
         }
         size_t msgSize = zmsg_size(msg);
         if (unlikely(msgSize != 1 && msgSize != 5)) {
@@ -193,6 +192,15 @@ void HOT LogServer::start() {
     zsocket_destroy(ctx, internalSocket);
     for (const LogSink* sink : logSinks) {
         delete sink;
+    }
+}
+
+void LogServer::log(const std::string& loggerName, LogLevel msgLogLevel, const std::string& message) {
+    if(msgLogLevel >= logLevel) {
+        uint64_t timestamp = zclock_time();
+        for (LogSink* sink : logSinks) {
+            sink->log(logLevel, timestamp, loggerName, message);
+        }
     }
 }
 

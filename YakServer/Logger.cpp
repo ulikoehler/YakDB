@@ -9,7 +9,6 @@
 #include "endpoints.hpp" //#defines the endpoint string
 #include "zutil.hpp"
 #include "macros.hpp"
-#include "zctx.h"
 #include <cstdio>
 #include <functional>
 #include <iostream>

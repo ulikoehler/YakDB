@@ -59,12 +59,21 @@ public:
     void setLogLevel(LogLevel logLevel);
     LogLevel getLogLevel();
     void addLogSink(LogSink* logSink);
+    /**
+     * Manual logging. This can be used after the ZeroMQ context has been terminated.
+     * It logs synchronously by piping the message into all log sinks
+     * @param loggerName The name of the simulated logger
+     * @param logLevel The log level of the message
+     * @param message The log message itself
+     */
+    void log(const std::string& loggerName, LogLevel msgLogLevel, const std::string& message);
 private:
     void* internalSocket;
     LogLevel logLevel;
     zctx_t* ctx;
     std::thread* thread;
     std::vector<LogSink*> logSinks;
+    Logger logger;
 };
 
 #endif	/* LOGSERVER_HPP */
