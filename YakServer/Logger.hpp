@@ -5,8 +5,8 @@
  * Created on 24. April 2013, 04:29
  */
 
-#ifndef LOG_HPP
-#define	LOG_HPP
+#ifndef LOGGER_HPP
+#define	LOGGER_HPP
 #include <string>
 #include <vector>
 #include <czmq.h>
@@ -89,5 +89,5 @@ private:
 
 
 
-#endif	/* LOG_HPP */
+#endif	/* LOGGER_HPP */
 

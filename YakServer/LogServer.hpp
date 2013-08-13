@@ -7,26 +7,13 @@
 
 #ifndef LOGSERVER_HPP
 #define	LOGSERVER_HPP
+#include "LogSinks.hpp"
 #include "Logger.hpp"
 #include <thread>
 
 /**
- * A LogSink instance represents the final destination of a log message,
- * e.g. a rotating file log sink or a email log sink
- */
-class LogSink {
-public:
-    virtual void log(LogLevel logLevel, uint64_t timestamp, const std::string& senderName, const std::string& logMessage) = 0;
-};
-
-class StderrLogSink : public LogSink {
-public:
-    StderrLogSink();
-    void log(LogLevel logLevel, uint64_t timestamp, const std::string& senderName, const std::string& logMessage);
-};
-
-/**
  * A log server that proxies inproc pattern to external PUB/SUB
+ * and calls a runtime-configurable list of log sinks for each log message
  * 
  * A PULL-like socket is bound to the endpoint supplied at construction time.
  * 

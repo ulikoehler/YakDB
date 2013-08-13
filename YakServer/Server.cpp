@@ -8,7 +8,8 @@
 
 #include <czmq.h>
 #include <string>
-#include <iostream> 
+#include <iostream>
+#include "LogSinks.hpp"
 #include "Server.hpp"
 #include "zutil.hpp"
 #include "protocol.hpp"
