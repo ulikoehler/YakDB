@@ -20,9 +20,9 @@
  * If it indicates an error, logs a bold red error message on stderr,
  * unless the context was terminated by a signal
  */
-static void checkLogSendError(int rc) {
+static inline void checkLogSendError(int rc, const std::string& loggerName, const std::string& message) {
 	if(unlikely(rc == -1)) {
-		if(errno == ETERM && zctx_terminated) {
+		if(errno == ETERM && zctx_interrupted) {
 			return;
 		}
 		fprintf(stderr,
@@ -72,19 +72,19 @@ void Logger::log(const std::string& message, LogLevel level) {
     zmq_msg_t msg;
 	//Header frame
 	fillMsgConst(&msg, "\x55\x01\x00", 3);
-	checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE));
+	checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE), loggerName, message);
 	//Log level frame
     fillMsg(&msg, &level, sizeof (LogLevel));
-    checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE));
+    checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE), loggerName, message);
 	//Log time
     fillMsg(&msg, &currentLogTime, sizeof (uint64_t));
-    checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE));
+    checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE), loggerName, message);
 	//Log name
     fillMsg(&msg, loggerName.c_str(), loggerName.size());
-    checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE));
+    checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE), loggerName, message);
 	//Log message
     fillMsg(&msg, message.c_str(), message.size());
-    checkLogSendError(zmq_msg_send(&msg, socket, 0));
+    checkLogSendError(zmq_msg_send(&msg, socket, 0), loggerName, message);
 }
 
 void Logger::error(const std::string& message) {
