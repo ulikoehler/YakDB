@@ -9,13 +9,30 @@
 #include "endpoints.hpp" //#defines the endpoint string
 #include "zutil.hpp"
 #include "macros.hpp"
+#include "zctx.h"
 #include <cstdio>
 #include <functional>
 #include <iostream>
 #include <ctime>
 
-//This macro checks a zframe_send msg for errors and prints a verbose error message on stderr if any occur
-#define GUARDED_LOGSEND(expr) if(unlikely((expr) != 0)) {fprintf(stderr, "\x1B[31;1m[Error] Logger '%s' failed to send log message '%s' to log server, reason: '%s'\x1B[0;30m\n", loggerName.c_str(), message.c_str(), zmq_strerror(errno));fflush(stderr);}
+/**
+ * Checks if the return code from a zmsg_send call indicates an error.
+ * If it indicates an error, logs a bold red error message on stderr,
+ * unless the context was terminated by a signal
+ */
+static void checkLogSendError(int rc) {
+	if(unlikely(rc == -1)) {
+		if(errno == ETERM && zctx_terminated) {
+			return;
+		}
+		fprintf(stderr,
+			"\x1B[31;1m[Error] Logger '%s' failed to send log message '%s' to log server, reason: '%s'\x1B[0;30m\n",
+			loggerName.c_str(),
+			message.c_str(),
+			zmq_strerror(errno));
+		fflush(stderr);
+	}
+}
 
 /**
  * Get the 64-bit log time: epoch (secs) * 1000 + epoch-millisecs
@@ -30,10 +47,17 @@ Logger::Logger(zctx_t* ctx, const std::string& name, const std::string& endpoint
         fprintf(stderr, "\x1B[31;1m[Critical] Failed to create log socket while initializing logger with sender name '%s'\x1B[0;30m\n", loggerName.c_str());
         fflush(stderr);
     }
-    if (unlikely(zsocket_connect(socket, endpoint.c_str()))) {
-        //All logging will fail if the connect fails,
-        // so this is really a critical error. Log it in bold red.
-        fprintf(stderr, "\x1B[31;1m[Critical] Failed to connect log source to endpoint '%s' while initializing logger with sender name '%s'\x1B[0;30m\n", endpoint.c_str(), loggerName.c_str());
+    if (unlikely(zsocket_connect(socket, endpoint.c_str()) == -1)) {
+		/**
+		 * All logging will fail if the connect fails,
+		 * so this is really a critical error. Log it in bold red.
+		 * 
+		 * This is no error if the context was interrupted
+		 */
+        fprintf(stderr,
+				"\x1B[31;1m[Critical] Failed to connect log source to endpoint '%s' while initializing logger with sender name '%s'\x1B[0;30m\n",
+				endpoint.c_str(),
+				loggerName.c_str());
         fflush(stderr);
     }
 }
@@ -44,19 +68,23 @@ Logger::~Logger() {
 }
 
 void Logger::log(const std::string& message, LogLevel level) {
-    //Send the frames individually so no message needs to be allocated
-    zframe_t* frame;
-    frame = zframe_new("\x55\x01\x00", 3);
-    GUARDED_LOGSEND(zframe_send(&frame, socket, ZFRAME_MORE));
-    frame = zframe_new(&level, sizeof (LogLevel));
-    GUARDED_LOGSEND(zframe_send(&frame, socket, ZFRAME_MORE));
     uint64_t currentLogTime = getCurrentLogTime();
-    frame = zframe_new(&currentLogTime, sizeof (uint64_t));
-    GUARDED_LOGSEND(zframe_send(&frame, socket, ZFRAME_MORE));
-    frame = zframe_new(loggerName.c_str(), loggerName.size());
-    GUARDED_LOGSEND(zframe_send(&frame, socket, ZFRAME_MORE));
-    frame = zframe_new(message.c_str(), message.size());
-    GUARDED_LOGSEND(zframe_send(&frame, socket, 0));
+    zmq_msg_t msg;
+	//Header frame
+	fillMsgConst(&msg, "\x55\x01\x00", 3);
+	checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE));
+	//Log level frame
+    fillMsg(&msg, &level, sizeof (LogLevel));
+    checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE));
+	//Log time
+    fillMsg(&msg, &currentLogTime, sizeof (uint64_t));
+    checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE));
+	//Log name
+    fillMsg(&msg, loggerName.c_str(), loggerName.size());
+    checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE));
+	//Log message
+    fillMsg(&msg, message.c_str(), message.size());
+    checkLogSendError(zmq_msg_send(&msg, socket, 0));
 }
 
 void Logger::error(const std::string& message) {

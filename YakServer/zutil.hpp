@@ -331,6 +331,36 @@ zframe_t* createConstFrame(const char* data, size_t size);
  */
 zframe_t* createConstFrame(const char* data);
 
+
+/**
+ * Create a new frame of constant data.
+ * The data will not be deallocated after usage.
+ * strlen(data) is used as size.
+ * @param msg The message to initialize
+ * @param data The data
+ * @param length The number of bytes in data
+ * @return -1 on error (out of memory) 
+ */
+static int fillMsgConst(zmq_msg_t* msg, const void* data, size_t length) {
+	return zmq_msg_init_data(msg, (void*)data, length, nullptr, nullptr);
+}
+
+/**
+ * Initialize a message and fill it with data
+ * The data is copied to a buffer.
+ * @param msg The message to initialize
+ * @param data The data
+ * @param length The number of bytes in data
+ * @return -1 on error (when out of memory
+ */
+static int fillMsg(zmq_msg_t* msg, const void* data, size_t size) {
+    if (unlikely(zmq_msg_init_size(msg, size) == -1)) {
+        return -1;
+    }
+    memcpy(zmq_msg_data(msg), data, size);
+	return 0;
+}
+
 void zmsg_remove_destroy(zmsg_t* msg, zframe_t** frame);
 
 /**
