@@ -1,12 +1,13 @@
-#include "macros.hpp"
-#include "ConfigParser.hpp"
-#include "FileUtils.hpp"
+#include <fstream>
 #include <string>
 #include <regex>
 #include <vector>
 #include <iostream>
 #include <boost/program_options.hpp>
 #include <boost/program_options/parsers.hpp>
+#include "macros.hpp"
+#include "ConfigParser.hpp"
+#include "FileUtils.hpp"
 
 namespace po = boost::program_options;
 using std::string;
@@ -28,7 +29,29 @@ static bool checkTCPIPCEndpoint(const string& endpoint) {
     return true;
 }
 
+void ConfigParser::saveConfigFile() {
+    std::ofstream fout("yak.cfg");
+    if(!logfile.empty()) {
+        fout << "logfile=" << logFile << '\n';
+    }
+    for(string endpoint : repEndpoints) {
+        fout << "rep-endpoint=" << endpoint << '\n';
+    }
+    for(string endpoint : pullEndpoints) {
+        fout << "pull-endpoint=" << endpoint << '\n';
+    }
+    for(string endpoint : subEndpoints) {
+        fout << "sub-endpoint=" << endpoint << '\n';
+    }
+    fout << "ipv4-only=" << ipv4Only << '\n';
+    fout.close();
+}
+    
+
 COLD ConfigParser::ConfigParser(int argc, char** argv) {
+    /**
+     * Remember when adding options, saveConfigFile() must also be updated!
+     */
     // Declare the supported options.
     string configFileName;
     repEndpoints = {"tcp://localhost:7100","ipc:///tmp/yakserver-rep"};
@@ -43,7 +66,7 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
             "The configuration file to use");
     po::options_description socketOptions("Socket options");
     socketOptions.add_options()
-        ("req-endpoint,r", 
+        ("req-endpoints,r", 
             po::value<vector<string> >(&repEndpoints),
             "The endpoints the REP backend will bind to.\nDefaults to tcp://localhost:7100, ipc:///tmp/yakserver-rep")
         ("pull-endpoint,p", po::value<vector<string> >(&pullEndpoints),
@@ -60,7 +83,9 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
     //Parse the config file
+    bool processedConfigFile = false;
     if(fexists(configFileName)) {
+        processedConfigFile = true;
         po::store(po::parse_config_file<char>(configFileName.c_str(), desc, true), vm);
     }
     po::notify(vm);
@@ -91,6 +116,10 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     }
     
     this->ipv4Only = (vm.count("ipv4-only") > 0);
+    //Write the config data to the config file unless there are no arguments
+    if(argc > 1 || (processedConfigFile && configFileName != "yak.cfg")) {
+        saveConfigFile();
+    }
 }
 
 const std::string& ConfigParser::getLogFile() {

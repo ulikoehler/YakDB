@@ -12,6 +12,15 @@ public:
     const std::vector<std::string>& getSUBEndpoints();
     const std::string& getLogFile();
     const bool isIPv4Only();
+    /**
+     * Persists the current configuration to yak.cfg.
+     * This is called automatically after configuration is
+     * finished.
+     * 
+     * This allows the user to only specify the options once
+     * and then only execute the server from the same directory.
+     */
+    void saveConfigFile();
 private:
     std::string logFile;
     std::vector<std::string> repEndpoints;

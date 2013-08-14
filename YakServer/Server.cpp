@@ -283,7 +283,7 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     return 0;
 }
 
-KeyValueServer::KeyValueServer(ConfigParser& configParser, bool dbCompressionEnabled) :
+KeyValueServer::KeyValueServer(ConfigParser& configParserParam, bool dbCompressionEnabled) :
 ctx(zctx_new()),
 logServer(ctx, LogLevel::Trace, true), //Autostart log server
 tables(),
@@ -291,12 +291,12 @@ externalRepSocket(nullptr),
 externalSubSocket(nullptr),
 externalPullSocket(nullptr),
 responseProxySocket(nullptr),
-tableOpenServer(ctx, tables.getDatabases(), dbCompressionEnabled),
+tableOpenServer(ctx, configParserParam, tables.getDatabases(), dbCompressionEnabled),
 updateWorkerController(ctx, tables),
 readWorkerController(ctx, tables),
 asyncJobRouterController(ctx, tables),
 logger(ctx, "Request router"),
-configParser(configParser)
+configParser(configParserParam)
  {
     static const char* reqRepUrl = "tcp://*:7100";
     static const char* writeSubscriptionUrl = "tcp://*:7101";

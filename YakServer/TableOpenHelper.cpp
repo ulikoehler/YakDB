@@ -196,9 +196,13 @@ static void HOT tableOpenWorkerThread(zctx_t* context,
     zsocket_destroy(context, repSocket);
 }
 
-COLD TableOpenServer::TableOpenServer(zctx_t* context, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled)
+COLD TableOpenServer::TableOpenServer(zctx_t* context, 
+                    ConfigParser& configParserParam,
+                    std::vector<leveldb::DB*>& databases,
+                    bool dbCompressionEnabled)
 : context(context),
-logger(context, "Table open server") {
+logger(context, "Table open server"),
+configParser(configParserParam) {
     //We need to bind the inproc transport synchronously in the main thread because zmq_connect required that the endpoint has already been bound
     void* repSocket = zsocket_new_bind(context, ZMQ_REP, tableOpenEndpoint);
     assert(repSocket);

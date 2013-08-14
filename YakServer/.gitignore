@@ -12,3 +12,4 @@ autoconfig.h
 *.workspace.*
 #NB
 nbproject
+*swp

@@ -14,6 +14,7 @@
 #include <leveldb/db.h>
 #include <vector>
 #include "Logger.hpp"
+#include "ConfigParser.hpp"
 
 #ifndef UINT64_MAX
 #define UINT64_MAX (std::numeric_limits<uint64_t>::max())
@@ -27,7 +28,10 @@
  */
 class TableOpenServer {
 public:
-    TableOpenServer(zctx_t* ctx, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled = true);
+    TableOpenServer(zctx_t* ctx,
+                    ConfigParser& configParser, 
+                    std::vector<leveldb::DB*>& databases,
+                    bool dbCompressionEnabled = true);
     ~TableOpenServer();
     /**
      * Terminate the table open server.
@@ -38,6 +42,7 @@ private:
     zctx_t* context;
     std::thread* workerThread;
     Logger logger;
+    ConfigParser& configParser;
 };
 
 /**
