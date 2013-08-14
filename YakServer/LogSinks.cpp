@@ -160,5 +160,5 @@ FileLogSink::~FileLogSink() {
 
 void FileLogSink::log(LogLevel logLevel, uint64_t timestamp, const std::string& senderName, const std::string& logMessage) {
     printDateTime(timestamp, fout);
-    fout << logLevelToString(logLevel) << senderName << " - " << logMessage << std::endl;
+    fout << logLevelToString(logLevel) << ' ' << senderName << " - " << logMessage << std::endl;
 }
