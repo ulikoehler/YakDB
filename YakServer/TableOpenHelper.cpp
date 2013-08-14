@@ -46,11 +46,8 @@ struct TableOpenParameters {
  *              \x02 for close & truncate (--> rm -r) table
  *          - A 4-byte frame containing the binary ID
  */
-static void HOT tableOpenWorkerThread(zctx_t* context,
-                                      void* repSocket,
-                                      std::vector<leveldb::DB*>& databases,
-                                      Logger& logger,
-                                      bool dbCompressionEnabled) {
+void HOT TableOpenServer::tableOpenWorkerThread() {
+    logger.trace("Table open thread starting...");
     while (true) {
         zmsg_t* msg = zmsg_recv(repSocket);
         if (unlikely(!msg)) {
@@ -66,6 +63,7 @@ static void HOT tableOpenWorkerThread(zctx_t* context,
         if (zframe_size(msgTypeFrame) == 0) {
             //Send back the message and exit the loop
             zmsg_send(&msg, repSocket);
+            zframe_destroy(&msgTypeFrame);
             break;
         }
         //It's definitely no STOP frame, so there must be some data
@@ -198,16 +196,18 @@ static void HOT tableOpenWorkerThread(zctx_t* context,
 
 COLD TableOpenServer::TableOpenServer(zctx_t* context, 
                     ConfigParser& configParserParam,
-                    std::vector<leveldb::DB*>& databases,
-                    bool dbCompressionEnabled)
+                    std::vector<leveldb::DB*>& databasesParam,
+                    bool dbCompressionEnabledParam)
 : context(context),
 logger(context, "Table open server"),
-configParser(configParserParam) {
+configParser(configParserParam),
+dbCompressionEnabled(dbCompressionEnabledParam),
+repSocket(zsocket_new_bind(context, ZMQ_REP, tableOpenEndpoint)),
+databases(databasesParam) {
     //We need to bind the inproc transport synchronously in the main thread because zmq_connect required that the endpoint has already been bound
-    void* repSocket = zsocket_new_bind(context, ZMQ_REP, tableOpenEndpoint);
     assert(repSocket);
-    //NOTE: The child thread will own repSocket. It will destroy it on exit.
-    workerThread = new std::thread(tableOpenWorkerThread, context, repSocket, std::ref(databases), std::ref(logger), dbCompressionEnabled);
+    //NOTE: The child thread will now own repSocket. It will destroy it on exit!
+    workerThread = new std::thread(std::mem_fun(&TableOpenServer::tableOpenWorkerThread), this);
 }
 
 COLD TableOpenServer::~TableOpenServer() {

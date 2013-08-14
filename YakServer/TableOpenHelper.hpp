@@ -38,11 +38,15 @@ public:
      * Includes a full cleanup.
      */
     void terminate();
+    void tableOpenWorkerThread();
 private:
     zctx_t* context;
     std::thread* workerThread;
     Logger logger;
     ConfigParser& configParser;
+    bool dbCompressionEnabled;
+    void* repSocket;
+    std::vector<leveldb::DB*>& databases;
 };
 
 /**

@@ -31,7 +31,7 @@ static bool checkTCPIPCEndpoint(const string& endpoint) {
 
 void ConfigParser::saveConfigFile() {
     std::ofstream fout("yak.cfg");
-    if(!logfile.empty()) {
+    if(!logFile.empty()) {
         fout << "logfile=" << logFile << '\n';
     }
     for(string endpoint : repEndpoints) {
