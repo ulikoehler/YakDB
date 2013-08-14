@@ -19,7 +19,13 @@ public:
      * Does not automatically start the thread
      */
     AsyncJobRouterController(zctx_t* ctx, Tablespace& tablespace);
+    ~AsyncJobRouterController();
     void start();
+    /**
+     * Terminate the async job router worker thread.
+     * Includes a full cleanup.
+     */
+    void terminate();
     /**
      * A socket to the AsyncJobRouter for msg forwarding
      */
@@ -67,6 +73,15 @@ private:
         uint32_t blocksize,
         const std::string& rangeStart,
         const std::string& rangeEnd);
+    /**
+     * Terminate all jobs and cleanup
+     */
+    void terminateAll();
+    /**
+     * Terminates a single job and schedules a cleanup
+     * @param id The id of the job to terminate
+     */
+    void terminate(uint64_t id);
     /**
      * Cleanup an asynchronous job an release all resources related to it.
      * Must only be used on jobs that have already signalled that they have exited

@@ -27,7 +27,7 @@ void initializeDirectoryStructure() {
 int main() {
     //Ensure the tables directory exists
     initializeDirectoryStructure();
-    //Create & start
+    //Create & start the server instance
     KeyValueServer server;
     server.start(); //Blocks until interrupted or forced to exit
 }

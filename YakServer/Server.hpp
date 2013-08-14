@@ -18,6 +18,10 @@ public:
     KeyValueServer(bool dbCompressionEnabled = true);
     void start();
     ~KeyValueServer();
+    /**
+     * The ZeroMQ context.
+     * 
+     */
     zctx_t* ctx;
     LogServer logServer;
     Tablespace tables;

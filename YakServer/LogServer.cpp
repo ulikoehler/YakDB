@@ -54,6 +54,14 @@ void COLD LogServer::terminate() {
         delete thread;
         thread = nullptr;
     }
+    /*
+     * The log server is destructed in the late exit phase,
+     * so we need to assume the context will be destroyed before
+     * the logger in the current LogServer instance
+     * has a chance to destroy its socket.
+     * Therefore we terminate it manually to be sure.
+     */
+    logger.terminate();
 }
 
 LogServer::~LogServer() {

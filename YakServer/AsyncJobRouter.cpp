@@ -228,6 +228,24 @@ void COLD AsyncJobRouterController::start() {
     }, ctx, std::ref(tablespace));
 }
 
+void COLD AsyncJobRouterController::terminate() {
+    if(routerSocket) { //Ignore call if already cleaned up
+        //Send stop message
+        sendEmptyFrameMessage(routerSocket);
+        //Wait for thread to finish and cleanup
+        childThread->join();
+        delete childThread;
+        //Cleanup EVERYTHING zmq-related immediately
+        zsocket_destroy(ctx, routerSocket);
+        routerSocket = nullptr;
+    }
+}
+
+
+COLD AsyncJobRouterController::~AsyncJobRouterController() {
+    terminate();
+}
+
 COLD AsyncJobRouter::AsyncJobRouter(zctx_t* ctxArg, Tablespace& tablespaceArg) :
 AbstractFrameProcessor(ctxArg, ZMQ_PULL, ZMQ_PUSH, "Async job router"),
 processSocketMap(),
@@ -247,8 +265,12 @@ tablespace(tablespaceArg) {
     logger.debug("Asynchronous job router starting up");
 }
 
-AsyncJobRouter::~AsyncJobRouter()
-{
+AsyncJobRouter::~AsyncJobRouter() {
+    logger.debug("Async job router terminating");
+    //Clean up everything
+    terminateAll();
+    doScrubJob();
+    //Sockets are cleaned up in AbstractFrameProcessor
 }
 
 bool AsyncJobRouter::processNextRequest() {
@@ -258,9 +280,8 @@ bool AsyncJobRouter::processNextRequest() {
     if(receiveLogError(&routingFrame, processorInputSocket, logger, "Routing frame") == -1) {
         return true;
     }
-    //Empty frame means: Stop thread
+    //Empty frame means: STOP thread
     if (zmq_msg_size(&routingFrame) == 0) {
-        logger.trace("Async job router thread received stop signal");
         zmq_msg_close(&routingFrame);
         return false;
     }
@@ -411,6 +432,8 @@ void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid,
 }
 
 void AsyncJobRouter::cleanupJob(uint64_t apid) {
+    //We assume the process has already received an exit signal
+    // or finished processing its data.
     void* socket = processSocketMap[apid];
     //Wait for thread to exit completely, then free the mem
     processThreadMap[apid]->join();
@@ -422,6 +445,23 @@ void AsyncJobRouter::cleanupJob(uint64_t apid) {
     processSocketMap.erase(apid);
     processThreadMap.erase(apid);
     apTerminationInfo.erase(apid);
+}
+
+void AsyncJobRouter::terminate(uint64_t apid) {
+    void* socket = processThreadMap[apid];
+    //Send stop signal to thread
+    sendEmptyFrameMessage(socket);
+    //Wait for thread to exit completely and cleanup
+    cleanupJob(apid);
+}
+
+void COLD  AsyncJobRouter::terminateAll() {
+    for(auto pair : processThreadMap) {
+        uint64_t apid = pair.first;
+        terminate(apid);
+    }
+    //Manually execute scrub job
+    doScrubJob();
 }
 
 bool AsyncJobRouter::haveProcess(uint64_t apid) {

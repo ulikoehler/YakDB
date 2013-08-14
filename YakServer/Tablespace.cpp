@@ -27,6 +27,9 @@ void Tablespace::cleanup() {
     }
 }
 
+Tablespace::~Tablespace() {
+}
+
 Tablespace::TableType Tablespace::getTable(IndexType index, TableOpenHelper& openHelper) {
     //Check if the database has already been opened
     if (databases[index] == nullptr || index >= databases.size()) {

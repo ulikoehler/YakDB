@@ -61,6 +61,13 @@ static void HOT tableOpenWorkerThread(zctx_t* context,
         //Parse msg parts
         zframe_t* msgTypeFrame = zmsg_first(msg);
         assert(msgTypeFrame);
+        //Check for a STOP msg
+        if (zframe_size(msgTypeFrame) == 0) {
+            //Send back the message and exit the loop
+            zmsg_send(&msg, repSocket);
+            break;
+        }
+        //It's definitely no STOP frame, so there must be some data
         assert(zframe_size(msgTypeFrame) == 1);
         uint8_t msgType = (uint8_t) zframe_data(msgTypeFrame)[0];
         //Table ID
@@ -69,12 +76,6 @@ static void HOT tableOpenWorkerThread(zctx_t* context,
         size_t frameSize = zframe_size(tableIdFrame);
         assert(frameSize == sizeof (TableOpenHelper::IndexType));
         uint32_t tableIndex = extractBinary<uint32_t>(tableIdFrame);
-        //Check for a STOP msg
-        if (frameSize == 0) {
-            //Send back the message and exit the loop
-            zmsg_send(&msg, repSocket);
-            break;
-        }
         if (msgType == 0x00) { //Open table
             //Extract parameters (optional, if zerolength, defaults are assumed)
             zframe_t* parametersFrame = zmsg_next(msg);
@@ -198,37 +199,37 @@ COLD TableOpenServer::TableOpenServer(zctx_t* context, std::vector<leveldb::DB*>
 : context(context),
 logger(context, "Table open server") {
     //We need to bind the inproc transport synchronously in the main thread because zmq_connect required that the endpoint has already been bound
-    assert(context);
-    void* repSocket = zsocket_new(context, ZMQ_REP);
+    void* repSocket = zsocket_new_bind(context, ZMQ_REP, tableOpenEndpoint);
     assert(repSocket);
-    if (unlikely(zsocket_bind(repSocket, tableOpenEndpoint) == -1)) {
-        Logger logger(context, "Table open server");
-        logger.critical("Table open server REP socket bind failed: " + std::string(zmq_strerror(errno)));
-    }
+    //NOTE: The child thread will own repSocket. It will destroy it on exit.
     workerThread = new std::thread(tableOpenWorkerThread, context, repSocket, std::ref(databases), std::ref(logger), dbCompressionEnabled);
 }
 
 COLD TableOpenServer::~TableOpenServer() {
-    //Create a temporary socket
-    void* tempSocket = zsocket_new(context, ZMQ_REQ);
-    zsocket_connect(tempSocket, tableOpenEndpoint);
-    //Send an empty msg (signals the table open thread to stop)
-    zmsg_t* stopMsg = zmsg_new();
-    zframe_t* stopFrame = zframe_new_zero_copy(NULL, 0, doNothingFree, NULL);
-    zmsg_add(stopMsg, stopFrame);
-    zmsg_send(&stopMsg, tempSocket); //--> single zero byte frame
-    //Receive the reply, ignore the data (--> thread has cleaned up & exited)
-    zmsg_t* msg = zmsg_recv(tempSocket);
-    if (likely(msg != NULL)) {
+    logger.debug("Table open server terminating");
+    //Terminate the thread
+    terminate();
+}
+
+void COLD TableOpenServer::terminate() {
+    if(workerThread) {
+        //Create a temporary socket
+        void* tempSocket = zsocket_new_connect(context, ZMQ_REQ, tableOpenEndpoint);
+        assert(tempSocket);
+        //Send an empty msg (signals the table open thread to stop)
+        sendEmptyFrameMessage(tempSocket);
+        //Receive the reply, ignore the data (--> thread has received msg and is cleaning up)
+        zmsg_t* msg = zmsg_recv(tempSocket);
         zmsg_destroy(&msg);
+        //Wait for the thread to finish
+        workerThread->join();
+        delete workerThread;
+        workerThread = nullptr;
+        //Cleanup
+        zsocket_destroy(context, tempSocket);
+        //Cleanup EVERYTHING zmq-related immediately
+        logger.terminate();
     }
-    //Cleanup
-    zsocket_destroy(context, tempSocket);
-    //The thread might take some time to exit, but we want to delete the thread ptr immediately
-    //So, let it finish on his 
-    workerThread->detach();
-    //Delete the worker thread
-    delete workerThread;
 }
 
 COLD TableOpenHelper::TableOpenHelper(zctx_t* context) : context(context), logger(context, "Table open client") {

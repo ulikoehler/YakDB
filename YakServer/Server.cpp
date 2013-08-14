@@ -319,7 +319,6 @@ logger(ctx, "Request router")
 }
 
 KeyValueServer::~KeyValueServer() {
-    tables.cleanup();
     //Destroy the sockets
     if (externalRepSocket != nullptr) {
         zsocket_destroy(ctx, externalRepSocket);
@@ -331,7 +330,11 @@ KeyValueServer::~KeyValueServer() {
         zsocket_destroy(ctx, externalPullSocket);
     }
     zsocket_destroy(ctx, responseProxySocket);
-    logger.info("Gracefully closed tables, exiting...");
+    //The log server has terminated, but we can still log directly
+    logServer.log("Server", LogLevel::Info, "YakDB Server exiting...");
+    //The context will be terminated before the member constructors are called
+    logger.terminate();
+    //Final cleanup
     zctx_destroy(&ctx);
 }
 
@@ -352,10 +355,18 @@ void KeyValueServer::start() {
     }
     //Start the reactor loop. Returns when interrupted.
     zloop_start(reactor);
-    //Wait for all worker threads to exit
+    /**
+     * Cleanup procedure.
+     * 
+     * Cleanup as much as possible before terminating the ZMQ context
+     * in order to be able to log all errors
+     */
     updateWorkerController.terminateAll();
     readWorkerController.terminateAll();
+    asyncJobRouterController.terminate();
+    tableOpenServer.terminate();
+    tables.cleanup(); //Close & flush tables. This is NOT the table open server!
     logServer.terminate();
-    //Cleanup (called when finished, e.g. by interrupt)
+    //Cleanup main thread
     zloop_destroy(&reactor);
 }

@@ -26,7 +26,8 @@ public:
 
     Tablespace(IndexType defaultTablespaceSize = 16);
     Tablespace(const Tablespace& other) = delete;
-
+    
+    ~Tablespace();
     /**
      * Close all tables and stop the table open server.
      * 

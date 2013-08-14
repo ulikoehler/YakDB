@@ -29,6 +29,11 @@ class TableOpenServer {
 public:
     TableOpenServer(zctx_t* ctx, std::vector<leveldb::DB*>& databases, bool dbCompressionEnabled = true);
     ~TableOpenServer();
+    /**
+     * Terminate the table open server.
+     * Includes a full cleanup.
+     */
+    void terminate();
 private:
     zctx_t* context;
     std::thread* workerThread;

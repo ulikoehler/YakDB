@@ -61,9 +61,16 @@ Logger::Logger(zctx_t* ctx, const std::string& name, const std::string& endpoint
     }
 }
 
+void Logger::terminate() {
+    if(socket != nullptr) {
+        zsocket_destroy(ctx, socket);
+        socket = nullptr;
+    }
+}
+
+
 Logger::~Logger() {
-    fflush(stderr);
-    zsocket_destroy(ctx, socket);
+    terminate();
 }
 
 void Logger::log(const std::string& message, LogLevel level) {

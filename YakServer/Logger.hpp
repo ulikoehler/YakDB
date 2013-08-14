@@ -81,9 +81,21 @@ public:
     void info(const std::string& message);
     void debug(const std::string& message);
     void trace(const std::string& message);
+    /**
+     * Releases all resources acquired by this logger instance.
+     * This is automatically called in the destructor,
+     * but the context must be active to cleanup properly.
+     * 
+     * If the current instance has already been cleaned up,
+     * the call is ignored.
+     * 
+     * --> You need to call this if a destructor call would
+     *     happen after context termination.
+     */
+    void terminate();
 private:
     zctx_t* ctx;
-    void* socket;
+    void* socket; //Connected to the log server
     std::string loggerName;
 };
 

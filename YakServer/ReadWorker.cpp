@@ -53,6 +53,11 @@ void COLD ReadWorkerController::terminateAll() {
         delete threads[i];
     }
     numThreads = 0;
+    //Destroy the sockets, if any
+    if(workerPushSocket) {
+        zsocket_destroy(context, workerPushSocket);
+        workerPushSocket = nullptr;
+    }
 }
 
 ReadWorkerController::~ReadWorkerController() {
@@ -60,8 +65,6 @@ ReadWorkerController::~ReadWorkerController() {
     terminateAll();
     //Free the threadlist
     delete[] threads;
-    //Destroy the sockets
-    zsocket_destroy(context, workerPushSocket);
 }
 
 void ReadWorkerController::send(zmsg_t** msg) {

@@ -551,6 +551,11 @@ void COLD UpdateWorkerController::terminateAll() {
         delete threads[i];
     }
     numThreads = 0;
+    if(workerPushSocket) {
+        //Destroy the sockets, if any
+        zsocket_destroy(context, workerPushSocket);
+        workerPushSocket = nullptr;
+    }
 }
 
 UpdateWorkerController::~UpdateWorkerController() {
@@ -558,8 +563,6 @@ UpdateWorkerController::~UpdateWorkerController() {
     terminateAll();
     //Free the threadlist
     delete[] threads;
-    //Destroy the sockets
-    zsocket_destroy(context, workerPushSocket);
 }
 
 void UpdateWorkerController::send(zmsg_t** msg) {
