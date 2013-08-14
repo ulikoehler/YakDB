@@ -7,6 +7,15 @@
 #include "protocol.hpp"
 #include "zutil.hpp"
 
+struct ThreadStatisticsInfo {
+    ThreadStatisticsInfo() : 
+    transferredDataBytes(),
+    transferredRecords() {
+    }
+    std::atomic<uint64_t> transferredDataBytes;
+    std::atomic<uint64_t> transferredRecords;
+};
+
 /*
  * This provides variables written by the AP and read by the
  * router thread to manage the AP workflow.
@@ -62,7 +71,8 @@ static void clientSidePassiveWorkerThreadFn(
     std::string rangeStart,
     std::string rangeEnd,
     Tablespace& tablespace,
-    ThreadTerminationInfo* tti) {
+    ThreadTerminationInfo* tti,
+    ThreadStatisticsInfo* statisticsInfo) {
     //Static response code
     static const char* responseOK = "\x31\x01\x50\x00";
     static const char* responseNoData = "\x31\x01\x50\x01";
@@ -219,7 +229,7 @@ COLD AsyncJobRouterController::AsyncJobRouterController(zctx_t* ctxArg, Tablespa
 }
 
 void COLD AsyncJobRouterController::start() {
-    //Lambdas roc
+    //Lambdas rock
     childThread = new std::thread([](zctx_t* ctx, Tablespace& tablespace) {
         AsyncJobRouter worker(ctx, tablespace);
         while(worker.processNextRequest()) {
@@ -255,6 +265,19 @@ scrubJobsRequested(),
 apidGenerator("next-apid.txt"),
 ctx(ctxArg),
 tablespace(tablespaceArg) {
+    //Print warnings if not using lockfree atomics
+    std::atomic<bool> boolAtomic;
+    std::atomic<unsigned int> uintAtomic;
+    std::atomic<uint64_t> uint64Atomic;
+    if(!atomic_is_lock_free(&boolAtomic)) {
+        logger.warn("atomic<bool> is not lockfree, some operations might be slower than expected");
+    }
+    if(!atomic_is_lock_free(&uintAtomic)) {
+        logger.warn("atomic<unsigned int> is not lockfree, some operations might be slower than expected");
+    }
+    if(!atomic_is_lock_free(&uint64Atomic)) {
+        logger.warn("atomic<uint64_t> is not lockfree, some operations might be slower than expected");
+    }
     //Connect the socket that is used by the send() member function
     if(zsocket_connect(processorInputSocket, asyncJobRouterAddr) == -1) {
         logger.critical("Failed to bind processor input socket: " + std::string(zmq_strerror(errno)));
@@ -428,7 +451,8 @@ void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid,
             rangeStart,
             rangeEnd,
             std::ref(tablespace),
-            apTerminationInfo[apid]
+            apTerminationInfo[apid],
+            nullptr
     );
 }
 
