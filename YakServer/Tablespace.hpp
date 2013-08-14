@@ -50,7 +50,8 @@ public:
     /**
      * Close a table immediately.
      * It is the caller's responsibility to ensure that the table it not in use
-     * currently. If it is in use, unexpected stuff will happen.
+     * currently. If it is in use, unexpected stuff might happen.
+     * This method is NOT reentrant and NOT threadsafe.
      * @param index
      */
     void closeTable(IndexType index);
@@ -62,6 +63,16 @@ public:
     inline TableCollectionType& getDatabases() {
         return databases;
     }
+    
+    /**
+     * Checks if a given table is opened.
+     * This method is reentrant and thread-safe.
+     */
+    bool isTableOpen(IndexType index) {
+        return databases[index] != nullptr;
+    }
+    
+    
 private:
     /**
      * The databases vector.

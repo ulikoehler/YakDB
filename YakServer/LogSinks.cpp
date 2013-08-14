@@ -160,5 +160,6 @@ FileLogSink::~FileLogSink() {
 
 void FileLogSink::log(LogLevel logLevel, uint64_t timestamp, const std::string& senderName, const std::string& logMessage) {
     printDateTime(timestamp, fout);
+    //Not flushing (endl) would be faster, but log msgs before a crash might be lost
     fout << logLevelToString(logLevel) << ' ' << senderName << " - " << logMessage << std::endl;
 }

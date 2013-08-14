@@ -22,6 +22,7 @@
 #include "Tablespace.hpp"
 #include "Logger.hpp"
 #include "protocol.hpp"
+#include "FileUtils.hpp"
 
 using namespace std;
 
@@ -206,7 +207,10 @@ logger(context, "Table open server") {
 }
 
 COLD TableOpenServer::~TableOpenServer() {
-    logger.debug("Table open server terminating");
+    //Logging after the context has been terminated would cause memleaks
+    if(workerThread) {
+        logger.debug("Table open server terminating");
+    }
     //Terminate the thread
     terminate();
 }

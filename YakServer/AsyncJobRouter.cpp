@@ -251,6 +251,7 @@ AbstractFrameProcessor(ctxArg, ZMQ_PULL, ZMQ_PUSH, "Async job router"),
 processSocketMap(),
 processThreadMap(),
 apTerminationInfo(),
+scrubJobsRequested(),
 apidGenerator("next-apid.txt"),
 ctx(ctxArg),
 tablespace(tablespaceArg) {

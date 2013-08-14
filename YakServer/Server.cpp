@@ -301,15 +301,34 @@ configParser(configParser)
     static const char* reqRepUrl = "tcp://*:7100";
     static const char* writeSubscriptionUrl = "tcp://*:7101";
     static const char* errorPubUrl = "tcp://*:7102";
-    //Start the log server
+    //Start the log server and configure logsinks
     logServer.addLogSink(new StderrLogSink());
     if(!configParser.getLogFile().empty()) {
         logServer.addLogSink(new FileLogSink(configParser.getLogFile()));
     }
-    //Initialize the sockets that run on the main thread
+    /*
+     * Initialize and bind the external sockets
+     */
+    //REP
     externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
-    zsocket_bind(externalRepSocket, reqRepUrl);
-    zsocket_bind(externalRepSocket, mainRouterAddr);
+    if(!configParser.isIPv4Only()) {
+        logger.trace("Using IPv6-capable sockets");
+        zsocket_set_ipv4only(externalRepSocket, 0);
+    }
+    for(std::string endpoint : configParser.getREPEndpoints()) {
+        logger.debug("Binding REP socket to " + endpoint);
+        zsocket_bind(externalRepSocket, endpoint.c_str());
+    }
+    zsocket_bind(externalRepSocket, mainRouterAddr); //Bind to inproc router
+    //PULL
+    externalPullSocket = zsocket_new(ctx, ZMQ_PULL);
+    if(!configParser.isIPv4Only()) {
+        zsocket_set_ipv4only(externalPullSocket, 0);
+    }
+    for(std::string endpoint : configParser.getPULLEndpoints()) {
+        logger.debug("Binding PULL socket to " + endpoint);
+    }
+    //Response proxy socket to route asynchronous responses
     responseProxySocket = zsocket_new(ctx, ZMQ_PULL);
     zsocket_bind(responseProxySocket, externalRequestProxyEndpoint);
     //Now start the update and read workers
