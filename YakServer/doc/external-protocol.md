@@ -467,8 +467,9 @@ or write it to a file etc.
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x42 Request type (CSPTMIR)]
 * Frame 1: 4-byte unsigned integer input table number
 * Frame 2: Empty or 4-byte chunksize (= number of key-value structures that will be returned upon request)
-* Frame 3: Start key (inclusive). If this has zero length, the count starts at the first key
-* Frame 4: End key (inclusive). If this has zero length, the count ends at the last keys
+* Frame 3: 8-byte number of keys to scan limit (or empty --> no limit)
+* Frame 4: Start key (inclusive). If this has zero length, the count starts at the first key
+* Frame 5: End key (inclusive). If this has zero length, the count ends at the last keys
 
 If frame 2 is empty, a default chunksize shall be assumed.
 

@@ -6,6 +6,7 @@
 #include <atomic>
 #include "endpoints.hpp"
 #include "protocol.hpp"
+#include "ClientSidePassiveJob.hpp"
 #include "zutil.hpp"
 
 enum class JobType : uint8_t {
@@ -19,8 +20,18 @@ enum class JobType : uint8_t {
  * This function contains the main loop for the thread
  * that serves passive client-side data request for a specific range
  */
-static void clientSidePassiveWorkerThreadFn() {
-    
+static void clientSidePassiveWorkerThreadFn(zctx_t* ctxParam,
+             uint64_t apid,
+             uint32_t tableId,
+             uint32_t chunksize,
+             std::string& rangeStart,
+             std::string& rangeEnd,
+             uint64_t scanLimit,
+             Tablespace& tablespace,
+             ThreadTerminationInfo* tti,
+             ThreadStatisticsInfo* statisticsInfo) {
+    ClientSidePassiveJob job(ctxParam, apid, tableId, chunksize, rangeStart, rangeEnd, scanLimit, tablespace, tti, statisticsInfo);
+    job.mainLoop();
 }
 
 COLD AsyncJobRouterController::AsyncJobRouterController(zctx_t* ctxArg, Tablespace& tablespace)
@@ -192,12 +203,16 @@ bool AsyncJobRouter::processNextRequest() {
         if(!parseUint32FrameOrAssumeDefault(chunkSize, 1000, "Block size frame", true, "\x31\01\x42\x01")) {
             return true;
         }
+        uint64_t scanLimit;
+        if(!parseUint64FrameOrAssumeDefault(scanLimit, UINT64_MAX, "Scan limit frame", true, "\x31\01\x42\x01")) {
+            return true;
+        }
         std::string rangeStart;
         std::string rangeEnd;
         parseRangeFrames(rangeStart, rangeEnd, "CSPTMIR range", "\x31\x01\x42\x01", true);
         //Initialize it
         uint64_t apid = initializeJob();
-        startClientSidePassiveJob(apid, tableId, chunkSize, rangeStart, rangeEnd);
+        startClientSidePassiveJob(apid, tableId, chunkSize, scanLimit, rangeStart, rangeEnd);
         //Send the reply
         if(zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE) == -1) {
             zmq_msg_close(&routingFrame);
@@ -244,19 +259,22 @@ void AsyncJobRouter::startServerSideJob(uint64_t apid) {
 }
 
 void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid,
-    uint32_t databaseId,
+    uint32_t tableId,
     uint32_t chunksize,
+    uint64_t scanLimit,
     const std::string& rangeStart,
     const std::string& rangeEnd) {
+
     //initializeJob() must be called before this
     apStatisticsInfo[apid]->jobType = JobType::CLIENTSIDE_PASSIVE;
     processThreadMap[apid] = new std::thread(clientSidePassiveWorkerThreadFn, 
             ctx,
             apid,
-            databaseId,
+            tableId,
             chunksize,
             rangeStart,
             rangeEnd,
+            scanLimit,
             std::ref(tablespace),
             apTerminationInfo[apid],
             apStatisticsInfo[apid]

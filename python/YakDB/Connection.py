@@ -564,12 +564,13 @@ class Connection:
         self._sendRange(fromKey,  toKey)
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x03')
-    def initializePassiveDataJob(self, tableNo, fromKey=None, toKey=None,  chunksize=None):
+    def initializePassiveDataJob(self, tableNo, fromKey=None, toKey=None, scanLimit=None, chunksize=None):
         """
         Initialize a job on the server that waits for client requests.
         @param tableNo The table number to scan in
         @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @param scanLimit The maximum number of keys to scan, or None (--> no limit)
         @param chunksize How many key/value pairs will be returned for a single request. None --> Serverside default
         @return A PassiveDataJob instance, exposing requestDataBlock()
         """
@@ -584,6 +585,7 @@ class Connection:
         #Send the table number frame
         self._sendBinary32(tableNo)
         self._sendBinary32(chunksize)
+        self._sendBinary64(scanLimit)
         #Send range to be scanned
         self._sendRange(fromKey,  toKey)
         #Receive response
