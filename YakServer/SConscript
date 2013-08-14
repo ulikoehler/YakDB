@@ -24,7 +24,7 @@ env = Environment(CXXFLAGS=cxxflags,
                          'HOME' : os.environ['HOME']})
 
 malloc = ARGUMENTS.get("malloc","jemalloc")
-libraries = ["zmq","czmq","leveldb",malloc]
+libraries = ["zmq","czmq","leveldb","boost_program_options",malloc]
 if linkmode == "static":
     #Somehow we need this
     libraries.append("snappy")
@@ -34,6 +34,7 @@ zkvSource =  ["zutil.cpp",
     "FileUtils.cpp",
     "main.cpp",
     "TableOpenHelper.cpp",
+    "ConfigParser.cpp",
     "Tablespace.cpp",
     "UpdateWorker.cpp",
     "ReadWorker.cpp",

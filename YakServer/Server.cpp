@@ -283,7 +283,7 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     return 0;
 }
 
-KeyValueServer::KeyValueServer(bool dbCompressionEnabled) :
+KeyValueServer::KeyValueServer(ConfigParser& configParser, bool dbCompressionEnabled) :
 ctx(zctx_new()),
 logServer(ctx, LogLevel::Trace, true), //Autostart log server
 tables(),
@@ -295,13 +295,17 @@ tableOpenServer(ctx, tables.getDatabases(), dbCompressionEnabled),
 updateWorkerController(ctx, tables),
 readWorkerController(ctx, tables),
 asyncJobRouterController(ctx, tables),
-logger(ctx, "Request router")
+logger(ctx, "Request router"),
+configParser(configParser)
  {
     static const char* reqRepUrl = "tcp://*:7100";
     static const char* writeSubscriptionUrl = "tcp://*:7101";
     static const char* errorPubUrl = "tcp://*:7102";
     //Start the log server
     logServer.addLogSink(new StderrLogSink());
+    if(!configParser.getLogFile().empty()) {
+        logServer.addLogSink(new FileLogSink(configParser.getLogFile()));
+    }
     //Initialize the sockets that run on the main thread
     externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
     zsocket_bind(externalRepSocket, reqRepUrl);

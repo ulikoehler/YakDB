@@ -9,13 +9,14 @@
 #define SERVER_HPP_
 #include "UpdateWorker.hpp"
 #include "ReadWorker.hpp"
+#include "ConfigParser.hpp"
 #include "AsyncJobRouter.hpp"
 #include "Logger.hpp"
 #include "LogServer.hpp"
 
 class KeyValueServer {
 public:
-    KeyValueServer(bool dbCompressionEnabled = true);
+    KeyValueServer(ConfigParser& configParser, bool dbCompressionEnabled = true);
     void start();
     ~KeyValueServer();
     /**
@@ -35,6 +36,7 @@ public:
     ReadWorkerController readWorkerController;
     AsyncJobRouterController asyncJobRouterController;
     Logger logger; //The log source of the server itself, only to be used from the main thread
+    ConfigParser& configParser;
 };
 
 
