@@ -13,6 +13,10 @@ elif linkmode == "dynamic":
 else:
     raise Exception("Error: Link mode %s invalid!" % link)
 
+enableDebug = ARGUMENTS.get('debug', 0)
+if int(enableDebug):
+    cxxflags.append('-g')
+
 linkflags.append("-pthread")
 linkflags.append("-Wl,-rpath=.")
 #linkflags.append("-static-libgcc")

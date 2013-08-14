@@ -502,6 +502,7 @@ class Connection:
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send LRU, blocksize and write buffer size
+        print "LRU cache size: " + str(lruCacheSize)
         self._sendBinary64(lruCacheSize)
         self._sendBinary64(tableBlocksize)
         self._sendBinary64(writeBufferSize)

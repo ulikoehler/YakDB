@@ -13,6 +13,7 @@
 #include <leveldb/filter_policy.h>
 #include <leveldb/cache.h>
 #include <exception>
+#include <fstream>
 #include <dirent.h>
 #include <unistd.h>
 #include <stdint.h>
@@ -26,13 +27,88 @@
 
 using namespace std;
 
-struct TableOpenParameters {
+struct PACKED TableOpenParameters  {
     uint64_t lruCacheSize;
     uint64_t tableBlockSize;
     uint64_t writeBufferSize;
     uint64_t bloomFilterBitsPerKey;
     bool compressionEnabled;
 };
+
+
+/**
+* If the table config file for the table exists,
+* read it and save it in an options object.
+* 
+* If the values are not set to DEFAULT in the options parameter,
+* they are not overwritten (--> users choice has precedence)
+* 
+* Compression is always set to the user-supplied value.
+*/
+static void readTableConfigFile(const std::string& tableDirName, TableOpenParameters& options) {
+    string cfgFileName = tableDirName + ".cfg";
+    if(fexists(cfgFileName)) {
+        string line;
+        ifstream fin(cfgFileName.c_str());
+        while(fin.good()) {
+            fin >> line;
+            size_t sepIndex = line.find_first_of('=');
+            assert(sepIndex != string::npos);
+            string key = line.substr(0, sepIndex);
+            string value = line.substr(sepIndex+1);
+            if(key == "lruCacheSize") {
+                if(options.lruCacheSize == UINT64_MAX) {
+                    options.lruCacheSize = stoull(value);
+                }
+            } else if(key == "tableBlockSize") {
+                if(options.lruCacheSize == UINT64_MAX) {
+                    options.tableBlockSize = stoull(value);
+                }
+            } else if(key == "writeBufferSize") {
+                if(options.lruCacheSize == UINT64_MAX) {
+                    options.writeBufferSize = stoull(value);
+                }
+            } else if(key == "bloomFilterBitsPerKey") {
+                if(options.lruCacheSize == UINT64_MAX) {
+                    options.bloomFilterBitsPerKey = stoull(value);
+                }
+            } else {
+                cerr << "ERRR : " << key << " --- " << value << endl;
+            }
+        }
+        fin.close();
+    }
+}
+
+/**
+ * Write a table config file that is used to persistently store the table open options.
+ */
+static void writeTableConfigFile(const std::string& tableDirName, const TableOpenParameters& options) {
+    string cfgFileName = tableDirName + ".cfg";
+    //Don't open file if nothing would be written
+    if(!(
+        options.lruCacheSize != UINT64_MAX || 
+        options.tableBlockSize != UINT64_MAX ||
+        options.writeBufferSize != UINT64_MAX ||
+        options.bloomFilterBitsPerKey != UINT64_MAX
+    )) {
+        return;
+    }
+    ofstream fout(cfgFileName.c_str());
+    if(options.lruCacheSize != UINT64_MAX) {
+        fout << "lruCacheSize=" << options.lruCacheSize << endl;
+    }
+    if(options.tableBlockSize != UINT64_MAX) {
+        fout << "tableBlockSize=" << options.tableBlockSize << endl;
+    }
+    if(options.writeBufferSize != UINT64_MAX) {
+        fout << "writeBufferSize=" << options.writeBufferSize << endl;
+    }
+    if(options.bloomFilterBitsPerKey != UINT64_MAX) {
+        fout << "bloomFilterBitsPerKey=" << options.bloomFilterBitsPerKey << endl;
+    }
+    fout.close();
+}
 
 /**
  * Main function for table open worker thread.
@@ -63,7 +139,6 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
         if (zframe_size(msgTypeFrame) == 0) {
             //Send back the message and exit the loop
             zmsg_send(&msg, repSocket);
-            zframe_destroy(&msgTypeFrame);
             break;
         }
         //It's definitely no STOP frame, so there must be some data
@@ -76,22 +151,27 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
         assert(frameSize == sizeof (TableOpenHelper::IndexType));
         uint32_t tableIndex = extractBinary<uint32_t>(tableIdFrame);
         if (msgType == 0x00) { //Open table
-            //Extract parameters (optional, if zerolength, defaults are assumed)
+            //Extract parameters (this is NOT the parameter structure from 
             zframe_t* parametersFrame = zmsg_next(msg);
             assert(parametersFrame);
-            const TableOpenParameters* parameters = (TableOpenParameters*) zframe_data(parametersFrame);
+            TableOpenParameters* parameters = (TableOpenParameters*) zframe_data(parametersFrame);
             //Resize if neccessary
             if (databases.size() <= tableIndex) {
                 databases.reserve(tableIndex + 16); //Avoid large vectors
             }
             //Create the table only if it hasn't been created yet, else just ignore the request
-            if (databases[tableIndex] == NULL) {
+                if (databases[tableIndex] == NULL) {
+                std::string tableDir = "tables/" + std::to_string(tableIndex);
+                //Override default values with the last values from the table config file, if any
+                readTableConfigFile(tableDir, *parameters);
+                //Process the config options
                 logger.info("Creating/opening table #" + std::to_string(tableIndex));
                 leveldb::Options options;
                 options.create_if_missing = true;
                 options.compression = (parameters->compressionEnabled ? leveldb::kSnappyCompression : leveldb::kNoCompression);
                 //Set optional parameters
                 if (parameters->lruCacheSize != UINT64_MAX) {
+                    logger.trace("LRU cache size : " + std::to_string(parameters->lruCacheSize));
                     options.block_cache = leveldb::NewLRUCache(parameters->lruCacheSize);
                 } else {
                     //Use a small LRU cache per default, because OS cache doesn't cache uncompressed data
@@ -112,12 +192,13 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
                     options.filter_policy
                             = leveldb::NewBloomFilterPolicy(parameters->bloomFilterBitsPerKey);
                 }
-                std::string tableName = "tables/" + std::to_string(tableIndex);
                 //Open the table
-                leveldb::Status status = leveldb::DB::Open(options, tableName.c_str(), &databases[tableIndex]);
+                leveldb::Status status = leveldb::DB::Open(options, tableDir.c_str(), &databases[tableIndex]);
                 if (unlikely(!status.ok())) {
-                    logger.error("Error while trying to open table #" + std::to_string(tableIndex) + " in directory " + tableName + ": " + status.ToString());
+                    logger.error("Error while trying to open table #" + std::to_string(tableIndex) + " in directory " + tableDir + ": " + status.ToString());
                 }
+                //Write the persistent config data
+                writeTableConfigFile(tableDir, *parameters);
             }
             //In order to improve performance, we reuse the existing frame, we only modify the first byte (additional bytes shall be ignored)
             zframe_data(tableIdFrame)[0] = 0x00; //0x00 == acknowledge, no error

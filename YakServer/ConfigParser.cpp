@@ -54,12 +54,12 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
      */
     // Declare the supported options.
     string configFileName;
-    repEndpoints = {"tcp://localhost:7100","ipc:///tmp/yakserver-rep"};
-    pullEndpoints = {"tcp://localhost:7101","ipc:///tmp/yakserver-pull"};
-    subEndpoints = {"tcp://localhost:7102","ipc:///tmp/yakserver-sub"};
+    repEndpoints = {"tcp://*:7100","ipc:///tmp/yakserver-rep"};
+    pullEndpoints = {"tcp://*:7101","ipc:///tmp/yakserver-pull"};
+    subEndpoints = {"tcp://*:7102","ipc:///tmp/yakserver-sub"};
     po::options_description generalOptions("General options");
     generalOptions.add_options()
-        ("help", "Print help message")
+        ("help,h", "Print help message")
         ("logfile,l", po::value<string>(&logFile)->default_value(""), "The file the log will be written to")
         ("config,c",
             po::value<string>(&configFileName)->default_value("yak.cfg"),
@@ -68,11 +68,11 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     socketOptions.add_options()
         ("req-endpoints,r", 
             po::value<vector<string> >(&repEndpoints),
-            "The endpoints the REP backend will bind to.\nDefaults to tcp://localhost:7100, ipc:///tmp/yakserver-rep")
+            "The endpoints the REP backend will bind to.\nDefaults to tcp://*:7100, ipc:///tmp/yakserver-rep")
         ("pull-endpoint,p", po::value<vector<string> >(&pullEndpoints),
-            "The endpoints the PULL backend will bind to.\nDefaults to tcp://localhost:7101, ipc:///tmp/yakserver-pull")
+            "The endpoints the PULL backend will bind to.\nDefaults to tcp://*:7101, ipc:///tmp/yakserver-pull")
         ("sub-endpoint,s", po::value<vector<string> >(&pullEndpoints),
-            "The endpoints the SUB backend will bind to.\nDefaults to tcp://localhost:7102, ipc:///tmp/yakserver-sub")
+            "The endpoints the SUB backend will bind to.\nDefaults to tcp://*:7102, ipc:///tmp/yakserver-sub")
         ("ipv4-only,4","By default the application uses IPv6 sockets to bind to both IPv6 and IPv4. This option tells the application not to use IPv6 capable sockets.")
     ;
     //Create the main options group
@@ -89,12 +89,11 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
         po::store(po::parse_config_file<char>(configFileName.c_str(), desc, true), vm);
     }
     po::notify(vm);
-    
+    //Check if --help is given
     if (vm.count("help")) {
         cout << desc << endl;
         exit(1);
     }
-    
     //Check the endpoints
     for(string endpoint : repEndpoints) {
         if(!checkTCPIPCEndpoint(endpoint)) {

@@ -116,10 +116,10 @@ bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest
     //Parse table ID, release frame immediately
     zmq_msg_t uint64Frame;
     zmq_msg_init(&uint64Frame);
-    size_t frameSize = zmq_msg_size(&uint64Frame);
     if (unlikely(!receiveMsgHandleError(&uint64Frame, frameDesc, errorResponseCode, generateResponse))) {
         return false;
     }
+    size_t frameSize = zmq_msg_size(&uint64Frame);
     if (unlikely(frameSize != sizeof (uint64_t) && frameSize != 0)) {
         std::string errstr = "Uint64 frame ("
                 + std::string(frameDesc)
@@ -160,10 +160,10 @@ bool AbstractFrameProcessor::parseUint32FrameOrAssumeDefault(uint32_t& valueDest
     //Parse table ID, release frame immediately
     zmq_msg_t uint32Frame;
     zmq_msg_init(&uint32Frame);
-    size_t frameSize = zmq_msg_size(&uint32Frame);
     if (unlikely(!receiveMsgHandleError(&uint32Frame, frameDesc, errorResponseCode, generateResponse))) {
         return false;
     }
+    size_t frameSize = zmq_msg_size(&uint32Frame);
     if (unlikely(frameSize != sizeof (uint32_t) && frameSize != 0)) {
         std::string errstr = "Uint32 frame ("
                 + std::string(frameDesc)

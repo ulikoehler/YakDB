@@ -27,6 +27,8 @@
 //Branch prediction hints
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
+//Others
+#define PACKED __attribute__((packed))
 #else
 #warn No visibility attributes! 
 #define PUBLIC
@@ -36,6 +38,7 @@
 #define COLD
 #define likely(x) (x)
 #define unlikely(x) (x)
+#define PACKED
 #endif
 
 #endif
