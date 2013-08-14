@@ -5,6 +5,7 @@
 #include "Tablespace.hpp"
 #include <thread>
 #include <map>
+#include <atomic>
 #include <czmq.h>
 #include <cstdint>
 #include <string>
@@ -36,7 +37,82 @@ private:
     zctx_t* ctx;
 };
 
-class ThreadTerminationInfo;
+
+struct ThreadStatisticsInfo {
+    ThreadStatisticsInfo() : 
+    transferredDataBytes(0),
+    transferredRecords(0),
+    jobExpungeTime(std::numeric_limits<int64_t>::max())
+    {
+    }
+    JobType jobType;
+    //We currently use non-atomics (because we assume 64-bit writes are atomic),
+    // but this might have to change in the future
+    uint64_t transferredDataBytes;
+    uint64_t transferredRecords;
+    /**
+     * This is set to zclock_time() when the job is finished.
+     * It is used to expunge the statistics some time after 
+     * the job has finished.
+     */
+    int64_t jobExpungeTime;
+    inline void addTransferredDataBytes(uint64_t bytes) {
+        transferredDataBytes += bytes;
+    }
+    inline void addTransferredRecords(uint64_t bytes) {
+        transferredDataBytes += bytes;
+    }
+    /**
+     * Set the expunge time to zlock_time()
+     */
+    void setExpungeTime() {
+        jobExpungeTime = zclock_time();
+    }
+};
+
+/*
+ * This provides variables written by the AP and read by the
+ * router thread to manage the AP workflow.
+ * This provides a lightweight alternative to using ZMQ sockets
+ * for state communication
+ * --------AP thread termination workflow----------
+ * This workflow starts once the thread has sent out the last
+ * non-empty data packet.
+ * 1. AP sets the wantToTerminate entry to true
+ *  -> Router shall not redirect any more client requests to the thread
+ * 2. AP answers client requests until no request arrived for
+ *    a predefined grace period (e.g. 1 sec).
+ * 3. Thread exits and sets the exited flag and the 'request scrub job' flag
+ * 4. Router scrub job cleans up stuff left behing
+ */
+class ThreadTerminationInfo {
+public:
+    ThreadTerminationInfo(std::atomic<unsigned int>* scrubJobRequestsArg) :
+        wantToTerminate(),
+        exited(),
+        scrubJobRequests(scrubJobRequestsArg) {
+    }
+    void setWantToTerminate() {
+        std::atomic_store(&wantToTerminate, true);
+    }
+    void setExited() {
+        std::atomic_store(&exited, true);
+    }
+    bool wantsToTerminate() {
+        return std::atomic_load(&wantToTerminate);
+    }
+    bool hasTerminated() {
+        return std::atomic_load(&exited);
+    }
+    void requestScrubJob() {
+        scrubJobRequests++;
+    }
+private:
+    volatile std::atomic<bool> wantToTerminate;
+    volatile std::atomic<bool> exited;
+    std::atomic<unsigned int>* scrubJobRequests;
+};
+
 
 /**
  * This router handles messages for data processing requests.
@@ -121,6 +197,7 @@ private:
     std::map<uint64_t, void*> processSocketMap; //APID --> ZMQ socket
     std::map<uint64_t, std::thread*> processThreadMap; //APID --> ZMQ socket
     std::map<uint64_t, ThreadTerminationInfo*> apTerminationInfo; //APID --> TTI object
+    std::map<uint64_t, ThreadStatisticsInfo*> apStatisticsInfo; //APID --> TTI object
     /**
      * This variable is incremented by APs when they exit
      * to request a scrub job.
@@ -133,6 +210,24 @@ private:
     SequentialIDGenerator apidGenerator;
     zctx_t* ctx;
     Tablespace& tablespace;
+    /**
+     * This is set to zclock_time() when a scrub job is excecuted.
+     *
+     * We need this because if the server is under constant load,
+     * there might not be a n-second period without requests where
+     * the scheduler would be called.
+     * 
+     * Another scenario is that the scrub job request mechanism
+     * doesn't always work properly.
+     * 
+     * In the long term this might lead to a lot of unscrubbed jobs.
+     * 
+     * Therefore this variable is used to time a force-scrub job
+     * every hour or so.
+     * 
+     * TODO implement
+     */
+    int64_t lastScrubJobTime;
 };
 
 #endif // ASYNCJOBROUTER_HPP

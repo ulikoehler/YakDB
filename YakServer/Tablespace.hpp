@@ -46,6 +46,19 @@ public:
      * @return 
      */
     TableType getTable(IndexType index, TableOpenHelper& openHelper);
+    
+    /**
+     * Get or create a table by index.
+     * 
+     * This version instantiates a temporary TableOpenHelper.
+     * Initialization is relatively expensive but objects like
+     * asynchronous processes that only need it once, should use
+     * this method that destroys it as early as possible.
+     * @param index
+     * @param openHelper
+     * @return 
+     */
+    TableType getTable(IndexType index, zctx_t* ctx);
 
     /**
      * Close a table immediately.

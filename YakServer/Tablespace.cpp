@@ -25,9 +25,18 @@ void Tablespace::cleanup() {
             delete databases[i];
         }
     }
+    databases.clear();
+    databasesSize = 0;
+}
+
+
+TableType Tablespace::getTable(IndexType index, zctx_t* ctx) {
+    TableOpenHelper helper(ctx);
+    return getTable(index, helper);
 }
 
 Tablespace::~Tablespace() {
+    cleanup();
 }
 
 Tablespace::TableType Tablespace::getTable(IndexType index, TableOpenHelper& openHelper) {

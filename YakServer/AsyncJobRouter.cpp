@@ -2,221 +2,25 @@
 #include "TableOpenHelper.hpp"
 #include <leveldb/db.h>
 #include <czmq.h>
+#include <limits>
 #include <atomic>
 #include "endpoints.hpp"
 #include "protocol.hpp"
 #include "zutil.hpp"
 
-struct ThreadStatisticsInfo {
-    ThreadStatisticsInfo() : 
-    transferredDataBytes(),
-    transferredRecords() {
-    }
-    std::atomic<uint64_t> transferredDataBytes;
-    std::atomic<uint64_t> transferredRecords;
-};
-
-/*
- * This provides variables written by the AP and read by the
- * router thread to manage the AP workflow.
- * This provides a lightweight alternative to using ZMQ sockets
- * for state communication
- * --------AP thread termination workflow----------
- * This workflow starts once the thread has sent out the last
- * non-empty data packet.
- * 1. AP sets the wantToTerminate entry to true
- *  -> Router shall not redirect any more client requests to the thread
- * 2. AP answers client requests until no request arrived for
- *    a predefined grace period (e.g. 1 sec).
- * 3. Thread exits and sets the exited flag and the 'request scrub job' flag
- * 4. Router scrub job cleans up stuff left behing
- */
-class ThreadTerminationInfo {
-public:
-    ThreadTerminationInfo(std::atomic<unsigned int>* scrubJobRequestsArg) :
-        wantToTerminate(),
-        exited(),
-        scrubJobRequests(scrubJobRequestsArg) {
-    }
-    void setWantToTerminate() {
-        std::atomic_store(&wantToTerminate, true);
-    }
-    void setExited() {
-        std::atomic_store(&exited, true);
-    }
-    bool wantsToTerminate() {
-        return std::atomic_load(&wantToTerminate);
-    }
-    bool hasTerminated() {
-        return std::atomic_load(&exited);
-    }
-    void requestScrubJob() {
-        std::atomic_fetch_add(scrubJobRequests, (unsigned int)1);
-    }
-private:
-    volatile std::atomic<bool> wantToTerminate;
-    volatile std::atomic<bool> exited;
-    std::atomic<unsigned int>* scrubJobRequests;
+enum class JobType : uint8_t {
+    CLIENTSIDE_PASSIVE,
+    CLIENTSIDE_ACTIVE,
+    SERVERSIDE,
+    TABLE_COPY
 };
 
 /**
  * This function contains the main loop for the thread
  * that serves passive client-side data request for a specific range
  */
-static void clientSidePassiveWorkerThreadFn(
-    zctx_t* ctx,
-    uint64_t apid,
-    uint32_t databaseId,
-    uint32_t chunksize,
-    std::string rangeStart,
-    std::string rangeEnd,
-    Tablespace& tablespace,
-    ThreadTerminationInfo* tti,
-    ThreadStatisticsInfo* statisticsInfo) {
-    //Static response code
-    static const char* responseOK = "\x31\x01\x50\x00";
-    static const char* responseNoData = "\x31\x01\x50\x01";
-    static const char* responsePartial = "\x31\x01\x50\x02";
-    //Create a logger for this worker
-    Logger logger(ctx, "AP Worker " + std::to_string(apid));
-    //Create utility stuff
-    TableOpenHelper tableOpenHelper(ctx);
-    //Create the socket to receive requests from
-    void* inSocket = zsocket_new(ctx, ZMQ_PAIR);
-    zsocket_connect(inSocket, "inproc://apid/%ld", apid);
-    //Create the socket to send replies to the main router
-    void* outSocket = zsocket_new(ctx, ZMQ_PUSH);
-    zsocket_connect(outSocket, externalRequestProxyEndpoint);
-    //Get the database object and create a snapshot
-    leveldb::DB* db = tablespace.getTable(databaseId, tableOpenHelper);
-    logger.debug("AP Worker startup successful");
-    //Setup the snapshot and iterator
-    leveldb::ReadOptions options;
-    options.snapshot = db->GetSnapshot();
-    leveldb::Iterator* it = db->NewIterator(options);
-    if (rangeStart.empty()) {
-        it->Seek(rangeStart);
-    } else {
-        it->SeekToFirst();
-    }
-    bool haveRangeEnd = !(rangeEnd.empty());
-    leveldb::Slice rangeEndSlice(rangeEnd);
-    //Initialize a message buffer to read one data chunk ahead to improve latency.
-    zmq_msg_t* keyMsgBuffer = new zmq_msg_t[chunksize];
-    zmq_msg_t* valueMsgBuffer = new zmq_msg_t[chunksize];
-    uint32_t bufferValidSize = 0; //Number of valid elements in the buffer
-    //Main receive/respond loop
-    zmq_msg_t routingFrame, delimiterFrame, headerFrame;
-    zmq_msg_init(&routingFrame);
-    zmq_msg_init(&delimiterFrame);
-    zmq_msg_init(&headerFrame);
-    while(true) {
-        //Step 1: Read util the buffer is full or end of range is reached
-        for(bufferValidSize = 0;
-            bufferValidSize < chunksize && it->Valid();
-            it->Next()) {
-            leveldb::Slice key = it->key();
-            if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
-                break;
-            }
-            leveldb::Slice value = it->value();
-            //Create the msgs from the slices (can't zero-copy here, slices are just references
-            zmq_msg_init_size(&keyMsgBuffer[bufferValidSize], key.size());
-            zmq_msg_init_size(&valueMsgBuffer[bufferValidSize], value.size());
-            memcpy(zmq_msg_data(&keyMsgBuffer[bufferValidSize]), key.data(), key.size());
-            memcpy(zmq_msg_data(&valueMsgBuffer[bufferValidSize]), value.data(), value.size());
-            bufferValidSize++;
-        }
-        //Step 2: Wait for client request (APID frame has already been stripped by router)
-        // (we assume all frames are available and in the correct format because the router shall check that)
-        zmq_msg_recv(&routingFrame, inSocket, 0);
-        if(zmq_msg_size(&routingFrame) == 0) {
-            /*
-             * This occurs when the server is shutting down and
-             * the router sends a stop msg.
-             * We don't NEED to be super-clean here, but it won't do any harm either.
-             */
-            for(unsigned int i = 0 ; i < bufferValidSize; i++) {
-                zmq_msg_close(&keyMsgBuffer[i]);
-                zmq_msg_close(&valueMsgBuffer[i]);
-            }
-            break;
-        }
-        zmq_msg_recv(&delimiterFrame, inSocket, 0);
-        //Step 3: Send the reply to client
-        if(zmq_msg_send(&routingFrame, outSocket, ZMQ_SNDMORE) == -1) {
-            logMessageSendError("Routing frame", logger);
-        }
-        if(zmq_msg_send(&delimiterFrame, outSocket, ZMQ_SNDMORE) == -1) {
-            logMessageSendError("Delimiter frame", logger);
-        }
-        if(unlikely(bufferValidSize == 0)) { //No data at all
-            sendConstFrame(responseNoData, 4, outSocket, logger, "No data response header frame", 0);
-            /*
-             * If the last data has been sent, stop the thread
-             * FIXME we need to ensure enqueued client requests get answered.
-             * e.g. by waiting for a defined grace period.
-             * However, the main async router thread needs to be informed
-             * about the current thread being finished before waiting
-             * for the defined grace period
-             */
-            break;
-        } else if(bufferValidSize < chunksize) { //Partial data
-            sendConstFrame(responsePartial, 4, outSocket, logger, "Partial response header frame", ZMQ_SNDMORE);
-        } else {
-            sendConstFrame(responseOK, 4, outSocket, logger, "Full data response header frame", ZMQ_SNDMORE);
-        }
-        //Send the data frames
-        for(unsigned int i = 0 ; i < (bufferValidSize - 1) ; i++) {
-            if(zmq_msg_send(&keyMsgBuffer[i], outSocket, ZMQ_SNDMORE) == -1) {
-                logMessageSendError("Key frame (not last)", logger);
-            }
-            if(zmq_msg_send(&valueMsgBuffer[i], outSocket, ZMQ_SNDMORE) == -1) {
-                logMessageSendError("Value frame (not last)", logger);
-            }
-        }
-        //Send the last key/value
-        if(zmq_msg_send(&keyMsgBuffer[bufferValidSize - 1], outSocket, ZMQ_SNDMORE) == -1) {
-            logMessageSendError("Key frame (last)", logger);
-        }
-        if(zmq_msg_send(&valueMsgBuffer[bufferValidSize - 1], outSocket, 0) == -1) {
-            logMessageSendError("Value frame (last)", logger);
-        }
-        //If this was a partial data, exit the loop
-        if(bufferValidSize < chunksize) {
-            break;
-        }
-    }
-    //Cleanup
-    delete it;
-    delete[] keyMsgBuffer;
-    delete[] valueMsgBuffer;
-    db->ReleaseSnapshot(options.snapshot);             
-    //See ThreadTerminationInfo docs for information about what is done where
-    tti->setWantToTerminate();
-    logger.trace("Reached AP end of life");
-    //Note that settings the RCVTIMEOUT sockopt only affects subsequent connects,
-    // so we have pollers here
-    zmq_pollitem_t items[1];
-    items[0].socket = inSocket;
-    items[0].events = ZMQ_POLLIN;
-    while(zmq_poll(items, 1, 100) != 0) {
-        logger.trace("Stuff happens");
-        //TODO error handling
-        //Just send a NODATA header
-        zmq_msg_recv(&routingFrame, inSocket, 0);
-        zmq_msg_send(&routingFrame, outSocket, ZMQ_SNDMORE);
-        zmq_msg_recv(&delimiterFrame, inSocket, 0);
-        zmq_msg_send(&delimiterFrame, outSocket, ZMQ_SNDMORE);
-        sendConstFrame(responseNoData, 4, outSocket, logger, "No data response header frame", 0);
-    }
-    //Final cleanup
-    zsocket_destroy(ctx, inSocket);
-    zsocket_destroy(ctx, outSocket);
-    //Set exit flag and request scrub job
-    tti->setExited();
-    tti->requestScrubJob();
-    logger.debug("AP exiting normally");
+static void clientSidePassiveWorkerThreadFn() {
+    
 }
 
 COLD AsyncJobRouterController::AsyncJobRouterController(zctx_t* ctxArg, Tablespace& tablespace)
@@ -430,6 +234,7 @@ uint64_t AsyncJobRouter::initializeJob() {
     processSocketMap[apid] = sock;
     //Create the thread termination info object
     apTerminationInfo[apid] = new ThreadTerminationInfo(&scrubJobsRequested);
+    apStatisticsInfo[apid] = new ThreadStatisticsInfo();
     return apid;
 }
 
@@ -443,6 +248,8 @@ void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid,
     uint32_t chunksize,
     const std::string& rangeStart,
     const std::string& rangeEnd) {
+    //initializeJob() must be called before this
+    apStatisticsInfo[apid]->jobType = JobType::CLIENTSIDE_PASSIVE;
     processThreadMap[apid] = new std::thread(clientSidePassiveWorkerThreadFn, 
             ctx,
             apid,
@@ -452,7 +259,7 @@ void AsyncJobRouter::startClientSidePassiveJob(uint64_t apid,
             rangeEnd,
             std::ref(tablespace),
             apTerminationInfo[apid],
-            nullptr
+            apStatisticsInfo[apid]
     );
 }
 
@@ -470,6 +277,9 @@ void AsyncJobRouter::cleanupJob(uint64_t apid) {
     processSocketMap.erase(apid);
     processThreadMap.erase(apid);
     apTerminationInfo.erase(apid);
+    //Don't delete the statistics info immediately
+    // -- clients might request info after the job has finished
+    apStatisticsInfo[apid] = new ThreadStatisticsInfo();
 }
 
 void AsyncJobRouter::terminate(uint64_t apid) {
@@ -520,7 +330,7 @@ void AsyncJobRouter::doScrubJob() {
              cleanupJob(jobPair.first);
          }
      }
- }
+}
 
 void AsyncJobRouter::forwardToJob(uint64_t apid,
             zmq_msg_t* routingFrame,

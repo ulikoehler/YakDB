@@ -281,9 +281,9 @@ The scan ends when one of the following conditions are met:
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x13 Request type (scan request)]
 * Frame 1: 32-bit unsigned table number
-* Frame 1: 64-bit unsigned limit. If this is zero-sized, no limit is imposed
-* Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
-* Frame 3: End key (exclusive). If this has zero length, the count ends at the last key
+* Frame 2: 64-bit unsigned limit. If this is zero-sized, no limit is imposed
+* Frame 3: Start key (inclusive). If this has zero length, the count starts at the first key
+* Frame 4: End key (exclusive). If this has zero length, the count ends at the last key
 
 ##### Scan response:
 
@@ -392,7 +392,7 @@ because processing has not started when the reply is sent.
 
 -------------------------------
 
-## Data processing initialization request
+## Data processing initialization / meta request
 
 These requests are closely related to the MapReduce protocol,
 as outlined in mapred-protocol.md.
@@ -500,3 +500,35 @@ The message shall contain at most chunksize*2+1 frames.
 Response flags:
     0x01: No more data (--> last frame, client shall not request more frames as no data will be returned)
     0x02: Partial data (--> last frame, less than *chunksize* KV pairs). May not occur together with "No more data" flag.
+
+----------------------------------
+
+## Data processing Write requests
+
+##### Table range copy request
+
+**WIP** REQUEST FORMAT MAY CHANGE ; NOT IMPLEMENTED YET
+
+Copies a range of a table to another table.
+No modification of keys or values is performed.
+
+This request uses a snapshot to process the table data.
+
+The range+limit-behaviour is equivalent to the behaviour of scan requests.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x60 Request type][8-bit Write flags]
+* Frame 1: 32-bit unsigned source table number
+* Frame 2: 32-bit unsigned destination table number
+* Frame 3: 64-bit unsigned int limit. If this is zero-sized, no limit is imposed.
+* Frame 4: Start key (inclusive). If this has zero length, the count starts at the first key
+* Frame 5: End key (exclusive). If this has zero length, the count ends at the last key
+
+##### Table range copy response
+
+The server returns an APID.
+
+Check the APID to get information about the copy progress.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x60 Response type]
+* Frame 1: 64-bit APID
+
