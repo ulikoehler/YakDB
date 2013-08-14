@@ -38,16 +38,11 @@ tablespace(tablespace) {
 }
 
 UpdateWorker::~UpdateWorker() {
-    logger.debug("Update worker thread stopping...");
-    zsocket_destroy(context, processorOutputSocket);
-    zsocket_destroy(context, processorInputSocket);
+    logger.debug("Update worker thread terminating...");
+    //Sockets are cleaned up in AbstractFrameProcessor
 }
 
 bool UpdateWorker::processNextMessage() {
-    //Check context termination condition
-    if(unlikely(contextInterrupted)) {
-        return false;
-    }
     /**
      * Parse the header
      * At this point it is unknown if
@@ -57,12 +52,18 @@ bool UpdateWorker::processNextMessage() {
      */
     zmq_msg_t haveReplyAddrFrame, routingFrame, delimiterFrame, headerFrame;
     zmq_msg_init(&haveReplyAddrFrame);
-    if(receiveExpectMore(&haveReplyAddrFrame, processorInputSocket, logger, "Have reply addr frame") == -1) {
+    if(receiveMsgHandleError(&haveReplyAddrFrame, "Have reply addr frame", nullptr, false) == -1) {
         return true;
+    }
+    //Empty frame means: Stop immediately
+    if(unlikely(zmq_msg_size(&haveReplyAddrFrame) == 0)) {
+        zmq_msg_close(&haveReplyAddrFrame);
+        return false;
     }
     char haveReplyAddrFrameContent = ((char*) zmq_msg_data(&haveReplyAddrFrame))[0];
     zmq_msg_close(&haveReplyAddrFrame);
-    if (haveReplyAddrFrameContent == '\xFF') {
+    //If it's not a stop msg frame, we expect a header frame
+    if(!expectNextFrame("Expecting frame after reply addr frame", false, nullptr)) {
         return true;
     }
     //OK, it's a processable message, not a stop message
@@ -520,6 +521,7 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     }
 }
 
+
 UpdateWorkerController::UpdateWorkerController(zctx_t* context, Tablespace& tablespace)
 : tablespace(tablespace),
 numThreads(3),
@@ -537,25 +539,27 @@ void UpdateWorkerController::start() {
     }
 }
 
-UpdateWorkerController::~UpdateWorkerController() {
-    //Send an empty STOP message for each update thread (use a temporary socket)
-    void* tempSocket = zsocket_new(context, ZMQ_PUSH); //Create a temporary socket
-    zsocket_connect(tempSocket, updateWorkerThreadAddr);
+void COLD UpdateWorkerController::terminateAll() {
+    //Send an empty STOP message for each update thread
     for (unsigned int i = 0; i < numThreads; i++) {
         //Send an empty msg (signals the table open thread to stop)
-        sendEmptyFrameMessage(tempSocket);
+        sendEmptyFrameMessage(workerPushSocket);
     }
-    //Cleanup
-    zsocket_destroy(context, tempSocket);
     //Wait for each thread to exit
     for (unsigned int i = 0; i < numThreads; i++) {
         threads[i]->join();
         delete threads[i];
     }
-    //Free the array
-    if (numThreads > 0) {
-        delete[] threads;
-    }
+    numThreads = 0;
+}
+
+UpdateWorkerController::~UpdateWorkerController() {
+    //Gracefully terminate any update worker that is left
+    terminateAll();
+    //Free the threadlist
+    delete[] threads;
+    //Destroy the sockets
+    zsocket_destroy(context, workerPushSocket);
 }
 
 void UpdateWorkerController::send(zmsg_t** msg) {

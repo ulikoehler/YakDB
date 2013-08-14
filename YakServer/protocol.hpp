@@ -17,7 +17,6 @@
 #include <string>
 #include <czmq.h>
 #include "macros.hpp"
-using namespace std;
 
 const uint8_t magicByte = 0x31;
 const uint8_t protocolVersion = 0x01;

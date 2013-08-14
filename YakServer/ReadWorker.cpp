@@ -22,10 +22,8 @@
  */
 static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
     ReadWorker readWorker(ctx, tablespace);
-    while (true) {
-        if (!readWorker.processNextRequest()) {
-            break;
-        }
+    //Process requests until stop msg is encountered
+    while (readWorker.processNextRequest()) {
     }
 }
 
@@ -33,9 +31,7 @@ using namespace std;
 
 ReadWorkerController::ReadWorkerController(zctx_t* context, Tablespace& tablespace) : context(context), tablespace(tablespace), numThreads(3) {
     //Initialize the push socket
-    workerPushSocket = zsocket_new(context, ZMQ_PUSH);
-    zsocket_bind(workerPushSocket, readWorkerThreadAddr);
-
+    workerPushSocket = zsocket_new_bind(context, ZMQ_PUSH, readWorkerThreadAddr);
 }
 
 void ReadWorkerController::start() {
@@ -45,31 +41,27 @@ void ReadWorkerController::start() {
     }
 }
 
-void ReadWorkerController::stopAll() {
-    for (int i = 0; i < numThreads; i++) {
-
-    }
-}
-
-ReadWorkerController::~ReadWorkerController() {
-    //Send an empty STOP message for each read worker thread (use a temporary socket)
-    void* tempSocket = zsocket_new(context, ZMQ_PUSH); //Create a temporary socket
-    zsocket_connect(tempSocket, readWorkerThreadAddr);
+void COLD ReadWorkerController::terminateAll() {
+    //Send an empty STOP message for each read worker threadt
     for (int i = 0; i < numThreads; i++) {
         //Send an empty msg (signals the table open thread to stop)
-        sendEmptyFrameMessage(tempSocket);
+        sendEmptyFrameMessage(workerPushSocket);
     }
-    //Cleanup
-    zsocket_destroy(context, tempSocket);
     //Wait for each thread to exit
     for (int i = 0; i < numThreads; i++) {
         threads[i]->join();
         delete threads[i];
     }
-    //Free the array
-    if (numThreads > 0) {
-        delete[] threads;
-    }
+    numThreads = 0;
+}
+
+ReadWorkerController::~ReadWorkerController() {
+    //Gracefully terminate all workers
+    terminateAll();
+    //Free the threadlist
+    delete[] threads;
+    //Destroy the sockets
+    zsocket_destroy(context, workerPushSocket);
 }
 
 void ReadWorkerController::send(zmsg_t** msg) {
@@ -89,8 +81,7 @@ tablespace(tablespace) {
 
 ReadWorker::~ReadWorker() {
     logger.debug("Read worker thread stopping...");
-    zsocket_destroy(context, processorOutputSocket);
-    zsocket_destroy(context, processorInputSocket);
+    //Sockets are cleaned up in AbstractFrameProcessor
 }
 
 void ReadWorker::handleExistsRequest(zmq_msg_t* headerFrame) {
@@ -391,7 +382,6 @@ bool ReadWorker::processNextRequest() {
     }
     //Empty frame means: Stop thread
     if (zmq_msg_size(&routingFrame) == 0) {
-        logger.trace("Read worker thread received stop signal");
         zmq_msg_close(&routingFrame);
         return false;
     }

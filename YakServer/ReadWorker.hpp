@@ -27,8 +27,11 @@ public:
      * Start the worker threads
      */
     void start();
-    void stopAll();
-    void* workerPushSocket; //inproc PUSH socket to communicate to the workers
+    void* workerPushSocket; //inproc PUSH socket to communicate to the workers#
+    /**
+     * Gracefully terminates all update worker threads by sending them stop messages.
+     */
+    void terminateAll();
 private:
     std::thread** threads;
     Tablespace& tablespace;

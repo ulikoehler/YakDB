@@ -20,4 +20,4 @@ with open("include/autoconfig.h", "w") as configfile:
 #Build server
 SConscript(dirs='YakServer', variant_dir='build', src_dir='YakServer', duplicate=0)
 #Build C++ client library
-SConscript(dirs='KVClient', variant_dir='clientbuild', src_dir='YakClient', duplicate=0)
+SConscript(dirs='YakClient', variant_dir='clientbuild', src_dir='YakClient', duplicate=0)

@@ -285,7 +285,7 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
 
 KeyValueServer::KeyValueServer(bool dbCompressionEnabled) :
 ctx(zctx_new()),
-logServer(ctx),
+logServer(ctx, LogLevel::Trace, true), //Autostart log server
 tables(),
 externalRepSocket(nullptr),
 externalSubSocket(nullptr),
@@ -302,7 +302,6 @@ logger(ctx, "Request router")
     static const char* errorPubUrl = "tcp://*:7102";
     //Start the log server
     logServer.addLogSink(new StderrLogSink());
-    logServer.startInNewThread();
     //Initialize the sockets that run on the main thread
     externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
     zsocket_bind(externalRepSocket, reqRepUrl);
@@ -351,8 +350,12 @@ void KeyValueServer::start() {
     if (zloop_poller(reactor, &responsePoller, proxyWorkerThreadResponse, this)) {
         debugZMQError("Add response poller to reactor", errno);
     }
-    //Start the reactor loop
+    //Start the reactor loop. Returns when interrupted.
     zloop_start(reactor);
+    //Wait for all worker threads to exit
+    updateWorkerController.terminateAll();
+    readWorkerController.terminateAll();
+    logServer.terminate();
     //Cleanup (called when finished, e.g. by interrupt)
     zloop_destroy(&reactor);
 }
