@@ -22,8 +22,8 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     subEndpoints = {"tcp://localhost:7102","ipc:///tmp/yakserver-sub"};
     desc.add_options()
         ("help", "Print help message")
-        ("l,logfile", po::value<string>(&logFile)->default_value(""), "The file the log will be written to")
-        ("c,config",
+        ("logfile,l", po::value<string>(&logFile)->default_value(""), "The file the log will be written to")
+        ("config,c",
             po::value<string>(&configFileName)->default_value("yak.cfg"),
             "The configuration file to use")
         ("req-endpoint", 
