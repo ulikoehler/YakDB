@@ -478,6 +478,58 @@ If frame 2 is empty, a default chunksize shall be assumed.
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x42 Response type (CSPTMIR)]
 * Frame 1: 64-bit APID
 
+##### CSATMIR (Client-Side Passive table map initialization request)
+
+**WIP** REQUEST FORMAT MAY CHANGE ; NOT IMPLEMENTED YET
+
+This request initializes a job with a REP socket that waits for requests from clients and deliverse data blocks upon
+request. The data chunksize size is configurable. This request is called passive because the server waits for client
+requests passively and does not actively send data without requests. It is called client-side because
+
+This request uses snapshots for the source table.
+It is upon the client how the data is handled. The client may write the data to a table (writing to the input table is allowed),
+or write it to a file etc.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x43 Request type (CSATMIR)]
+* Frame 1: 4-byte unsigned integer input table number
+* Frame 2: Empty or 4-byte chunksize (= number of key-value structures that will be returned upon request)
+* Frame 3: 8-byte number of keys to scan limit (or empty --> no limit)
+* Frame 4: Start key (inclusive). If this has zero length, the count starts at the first key
+* Frame 5: End key (inclusive). If this has zero length, the count ends at the last keys
+
+If frame 2 is empty, a default chunksize shall be assumed.
+
+##### CSATMIR Response
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x42 Response type (CSATMIR)]
+* Frame 1: 64-bit APID
+
+
+##### Job statistics request (JobStatR)
+
+**WIP** REQUEST FORMAT MAY CHANGE ; NOT IMPLEMENTED YET
+
+This request can be used to query statistical information about running jobs and jobs that have already terminated.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x48 Request type (JobStatR)][8-bit statistics request type]
+
+This request uses several sub-requests, determined by the 'statistics request type' header field:
+    * 0x00 Show APID statistics.
+        For each APID, yields a list of frames:
+            * Header: [64-bit APID] [8-bit job type] [8-bit job state]
+            * Alter
+            * Empty delimiter frame (to separate from next entry
+        
+
+Job state:
+    0x00: Initializing
+    0x10: Running
+    0x20: Terminating
+    0x30: Terminated
+
+Job type:
++
+
 -------------------------------
 
 ## Data processing read requests
