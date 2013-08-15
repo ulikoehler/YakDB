@@ -1,32 +1,39 @@
 #include "ClientSidePassiveJob.hpp"
+#include "endpoints.hpp"
+#include "zutil.hpp"
+
+//Static response codes
+static const char* responseOK = "\x31\x01\x50\x00";
+static const char* responseNoData = "\x31\x01\x50\x01";
+static const char* responsePartial = "\x31\x01\x50\x02";
 
 ClientSidePassiveJob::ClientSidePassiveJob(zctx_t* ctxParam,
              uint64_t apid,
-             uint32_t chunksize,
+             uint32_t tableId,
+             uint32_t chunksizeParam,
              std::string& rangeStart,
              std::string& rangeEndParam,
              uint64_t scanLimitParam,
              Tablespace& tablespace,
              ThreadTerminationInfo* tti,
-             ThreadStatisticsInfo* statisticsInfo
-            ) :
-            inSocket(zsocket_new(ctxParam, ZMQ_PAIR))
-            outSocket(zsocket_new_connect(ctxParam, ZMQ_PUSH, externalRequestProxyEndpoint)),
-            keyMsgBuffer(new zmq_msg_t[chunksize]),
-            valueMsgBuffer(new zmq_msg_t[chunksize]),
-            rangeEnd(std::move(rangeEndParam)),
-            scanLimit(scanLimitParam),
-            tti(tti),
-            logger(ctxParam, "AP worker " + std::to_string(apid)),
-            ctx(ctxParam) {
+             ThreadStatisticsInfo* statisticsInfo) :
+                    inSocket(zsocket_new(ctxParam, ZMQ_PAIR)),
+                    outSocket(zsocket_new_connect(ctxParam, ZMQ_PUSH, externalRequestProxyEndpoint)),
+                    keyMsgBuffer(new zmq_msg_t[chunksizeParam]),
+                    valueMsgBuffer(new zmq_msg_t[chunksizeParam]),
+                    rangeEnd(rangeEndParam),
+                    scanLimit(scanLimitParam),
+                    chunksize(chunksizeParam),
+                    db(tablespace.getTable(tableId, ctx)),
+                    tti(tti),
+                    logger(ctxParam, "AP worker " + std::to_string(apid)),
+                    ctx(ctxParam) {
         //Create the socket to receive requests from
         zsocket_connect(inSocket, "inproc://apid/%ld", apid);
-        //Get the database object and create a snapshot
-        leveldb::DB* db = tablespace.getTable(databaseId, ctx);
         //Setup the snapshot and iterator
         leveldb::ReadOptions options;
-        options.snapshot = db->GetSnapshot();
-        this->snapshot = options.snapshot;
+        this->snapshot = (leveldb::Snapshot*) db->GetSnapshot();
+        options.snapshot = this->snapshot;
         it = db->NewIterator(options);
         //Seek the iterator
         if (rangeStart.empty()) {
@@ -37,7 +44,7 @@ ClientSidePassiveJob::ClientSidePassiveJob(zctx_t* ctxParam,
         logger.debug("AP Worker successfully started up");
     }
 
-bool ClientSidePassiveJob::mainLoop() {
+void ClientSidePassiveJob::mainLoop() {
     bool haveRangeEnd = !(rangeEnd.empty());
     leveldb::Slice rangeEndSlice(rangeEnd);
     //Initialize a message buffer to read one data chunk ahead to improve latency and speed.
@@ -71,7 +78,7 @@ bool ClientSidePassiveJob::mainLoop() {
             size_t valueSize = value.size();
             zmq_msg_init_size(&keyMsgBuffer[bufferValidSize], keySize);
             zmq_msg_init_size(&valueMsgBuffer[bufferValidSize], valueSize);
-            memcpy(zmq_msg_data(&keyMsgBABSTRACTFRAMEPROCESSOR_HPPuffer[bufferValidSize]), key.data(), keySize);
+            memcpy(zmq_msg_data(&keyMsgBuffer[bufferValidSize]), key.data(), keySize);
             memcpy(zmq_msg_data(&valueMsgBuffer[bufferValidSize]), value.data(), valueSize);
             bufferValidSize++;
             bufferDataSize += keySize + valueSize;
@@ -92,8 +99,8 @@ bool ClientSidePassiveJob::mainLoop() {
             break;
         }
         zmq_msg_recv(&delimiterFrame, inSocket, 0);
-        statisticsInfo->transferredRecords++;
-        statisticsInfo->transferredDataBytes += bufferDataSize;
+        threadStatisticsInfo->transferredRecords++;
+        threadStatisticsInfo->transferredDataBytes += bufferDataSize;
         //Step 3: Send the reply to client
         if(zmq_msg_send(&routingFrame, outSocket, ZMQ_SNDMORE) == -1) {
             logMessageSendError("Routing frame", logger);
@@ -143,7 +150,7 @@ bool ClientSidePassiveJob::mainLoop() {
 ClientSidePassiveJob::~ClientSidePassiveJob() {
     //Free DB-related memory
     delete it;
-    db->ReleaseSnapshot(options.snapshot);
+    db->ReleaseSnapshot(snapshot);
     //Free buffer memory
     delete[] keyMsgBuffer;
     delete[] valueMsgBuffer;
@@ -155,6 +162,10 @@ ClientSidePassiveJob::~ClientSidePassiveJob() {
     zmq_pollitem_t items[1];
     items[0].socket = inSocket;
     items[0].events = ZMQ_POLLIN;
+    zmq_msg_t routingFrame, delimiterFrame, headerFrame;
+    zmq_msg_init(&routingFrame);
+    zmq_msg_init(&delimiterFrame);
+    zmq_msg_init(&headerFrame);
     while(zmq_poll(items, 1, 1000000) != 0) {
         //If this branch is executed, a request arrived
         // after we told the AP router thread we want to terminate.

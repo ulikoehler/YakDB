@@ -2,6 +2,10 @@
 #define CLIENTSIDEPASSIVEJOB_HPP
 #include <czmq.h>
 #include <leveldb/db.h>
+#include "JobInfo.hpp"
+#include "Tablespace.hpp"
+#include "Logger.hpp"
+
 
 /**
  * An instance of this class represents a running asynchrounous clientside
@@ -20,7 +24,7 @@ public:
              ThreadTerminationInfo* tti,
              ThreadStatisticsInfo* statisticsInfo
             );
-    
+    void mainLoop();
     /**
      * Called when the last message has been received.
      * Implements the termination protocol, see
@@ -35,15 +39,13 @@ private:
     leveldb::Iterator* it;
     std::string rangeEnd;
     uint64_t scanLimit;
+    uint32_t chunksize;
+    leveldb::DB* db;
     leveldb::Snapshot* snapshot;
     ThreadTerminationInfo* tti;
-    ThreadStatisticsInfo* threadStatisticsInfo
+    ThreadStatisticsInfo* threadStatisticsInfo;
     Logger logger;
     zctx_t* ctx;
-    //Static response codes
-    static const char* responseOK = "\x31\x01\x50\x00";
-    static const char* responseNoData = "\x31\x01\x50\x01";
-    static const char* responsePartial = "\x31\x01\x50\x02";
-}
+};
 
 #endif //CLIENTSIDEPASSIVEJOB_HPP

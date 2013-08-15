@@ -30,7 +30,7 @@ void Tablespace::cleanup() {
 }
 
 
-TableType Tablespace::getTable(IndexType index, zctx_t* ctx) {
+Tablespace::TableType Tablespace::getTable(IndexType index, zctx_t* ctx) {
     TableOpenHelper helper(ctx);
     return getTable(index, helper);
 }

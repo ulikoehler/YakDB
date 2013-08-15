@@ -1,20 +1,13 @@
-#include "AsyncJobRouter.hpp"
-#include "TableOpenHelper.hpp"
 #include <leveldb/db.h>
 #include <czmq.h>
 #include <limits>
 #include <atomic>
+#include "AsyncJobRouter.hpp"
+#include "TableOpenHelper.hpp"
 #include "endpoints.hpp"
 #include "protocol.hpp"
 #include "ClientSidePassiveJob.hpp"
 #include "zutil.hpp"
-
-enum class JobType : uint8_t {
-    CLIENTSIDE_PASSIVE,
-    CLIENTSIDE_ACTIVE,
-    SERVERSIDE,
-    TABLE_COPY
-};
 
 /**
  * This function contains the main loop for the thread
@@ -24,8 +17,8 @@ static void clientSidePassiveWorkerThreadFn(zctx_t* ctxParam,
              uint64_t apid,
              uint32_t tableId,
              uint32_t chunksize,
-             std::string& rangeStart,
-             std::string& rangeEnd,
+             std::string rangeStart,
+             std::string rangeEnd,
              uint64_t scanLimit,
              Tablespace& tablespace,
              ThreadTerminationInfo* tti,
