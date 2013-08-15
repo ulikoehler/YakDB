@@ -10,6 +10,7 @@ YakHTTPServer::YakHTTPServer(zctx_t* ctxParam, const std::string& endpoint) : ct
 }
 
 void YakHTTPServer::terminate() {
+    logger.terminate();
     if(routerSocket != nullptr) {
         zsocket_destroy(ctx, routerSocket);
         routerSocket = nullptr;

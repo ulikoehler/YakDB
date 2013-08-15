@@ -317,8 +317,8 @@ void COLD TableOpenServer::terminate() {
         //Cleanup
         zsocket_destroy(context, tempSocket);
         //Cleanup EVERYTHING zmq-related immediately
-        logger.terminate();
     }
+    logger.terminate();
 }
 
 COLD TableOpenHelper::TableOpenHelper(zctx_t* context) : context(context), logger(context, "Table open client") {
