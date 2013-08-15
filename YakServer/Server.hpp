@@ -13,6 +13,7 @@
 #include "AsyncJobRouter.hpp"
 #include "Logger.hpp"
 #include "LogServer.hpp"
+#include "HTTPServer.hpp"
 
 class KeyValueServer {
 public:
@@ -35,6 +36,7 @@ public:
     UpdateWorkerController updateWorkerController;
     ReadWorkerController readWorkerController;
     AsyncJobRouterController asyncJobRouterController;
+    YakHTTPServer httpServer;
     Logger logger; //The log source of the server itself, only to be used from the main thread
     ConfigParser& configParser;
 };

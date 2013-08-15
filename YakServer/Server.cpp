@@ -295,6 +295,7 @@ tableOpenServer(ctx, configParserParam, tables.getDatabases(), dbCompressionEnab
 updateWorkerController(ctx, tables),
 readWorkerController(ctx, tables),
 asyncJobRouterController(ctx, tables),
+httpServer(ctx, configParserParam.getHTTPEndpoint()),
 logger(ctx, "Request router"),
 configParser(configParserParam)
  {
@@ -388,6 +389,7 @@ void KeyValueServer::start() {
     readWorkerController.terminateAll();
     asyncJobRouterController.terminate();
     tableOpenServer.terminate();
+    httpServer.terminate();
     tables.cleanup(); //Close & flush tables. This is NOT the table open server!
     logServer.terminate();
     //Cleanup main thread

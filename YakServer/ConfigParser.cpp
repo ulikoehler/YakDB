@@ -18,12 +18,12 @@ using std::endl;
 /**
  * Check if a given ZMQ endpoint is a valid TCP or IPC endpoint
  */
-static bool checkTCPIPCEndpoint(const string& endpoint) {
+static bool checkTCPIPCEndpoint(const string& endpoint, bool allowIPC = true) {
     //Check if the parameter is valid
     bool isTCP = endpoint.find("tcp://") == 0;
-    bool isIPC = endpoint.find("ipc://") == 0;
+    bool isIPC = endpoint.find("ipc://") == 0 && allowIPC;
     if(!isTCP && !isIPC) {
-        cout << "Endpoint " << endpoint << " is not a valid TCP or IPC endpoint!" << endl;
+        cout << "Endpoint " << endpoint << " is not a valid TCP" << (allowIPC ? " or IPC": "") << " endpoint!" << endl;
         return false;
     }
     return true;
@@ -57,6 +57,7 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     repEndpoints = {"tcp://*:7100","ipc:///tmp/yakserver-rep"};
     pullEndpoints = {"tcp://*:7101","ipc:///tmp/yakserver-pull"};
     subEndpoints = {"tcp://*:7102","ipc:///tmp/yakserver-sub"};
+    httpEndpoint = "tcp://*:7109";
     po::options_description generalOptions("General options");
     generalOptions.add_options()
         ("help,h", "Print help message")
@@ -73,6 +74,8 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
             "The endpoints the PULL backend will bind to.\nDefaults to tcp://*:7101, ipc:///tmp/yakserver-pull")
         ("sub-endpoint,s", po::value<vector<string> >(&pullEndpoints),
             "The endpoints the SUB backend will bind to.\nDefaults to tcp://*:7102, ipc:///tmp/yakserver-sub")
+        ("http-endpoint,e", po::value<vector<string> >(&pullEndpoints),
+            "The endpoint the internal HTTP server will listen on. Defaults to tcp://*:7109")
         ("ipv4-only,4","By default the application uses IPv6 sockets to bind to both IPv6 and IPv4. This option tells the application not to use IPv6 capable sockets.")
     ;
     //Create the main options group
@@ -113,7 +116,10 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
             exit(1);
         }
     }
-    
+    if(!checkTCPIPCEndpoint(httpEndpoint, false)) {
+        cout << desc << endl;
+        exit(1);
+    }
     this->ipv4Only = (vm.count("ipv4-only") > 0);
     //Write the config data to the config file unless there are no arguments
     if(argc > 1 || (processedConfigFile && configFileName != "yak.cfg")) {
@@ -139,4 +145,9 @@ const std::vector<std::string>& ConfigParser::getSUBEndpoints() {
 
 const bool ConfigParser::isIPv4Only() {
     return ipv4Only;
+}
+
+
+const std::string& ConfigParser::getHTTPEndpoint() {
+    return httpEndpoint;
 }

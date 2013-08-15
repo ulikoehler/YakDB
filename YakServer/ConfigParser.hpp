@@ -11,6 +11,7 @@ public:
     const std::vector<std::string>& getPULLEndpoints();
     const std::vector<std::string>& getSUBEndpoints();
     const std::string& getLogFile();
+    const std::string& getHTTPEndpoint();
     const bool isIPv4Only();
     /**
      * Persists the current configuration to yak.cfg.
@@ -26,6 +27,7 @@ private:
     std::vector<std::string> repEndpoints;
     std::vector<std::string> pullEndpoints;
     std::vector<std::string> subEndpoints;
+    std::string httpEndpoint;
     bool ipv4Only;
 };
 
