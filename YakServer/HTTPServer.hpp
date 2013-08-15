@@ -1,6 +1,7 @@
 #ifndef HTTPSERVER_HPP
 #define HTTPSERVER_HPP
 #include <czmq.h>
+#include <thread>
 #include "Logger.hpp"
 
 /**
@@ -19,12 +20,22 @@
  */
 class YakHTTPServer {
 public:
+    /**
+     * Create a new HTTP server instance and start the worker thread
+     */
     YakHTTPServer(zctx_t* ctx, const std::string& endpoint);
     void terminate();
     ~YakHTTPServer();
 private:
+    void workerMain();
     void* routerSocket;
+    /**
+     * This is used to send control messages to the HTTP server
+     * (currently STOP command
+     */
+    void* controlSocket;
     zctx_t* ctx;
+    std::thread* thread;
     Logger logger;
 };
 

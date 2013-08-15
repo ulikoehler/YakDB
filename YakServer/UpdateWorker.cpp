@@ -540,18 +540,18 @@ void UpdateWorkerController::start() {
 }
 
 void COLD UpdateWorkerController::terminateAll() {
-    //Send an empty STOP message for each update thread
-    for (unsigned int i = 0; i < numThreads; i++) {
-        //Send an empty msg (signals the table open thread to stop)
-        sendEmptyFrameMessage(workerPushSocket);
-    }
-    //Wait for each thread to exit
-    for (unsigned int i = 0; i < numThreads; i++) {
-        threads[i]->join();
-        delete threads[i];
-    }
-    numThreads = 0;
     if(workerPushSocket) {
+        //Send an empty STOP message for each update thread
+        for (unsigned int i = 0; i < numThreads; i++) {
+            //Send an empty msg (signals the table open thread to stop)
+            sendEmptyFrameMessage(workerPushSocket);
+        }
+        //Wait for each thread to exit
+        for (unsigned int i = 0; i < numThreads; i++) {
+            threads[i]->join();
+            delete threads[i];
+        }
+        numThreads = 0;
         //Destroy the sockets, if any
         zsocket_destroy(context, workerPushSocket);
         workerPushSocket = nullptr;
