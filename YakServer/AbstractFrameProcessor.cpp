@@ -266,6 +266,7 @@ bool AbstractFrameProcessor::receiveStringFrame(std::string& frame,
             const char* errorResponse,
             bool generateResponse) {
     zmq_msg_t msg;
+    zmq_msg_init(&msg);
     bool rc = receiveMsgHandleError(&msg, errName, errorResponse, generateResponse);
     if(unlikely(!rc)) {
         return false;

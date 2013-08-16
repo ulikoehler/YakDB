@@ -3,13 +3,17 @@
 BoyerMooreHorspoolSearcher::BoyerMooreHorspoolSearcher(const char* pattern)
     : pattern(pattern),
       patternLength(strlen(pattern)) {
-    initializeSkipTable();
+    if(patternLength != 0) {
+        initializeSkipTable();
+    }
 }
 
 BoyerMooreHorspoolSearcher::BoyerMooreHorspoolSearcher(const std::string& patternParam)
     : pattern(patternParam.c_str()),
       patternLength(patternParam.size()) {
-    initializeSkipTable();
+    if(patternLength != 0) {
+        initializeSkipTable();
+    }
 }
 
 void BoyerMooreHorspoolSearcher::initializeSkipTable() {
@@ -34,6 +38,10 @@ const int BoyerMooreHorspoolSearcher::find(const std::string& corpus) {
 
 const int BoyerMooreHorspoolSearcher::find(const char* corpus, size_t corpusLength) {
     assert(corpus);
+    //Shortcut if there's an empty pattern (--> we DEFINE that as not found)
+    if(patternLength == 0) {
+        return -1;
+    }
     //Can't find pattern if its larger than corpus
     if (patternLength > corpusLength) {
         return -1;

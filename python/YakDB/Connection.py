@@ -3,7 +3,7 @@
 import struct
 #Local imports
 from YakDB.Conversion import ZMQBinaryUtil
-from YakDB.Exceptions import ParameterException
+from YakDB.Exceptions import ParameterException, YakDBProtocolException
 import YakDB.DataProcessor
 #Use ZMQPy inside PyPy
 import platform

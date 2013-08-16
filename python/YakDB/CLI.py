@@ -26,12 +26,19 @@ def read(db, args):
 
 def put(db, args):
     tableNo = args.tableNo
-    key = args.key
-    value = args.value
-    db.put(tableNo, {key: value})
+    keysValues = args.keyValuePairs
+    #Build the key/value dict
+    if len(keysValues) % 2 != 0:
+        print("Didn't find a value for key %s, ignoring that key" % keysValues[-1])
+        keysValues = keysValues[0:-1]
+    keys = keysValues[0::2]
+    values = keysValues[1::2]
+    putDict = dict(zip(keys, values))
+    db.put(tableNo, putDict)
     #Convert value-only to key-->value map
     if not args.quiet:
-        print("Successfuly put '%s' --> '%s'" % (key, value))
+        for key, value in putDict.iteritems():
+            print("Successfully put '%s' --> '%s'" % (key, value))
 
 def exists(db, args):
     tableNo = args.tableNo
@@ -72,11 +79,13 @@ def scan(db, args):
     fromKey = args.fromKey
     toKey = args.toKey
     limit = args.scanLimit
+    keyFilter = args.keyFilter
+    valueFilter = args.valueFilter
     if args.toKey is not None and args.scanLimit is not None:
         sys.stderr.write("Error: can't use --to together with --limit")
         sys.exit(1)
     #Data is remapped into dictionary-form in connection class
-    print(db.scan(tableNo, fromKey, toKey, limit))
+    print(db.scan(tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter))
     
 def count(db, args):
     tableNo = args.tableNo
@@ -195,12 +204,10 @@ def yakCLI():
     parserRead.set_defaults(func=read)
     #Put
     parserPut = subparsers.add_parser("put", description="Write a single key-value pair")
-    parserPut.add_argument('key',
+    parserPut.add_argument('keyValuePairs',
             action="store",
-            help="The key to write")
-    parserPut.add_argument('value',
-            action="store",
-            help="The value to write")
+            nargs="+",
+            help="The keys / values to write, in alternating order (key value key2 value2 ...)")
     parserPut.set_defaults(func=put)
     #Exists
     parserExists = subparsers.add_parser("exists", description="Check if one or more keys exist in the table")
@@ -257,6 +264,16 @@ def yakCLI():
             dest="toKey",
             default=None,
             help="The key to stop scanning at (exclusive, must not be used together with --limit), default: end of table")
+    parserScan.add_argument('-k,--key-filter',
+            action="store",
+            dest="keyFilter",
+            default=None,
+            help="The server-side key filter. Ignored KV pairs don't count when calculating the limit.")
+    parserScan.add_argument('-v,--value-filter',
+            action="store",
+            dest="valueFilter",
+            default=None,
+            help="The server-side value filter. Ignored KV pairs don't count when calculating the limit.")
     parserScan.add_argument('-l,--limit',
             action="store",
             dest="scanLimit",
