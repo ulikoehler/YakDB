@@ -76,21 +76,16 @@ Logger::~Logger() {
 void Logger::log(const std::string& message, LogLevel level) {
     uint64_t currentLogTime = getCurrentLogTime();
     zmq_msg_t msg;
-	//Header frame
-	fillMsgConst(&msg, "\x55\x01\x00", 3);
-	checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE), loggerName, message);
-	//Log level frame
-    fillMsg(&msg, &level, sizeof (LogLevel));
-    checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE), loggerName, message);
-	//Log time
-    fillMsg(&msg, &currentLogTime, sizeof (uint64_t));
-    checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE), loggerName, message);
-	//Log name
-    fillMsg(&msg, loggerName.c_str(), loggerName.size());
-    checkLogSendError(zmq_msg_send(&msg, socket, ZMQ_SNDMORE), loggerName, message);
-	//Log message
-    fillMsg(&msg, message.c_str(), message.size());
-    checkLogSendError(zmq_msg_send(&msg, socket, 0), loggerName, message);
+    //Header frame
+    checkLogSendError(zmq_send(socket, "\x55\x01\x00", 3, ZMQ_SNDMORE), loggerName, message);
+    //Log level frame
+    checkLogSendError(zmq_send(socket, &level, sizeof (LogLevel), ZMQ_SNDMORE), loggerName, message);
+    //Log time
+    checkLogSendError(zmq_send(socket, &currentLogTime, sizeof (uint64_t), ZMQ_SNDMORE), loggerName, message);
+    //Log name
+    checkLogSendError(zmq_send(socket, loggerName.c_str(), loggerName.size(), ZMQ_SNDMORE), loggerName, message);
+    //Log message
+    checkLogSendError(zmq_send(socket, message.c_str(), message.size(), 0), loggerName, message);
 }
 
 void Logger::error(const std::string& message) {
