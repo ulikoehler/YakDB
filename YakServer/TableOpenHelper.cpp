@@ -176,10 +176,12 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
                 } else {
                     //Use a small LRU cache per default, because OS cache doesn't cache uncompressed data
                     // , so it's really slow in random-access-mode for uncompressed data
-                    options.block_cache = leveldb::NewLRUCache(1024 * 1024 * 10);
+                    options.block_cache = leveldb::NewLRUCache(1024 * 1024 * 16);
                 }
                 if (parameters->tableBlockSize != UINT64_MAX) {
                     options.block_size = parameters->tableBlockSize;
+                } else { //Default table block size (= more than LevelDB default)
+                    options.block_size = 256*1024; //256k, LevelDB default = 4k
                 }
                 if (parameters->writeBufferSize != UINT64_MAX) {
                     options.write_buffer_size = parameters->writeBufferSize;

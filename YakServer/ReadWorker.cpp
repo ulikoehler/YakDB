@@ -253,9 +253,20 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     if(!expectNextFrame("Expected key filter frame", true, errorResponse)) {
         return;
     }
-    if(!expectNextFrame("Expected key filter frame", true, errorResponse)) {
+    if(!receiveStringFrame(keyFilterStr, "Error while receiveing key filter string", errorResponse)) {
         return;
     }
+    if(!expectNextFrame("Expected value filter frame", true, errorResponse)) {
+        return;
+    }
+    if(!receiveStringFrame(valueFilterStr, "Error while receiveing key filter string", errorResponse)) {
+        return;
+    }
+    //Create the boyer moore searchers (unexpensive for empty strings)
+    bool haveKeyFilter = !(keyFilterStr.empty());
+    bool haveValueFilter = !(valueFilterStr.empty());
+    BoyerMooreHorspoolSearcher keyFilter(keyFilterStr);
+    BoyerMooreHorspoolSearcher valueFilter(valueFilterStr);
     //Convert the str to a slice, to compare the iterator slice in-place
     leveldb::Slice rangeEndSlice(rangeEndStr);
     //Do the compaction (takes LONG)
@@ -277,6 +288,8 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     bool haveLastValueMsg = false; //Needed to send only last frame without SNDMORE
     for (; it->Valid(); it->Next()) {
         leveldb::Slice key = it->key();
+        const char* keyData = key.data();
+        size_t keySize = key.size();
         //Check scan limit
         if (scanLimit <= 0) {
             break;
@@ -287,6 +300,17 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
             break;
         }
         leveldb::Slice value = it->value();
+        const char* valueData = value.data();
+        size_t valueSize = value.size();
+        //Check key / value filters, if any
+        if(haveKeyFilter && keyFilter.find(keyData, keySize) == -1) {
+            scanLimit++; //Revert decrement from above
+            continue; //Next key/value, if any
+        }
+        if(haveValueFilter && valueFilter.find(valueData, valueSize) == -1) {
+            scanLimit++; //Revert decrement from above
+            continue; //Next key/value, if any
+        }
         //Send the previous value msg, if any
         if (!sentHeader) {
             sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response", ZMQ_SNDMORE);
@@ -300,10 +324,10 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         }
         //Convert the slices into msgs and send them
         haveLastValueMsg = true;
-        zmq_msg_init_size(&keyMsg, key.size());
-        zmq_msg_init_size(&valueMsg, value.size());
-        memcpy(zmq_msg_data(&keyMsg), key.data(), key.size());
-        memcpy(zmq_msg_data(&valueMsg), value.data(), value.size());
+        zmq_msg_init_size(&keyMsg, keySize);
+        zmq_msg_init_size(&valueMsg, valueSize);
+        memcpy(zmq_msg_data(&keyMsg), keyData, keySize);
+        memcpy(zmq_msg_data(&valueMsg), valueData, valueSize);
         if (unlikely(!sendMsgHandleError(&keyMsg, ZMQ_SNDMORE, "ZMQ error while sending scan reply (not last)", errorResponse))) {
             zmq_msg_close(&valueMsg);
             delete it;
