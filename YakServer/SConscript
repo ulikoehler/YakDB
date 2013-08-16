@@ -23,6 +23,11 @@ linkflags.append("-Wl,-rpath=.")
 
 #C++ compiler now defaults to clang++ because it has better error messages.
 cxx = ARGUMENTS.get('cxx','clang++')
+stdlib = ARGUMENTS.get('stdlib','default')
+
+if stdlib != "default":
+    cxxflags.append("-stdlib=libc++")
+    linkflags.append("-stdlib=libc++")
 
 env = Environment(CXX=cxx,
 		  CXXFLAGS=cxxflags,
