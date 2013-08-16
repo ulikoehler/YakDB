@@ -48,4 +48,4 @@ Space-complexity: Trivial, O(k)
     - $\forall i \in [0..(k-1)]: Advance $RP_{i}$ by $i$ steps
 - $\forall i \in [0..(k-1)]:$
     - Write value of $RP_{i}$ to DstDB_{i+1}
-    - Advanced value
+    - Advance value
