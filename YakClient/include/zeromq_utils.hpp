@@ -101,25 +101,6 @@ static inline int sendCStringFrame(void* socket, const char* str, int flags = 0)
 }
 
 /**
- * Send binary data in a single frame
- * @param socket The socket to send the data over
- * @param data A pointer to the beginning of the data
- * @param size The number of bytes to read and send, starting at param data
- * @param flags The ZeroMQ zmq_send flags to use, e.g. ZMQ_SNDMORE
- * @return -1 on error (you can check errno to get more information), 0 on success
- */
-static inline int sendBinaryFrame(void* socket, const char* data, size_t size, int flags = 0) {
-    zmq_msg_t msg;
-    zmq_msg_init_size(&msg, size);
-    memcpy(zmq_msg_data(&msg), data, size);
-    if (zmq_msg_send(&msg, socket, flags) == -1) {
-        zmq_msg_close(&msg);
-        return -1;
-    }
-    return 0;
-}
-
-/**
  * Send a little-endian uint32_t in a size-4-frame
  * @param socket The socket to send the data over
  * @param data The value to send
@@ -127,7 +108,7 @@ static inline int sendBinaryFrame(void* socket, const char* data, size_t size, i
  * @return -1 on error (you can check errno to get more information), 0 on success
  */
 static inline int sendUint32Frame(void* socket, uint32_t num, int flags = 0) {
-    return sendBinaryFrame(socket, (char*) &num, sizeof (uint32_t), flags);
+    return zmq_send(socket, (char*) &num, sizeof (uint32_t), flags);
 }
 
 /**
@@ -138,7 +119,7 @@ static inline int sendUint32Frame(void* socket, uint32_t num, int flags = 0) {
  * @return -1 on error (you can check errno to get more information), 0 on success
  */
 static inline int sendUint64Frame(void* socket, uint64_t num, int flags = 0) {
-    return sendBinaryFrame(socket, (char*) &num, sizeof (uint64_t), flags);
+    return zmq_send(socket, (char*) &num, sizeof (uint64_t), flags);
 }
 
 /**
@@ -263,11 +244,11 @@ static inline int sendKeyValue(void* socket,
         const char* value,
         size_t valueLength,
         bool last = false) {
-    int rc = sendBinaryFrame(socket, key, keyLength, ZMQ_SNDMORE);
+    int rc = zmq_send(socket, key, keyLength, ZMQ_SNDMORE);
     if (!rc) {
         return rc;
     }
-    return sendBinaryFrame(socket, value, valueLength, (last ? 0 : ZMQ_SNDMORE));
+    return zmq_send(socket, value, valueLength, (last ? 0 : ZMQ_SNDMORE));
 }
 
 /**

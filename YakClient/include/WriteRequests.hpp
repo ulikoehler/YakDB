@@ -101,16 +101,5 @@ class DeleteRangeRequest {
     static int receiveResponse(void* socket, std::string& errorString);
 };
 
-/**
- * A delete request that deletes up to a limit of keys starting at a given
- * start key (inclusive)
- */
-class LimitedDeleteRangeRequest {
-    static int sendRequest(void* socket, uint32_t tableNum,
-        const std::string& startKey,
-        uint64_t limit);
-    static int receiveResponse(void* socket, std::string& errorString);
-};
-
 #endif	/* UPDATEREQUESTS_HPP */
 

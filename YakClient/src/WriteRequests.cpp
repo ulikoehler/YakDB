@@ -8,7 +8,7 @@ int PutRequest::sendHeader(void* socket, uint32_t table, uint8_t flags) {
     char data[] = "\x31\x01\x20\x00";
     data[3] = flags;
     //Can't use zero-copy here because of stack alloc
-    if (sendBinaryFrame(socket, data, 4, ZMQ_SNDMORE) == -1) {
+    if (zmq_send(socket, data, 4, ZMQ_SNDMORE) == -1) {
         return -1;
     }
     return sendUint32Frame(socket, table, ZMQ_SNDMORE);
@@ -45,7 +45,7 @@ int DeleteRequest::sendHeader(void* socket, uint32_t table, uint8_t flags) {
     char data[] = "\x31\x01\x31\x00";
     data[3] = flags;
     //Can't use zero-copy here because of stack alloc
-    if (sendBinaryFrame(socket, data, 4, ZMQ_SNDMORE) == -1) {
+    if (zmq_send(socket, data, 4, ZMQ_SNDMORE) == -1) {
         return -1;
     }
     return sendUint32Frame(socket, table, ZMQ_SNDMORE);
@@ -67,7 +67,7 @@ int DeleteRequest::sendKey(void* socket,
         const char* key,
         size_t keyLength,
         bool last) {
-    return sendBinaryFrame(socket, key, keyLength, (last ? 0 : ZMQ_SNDMORE));
+    return zmq_send(socket, key, keyLength, (last ? 0 : ZMQ_SNDMORE));
 }
 
 int DeleteRangeRequest::sendRequest(void* socket, uint32_t tableNum,
@@ -83,24 +83,5 @@ int DeleteRangeRequest::sendRequest(void* socket, uint32_t tableNum,
 }
 
 int DeleteRequest::receiveResponse(void* socket, std::string& errorString) {
-    return receiveSimpleResponse(socket, errorString);
-}
-
-int LimitedDeleteRangeRequest::sendRequest(void* socket, uint32_t tableNum,
-        const std::string& startKey,
-        uint64_t limit) {
-    if (sendConstFrame(socket, "\x31\x01\x23", 3, ZMQ_SNDMORE) == -1) {
-        return -1;
-    }
-    if (sendUint32Frame(socket, tableNum, ZMQ_SNDMORE) == -1) {
-        return -1;
-    }
-    if(sendStringFrame(socket, startKey, ZMQ_SNDMORE) == -1) {
-        return -1;
-    }
-    return sendUint64Frame(socket, limit, 0);
-}
-
-int LimitedDeleteRangeRequest::receiveResponse(void* socket, std::string& errorString) {
     return receiveSimpleResponse(socket, errorString);
 }
