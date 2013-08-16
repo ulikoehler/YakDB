@@ -75,7 +75,6 @@ Logger::~Logger() {
 
 void Logger::log(const std::string& message, LogLevel level) {
     uint64_t currentLogTime = getCurrentLogTime();
-    zmq_msg_t msg;
     //Header frame
     checkLogSendError(zmq_send(socket, "\x55\x01\x00", 3, ZMQ_SNDMORE), loggerName, message);
     //Log level frame

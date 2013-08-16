@@ -140,7 +140,7 @@ class Connection:
                 % (ord(msgParts[0][3]),  errorMsg))
     def serverInfo(self):
         """
-        Send a server info request to the client
+        Send a server info request to the server and return the version string
         @return The server version string
         """
         self._checkRequestReply()
