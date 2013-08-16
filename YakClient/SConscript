@@ -23,7 +23,10 @@ yaklibSrc = ["src/MetaRequests.cpp",
     "src/Batch.cpp"
 ]
 
-env.Library(target="yakclient",source=yaklibSrc,CPPPATH="include")
-env.SharedLibrary(target="yakclient",source=yaklibSrc,CPPPATH="include")
+libyakclientA = env.Library(target="yakclient",source=yaklibSrc,CPPPATH="include")
+libyakclientSO = env.SharedLibrary(target="yakclient",source=yaklibSrc,CPPPATH="include")
+env.Install("/usr/local/lib", libyakclientA)
+env.Install("/usr/local/lib", libyakclientSO)
+env.Alias('install', '/usr/local/lib')
 #env.Program(target="kvc", source=zkvSource,LIBS=libraries)
 
