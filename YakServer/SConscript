@@ -21,7 +21,11 @@ linkflags.append("-pthread")
 linkflags.append("-Wl,-rpath=.")
 #linkflags.append("-static-libgcc")
 
-env = Environment(CXXFLAGS=cxxflags,
+#C++ compiler now defaults to clang++ because it has better error messages.
+cxx = ARGUMENTS.get('cxx','clang++')
+
+env = Environment(CXX=cxx,
+		  CXXFLAGS=cxxflags,
                   LINKFLAGS=linkflags,
                   ENV = {'PATH' : os.environ['PATH'],
                          'TERM' : os.environ['TERM'],

@@ -6,7 +6,8 @@
  */
 
 #ifndef DBCLIENT_HPP
-#define	DBCLIENT_HPP
+#define DBCLIENT_HPP
+
 #include <czmq.h>
 #include <exception>
 #include <string>
@@ -30,7 +31,7 @@ enum class SocketType : uint8_t {
  * 
  * This interface automatically handles write batching.
  */
-class DKVClient {
+class YakClient {
     static const int PARTSYNC = 0x01;
     static const int FULLSYNC = 0x02;
 public:
@@ -38,25 +39,32 @@ public:
      * Creates a new client using a new ZeroMQ context that is automatically
      * destroyed when this instance is destructed
      */
-    DKVClient();
+    YakClient();
+    /**
+     * Creates a new client using a new ZeroMQ context that is automatically
+     * destroyed when this instance is destructed.
+     * 
+     * This constructor automatically connects to a REQ endpoint.
+     */
+    YakClient(const char* endpoint);
     /**
      * Creates a new DKV client reusing an existing ZeroMQ context.
      * The context will not be destroyed even if the DKVClient instance is
      * destructed
      */
-    DKVClient(zctx_t* ctx);
+    YakClient(zctx_t* ctx);
     /**
      * Destructor that only destroyess the underlying context if the corresponding option is set
      */
-    ~DKVClient();
+    ~YakClient();
     /**
      * Connect to a request/reply host.
      * This allows both read and write access, but write requests need to wait for an acknowledge reply.
      * Therefore the effective (especially burst) transfer rate is                                                                                                    a bit lower
      * 
-     * @param host The host URI, e.g. "tcp://10.10.1.1:7100"
+     * @param endpoint The endpoint URI, e.g. "tcp://10.10.1.1:7100"
      */
-    void connectRequestReply(const char* host);
+    void connectRequestReply(const char* endpoint);
     /**
      * Connect to a pull host.
      * This connection method only allows write requests, but is able to achieve

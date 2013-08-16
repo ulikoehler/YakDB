@@ -1,6 +1,9 @@
 #Use colorgcc and C++11
 import os
-env = Environment(CXXFLAGS=["-std=c++0x","-march=core2"],CPPPATH='../ZKVStore',ENV =
+
+cxx = ARGUMENTS.get('cxx','clang++')
+
+env = Environment(CXX=cxx,CXXFLAGS=["-std=c++0x","-march=core2"],CPPPATH='../ZKVStore',ENV =
 						{'PATH' : os.environ['PATH'],
                          'TERM' : os.environ['TERM'],
                          'HOME' : os.environ['HOME']})
@@ -10,12 +13,14 @@ optimize = ARGUMENTS.get('optimize', 0)
 if int(enableDebug):
 	env.Append(CCFLAGS = '-g')
 
+
 libraries = ["zmq","czmq"]
 
 yaklibSrc = ["src/MetaRequests.cpp",
     "src/ReadRequests.cpp",
     "src/WriteRequests.cpp",
-    "src/dbclient.cpp"
+    "src/YakClient.cpp",
+    "src/Batch.cpp"
 ]
 
 env.Library(target="yakclient",source=yaklibSrc,CPPPATH="include")

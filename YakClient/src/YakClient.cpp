@@ -5,21 +5,25 @@
  * Created on 30. April 2013, 20:17
  */
 
-#include "dbclient.hpp"
+#include "YakClient.hpp"
 #include "ReadRequests.hpp"
 #include "WriteRequests.hpp"
 #include "MetaRequests.hpp"
 
 
-DKVClient::DKVClient() : context(zctx_new()), destroyContextOnExit(true), socketType(SocketType::None) {
+YakClient::YakClient() : context(zctx_new()), destroyContextOnExit(true), socketType(SocketType::None) {
     //Nothing to be done here
 }
 
-DKVClient::DKVClient(zctx_t* ctx) : context(ctx), destroyContextOnExit(false) {
+YakClient::YakClient(const char* endpoint) : context(zctx_new()), destroyContextOnExit(true), socketType(SocketType::None) {
+    connectRequestReply(endpoint);
+}
+
+YakClient::YakClient(zctx_t* ctx) : context(ctx), destroyContextOnExit(false) {
     //Nothing to be done here
 }
 
-DKVClient::~DKVClient() {
+YakClient::~YakClient() {
     if (socket) {
         zsocket_destroy(context, socket);
     }
@@ -28,19 +32,19 @@ DKVClient::~DKVClient() {
     }
 }
 
-void DKVClient::connectRequestReply(const char* url) {
+void YakClient::connectRequestReply(const char* url) {
     socket = zsocket_new(context, ZMQ_REQ);
     zsocket_connect(socket, url);
     socketType = SocketType::ReqRep;
 }
 
-void DKVClient::connectPushPull(const char* url) {
+void YakClient::connectPushPull(const char* url) {
     socket = zsocket_new(context, ZMQ_PUSH);
     zsocket_connect(socket, url);
     socketType = SocketType::PushPull;
 }
 
-int DKVClient::put(uint32_t table, const std::string& key, const std::string& value, uint8_t flags) {
+int YakClient::put(uint32_t table, const std::string& key, const std::string& value, uint8_t flags) {
     if (PutRequest::sendHeader(socket, table, flags) == -1) {
         return -1;
     }
@@ -54,7 +58,7 @@ int DKVClient::put(uint32_t table, const std::string& key, const std::string& va
     return 0;
 }
 
-int DKVClient::put(uint32_t table, const char* key, size_t keySize, const char* value, size_t valueSize, uint8_t flags) {
+int YakClient::put(uint32_t table, const char* key, size_t keySize, const char* value, size_t valueSize, uint8_t flags) {
     if (PutRequest::sendHeader(socket, table, flags) == -1) {
         return -1;
     }
@@ -68,7 +72,7 @@ int DKVClient::put(uint32_t table, const char* key, size_t keySize, const char* 
     return 0;
 }
 
-int DKVClient::put(uint32_t table, const char* key, const char* value, uint8_t flags) {
+int YakClient::put(uint32_t table, const char* key, const char* value, uint8_t flags) {
     if (PutRequest::sendHeader(socket, table, flags) == -1) {
         return -1;
     }
@@ -82,7 +86,7 @@ int DKVClient::put(uint32_t table, const char* key, const char* value, uint8_t f
     return 0;
 }
 
-int DKVClient::read(uint32_t table, const std::string& key, std::string& value) {
+int YakClient::read(uint32_t table, const std::string& key, std::string& value) {
     if(!isRequestReply()) {
         return -1;
     }
@@ -104,7 +108,7 @@ int DKVClient::read(uint32_t table, const std::string& key, std::string& value) 
     return 0;
 }
 
-int DKVClient::read(uint32_t table, const char* key, std::string& value) {
+int YakClient::read(uint32_t table, const char* key, std::string& value) {
     if(!isRequestReply()) {
         return -1;
     }
@@ -126,7 +130,7 @@ int DKVClient::read(uint32_t table, const char* key, std::string& value) {
     return 0;
 }
 
-int DKVClient::read(uint32_t table, const std::vector<std::string>& keys, std::vector<std::string>& values) {
+int YakClient::read(uint32_t table, const std::vector<std::string>& keys, std::vector<std::string>& values) {
     if(!isRequestReply()) {
         return -1;
     }
@@ -162,7 +166,7 @@ int DKVClient::read(uint32_t table, const std::vector<std::string>& keys, std::v
     return 0;
 }
 
-int DKVClient::exists(uint32_t table, const std::string& key) {
+int YakClient::exists(uint32_t table, const std::string& key) {
     if(!isRequestReply()) {
         return -1;
     }
@@ -181,10 +185,10 @@ int DKVClient::exists(uint32_t table, const std::string& key) {
     ExistsRequest::receiveResponseValue(socket);
 }
 
-int DKVClient::exists(uint32_t table, const std::vector<std::string>& keys, std::vector<bool>& result) {
+int YakClient::exists(uint32_t table, const std::vector<std::string>& keys, std::vector<bool>& result) {
 
 }
 
-int64_t DKVClient::count(uint32_t table, const std::string& from, const std::string& to) {
+int64_t YakClient::count(uint32_t table, const std::string& from, const std::string& to) {
 
 }
