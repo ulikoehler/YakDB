@@ -1,27 +1,31 @@
 #include "HTTPServer.hpp"
 #include <czmq.h>
 #include <iostream>
+#include <sstream>
 #include "zutil.hpp"
 
 #define controlEndpoint "inproc://http/control"
 
 using namespace std;
 
-YakHTTPServer::YakHTTPServer(zctx_t* ctxParam, const std::string& endpoint) : ctx(ctxParam), logger(ctx, "HTTP Server") {
-    logger.debug("Binding HTTP server to " + endpoint);
-    routerSocket = zsocket_new(ctx, ZMQ_ROUTER);
+YakHTTPServer::YakHTTPServer(zctx_t* ctxParam, const std::string& endpointParam) : ctx(ctxParam), logger(ctx, "HTTP Server"), endpoint(endpointParam) {
     controlSocket = zsocket_new_bind(ctx, ZMQ_PAIR, controlEndpoint);
-    zsocket_set_router_raw(routerSocket, 1);
-    //TODO proper error handling
-    assert(zsocket_bind(routerSocket, endpoint.c_str()) != -1);
+
     //Start thread
     thread = new std::thread(std::mem_fun(&YakHTTPServer::workerMain), this);
 }
 
 void YakHTTPServer::workerMain() {
+    //TODO proper error handling
     logger.trace("HTTP Server starting");
+    //Initialize router socket
+    void* routerSocket = zsocket_new(ctx, ZMQ_ROUTER);
+    zsocket_set_router_raw(routerSocket, 1);
+    assert(zsocket_bind(routerSocket, endpoint.c_str()) != -1);
+    //Initialize other stuff
     zmq_msg_t replyAddr;
     zmq_msg_init(&replyAddr);
+    //Initialize control socket
     void* controlRecvSocket = zsocket_new_connect(ctx, ZMQ_PAIR, controlEndpoint);
     zmq_pollitem_t items[2];
     items[0].socket = routerSocket;
@@ -37,24 +41,30 @@ void YakHTTPServer::workerMain() {
             zmq_recv(controlRecvSocket, nullptr, 0, 0);
             break;
         }
-        int rc = zmq_msg_recv(&replyAddr, routerSocket, 0);
-        assert(rc != -1);
-        assert(zmq_msg_more(&replyAddr));
+        assert(items[0].revents);
+        assert(zmq_msg_recv(&replyAddr, routerSocket, 0) != -1);
         char *request = zstr_recv (routerSocket);
-        puts (request);     //  Professional Logging(TM)
-        free (request);     //  We throw this away
-
+        cout << "R: " << request;
+        free(request);
+        assert(zsocket_rcvmore(routerSocket));
+        //Receive the request
+        /*ostringstream requestBuffer;
+        while(zsocket_rcvmore(routerSocket)) {
+            //cout << "RP " << endl;
+            //requestBuffer << std::string(request);
+        }
+        cout << requestBuffer.str() << endl;*/
         //Send main response
-        zmq_send (routerSocket, zmq_msg_data(&replyAddr), zmq_msg_size(&replyAddr), ZMQ_MORE);
-        zstr_send (routerSocket,
-            "HTTP/1.0 200 OK\r\n"
+        assert(zmq_send (routerSocket, zmq_msg_data(&replyAddr), zmq_msg_size(&replyAddr), ZMQ_SNDMORE) != -1);
+        assert(zstr_send (routerSocket,
+            "HTTP/1.1 200 OK\r\n"
             "Content-Type: text/plain\r\n"
             "\r\n"
-            "Hello, World!");
+            "Hello, World!") != -1);
 
         //Close TCP connection
-        zmq_msg_send (&replyAddr, routerSocket, ZMQ_MORE);
-        zmq_send (routerSocket, NULL, 0, 0);
+        assert(zmq_msg_send (&replyAddr, routerSocket, ZMQ_SNDMORE) != -1);
+        sendEmptyFrameMessage(routerSocket);
     }
     logger.debug("HTTP Server terminating...");
     zsocket_destroy(ctx, controlRecvSocket);

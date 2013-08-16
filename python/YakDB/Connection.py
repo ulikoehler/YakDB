@@ -324,7 +324,7 @@ class Connection:
             for i in range(len(values)):
                 res[keys[i]] = values[i]
             return res
-    def scan(self, tableNo, fromKey=None, toKey=None, limit=None):
+    def scan(self, tableNo, fromKey=None, toKey=None, limit=None, keyFilter=None, valueFilter=None):
         """
         Synchronous scan. Scans an entire range at once.
         The scan stops at the table end, toKey (exclusive) or when
@@ -337,6 +337,8 @@ class Connection:
         @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
         @param limit The maximum number of keys to read, or None, if no limit shall be imposed
+        @param keyFilter If this is non-None, the server filters for keys containing (exactly) this substring
+        @param valueFilter If this is non-None, the server filters for values containing (exactly) this substring
         @return A dictionary of the returned key/value pairs
         """
         #Check parameters and create binary-string only key list
@@ -355,7 +357,13 @@ class Connection:
         else: #We have a limit
             self._sendBinary64(limit)
         #Send range. "" --> empty frame --> start/end of table
-        self._sendRange(fromKey,  toKey)
+        self._sendRange(fromKey,  toKey, more=True)
+        #Send key filter parameters
+        if keyFilter is None: self.socket.send("", zmq.SNDMORE)
+        else: self.socket.send(keyFilter, zmq.SNDMORE)
+        #Send value filter parameters
+        if valueFilter is None: self.socket.send("")
+        else: self.socket.send(valueFilter)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x13') #Remap the returned key/value pairs to a dict

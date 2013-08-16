@@ -14,7 +14,6 @@ including (all optional):
     - A ROUTER socket for mapreduce requests
     - A PUB socket for publishing log messages
 
-
 ## General behaviour
 
 For request/reply sockets the server shall always send an response.
@@ -284,6 +283,15 @@ The scan ends when one of the following conditions are met:
 * Frame 2: 64-bit unsigned limit. If this is zero-sized, no limit is imposed
 * Frame 3: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 4: End key (exclusive). If this has zero length, the count ends at the last key
+* Frame 5: Key substring filter (frame shall be zero-sized if no filter shall be applied)
+* Frame 6: Value substring filter (frame shall be zero-sized if no filter shall be applied)
+
+The substring filter provides fast (Boyer-Moore-Horspool) server-side filtering for keys and values.
+Only 
+Filtered keys don't decrease the key-value count that is used to check the limit.
+In any case, the filters are compared in a case-sensitive way on a char-by-char basis.
+
+Regardless of filters, the scan will stop at the end key.
 
 ##### Scan response:
 

@@ -247,6 +247,15 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     }
     bool haveRangeStart = !(rangeStartStr.empty());
     bool haveRangeEnd = !(rangeEndStr.empty());
+    //Parse the filter frames
+    std::string keyFilterStr = "";
+    std::string valueFilterStr = "";
+    if(!expectNextFrame("Expected key filter frame", true, errorResponse)) {
+        return;
+    }
+    if(!expectNextFrame("Expected key filter frame", true, errorResponse)) {
+        return;
+    }
     //Convert the str to a slice, to compare the iterator slice in-place
     leveldb::Slice rangeEndSlice(rangeEndStr);
     //Do the compaction (takes LONG)

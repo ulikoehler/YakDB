@@ -126,6 +126,13 @@ protected:
             const char* errorResponse,
             bool generateResponse=true);
     /**
+     * Same behaviour as receiveMsgHandleError(), but stores the frame in a string instead of a message.
+     */
+    bool receiveStringFrame(std::string& frame,
+            const char* errName,
+            const char* errorResponse,
+            bool generateResponse=true);
+    /**
      * Send a single message over this.processorOutputSocket
      * Automatically handles errors if neccessary.
      * 

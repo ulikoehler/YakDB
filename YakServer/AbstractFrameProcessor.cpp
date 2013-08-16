@@ -261,6 +261,19 @@ bool AbstractFrameProcessor::receiveMsgHandleError(zmq_msg_t* msg,
     return true;
 }
 
+bool AbstractFrameProcessor::receiveStringFrame(std::string& frame,
+            const char* errName,
+            const char* errorResponse,
+            bool generateResponse) {
+    zmq_msg_t msg;
+    bool rc = receiveMsgHandleError(&msg, errName, errorResponse, generateResponse);
+    if(unlikely(!rc)) {
+        return false;
+    }
+    frame = std::string((char*)zmq_msg_data(&msg), zmq_msg_size(&msg));
+    return true;
+}
+
 bool AbstractFrameProcessor::sendMsgHandleError(zmq_msg_t* msg,
         int flags,
         const char* errName,

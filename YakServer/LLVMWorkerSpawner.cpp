@@ -5,11 +5,27 @@
  * 
  * Do not even try to link this into the main application yet!
  */
-/**
- * We want to avoid including a shitload of LLVM headers from anywhere else.
- */
-struct StateWorker {
-    LLVMContext* context;
+
+
+LLVMWorkerThread::LLVMWorkerThread(zctx_t* ctxParam, const std::string& endpoint,  Module* m) :
+    inSocket(zsocket_new_connect(ctxParam, push),
+    ctx(ctxParam) {
+    thread = 
+}
+
+LLVMWorkerThread::~LLVMWorkerThread() {
+    
+}
+
+void LLVMWorkerThread::workerMain() {
+    //Initialize the worker
+    ExecutionEngine *ee = ExecutionEngine::create(m);
+    typedef void (*PFN)(int id);
+    PFN pfn = reinterpret_cast<PFN>(ee->getPointerToFunction(func));
+}
+
+std::thread* getThread() {
+    return thread;
 }
 
 /**

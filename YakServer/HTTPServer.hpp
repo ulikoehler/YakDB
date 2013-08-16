@@ -28,7 +28,7 @@ public:
     ~YakHTTPServer();
 private:
     void workerMain();
-    void* routerSocket;
+    std::string endpoint;
     /**
      * This is used to send control messages to the HTTP server
      * (currently STOP command

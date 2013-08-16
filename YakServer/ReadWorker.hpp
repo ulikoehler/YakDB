@@ -9,6 +9,7 @@
 #define	READWORKER_HPP
 #include <thread>
 #include <czmq.h>
+#include "BoyerMoore.hpp"
 #include "Tablespace.hpp"
 #include "AbstractFrameProcessor.hpp"
 
