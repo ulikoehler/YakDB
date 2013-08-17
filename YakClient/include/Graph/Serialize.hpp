@@ -22,13 +22,13 @@ char* serializeBasicAttributes(const MapType& map, size_t& size) {
         size_t keySize = pair.first.size();
         memcpy(curPos, pair.first.c_str(), keySize);
         curPos += keySize;
-        *curPos = 0;
+        *curPos = 0x1F;
         curPos++;
         //Write value
         size_t valSize = pair.second.size();
         memcpy(curPos, pair.second.c_str(), valSize);
         curPos += valSize;
-        *curPos = 0;
+        *curPos = 0x1E;
         curPos++;
     }
     return data;

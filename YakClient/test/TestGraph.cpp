@@ -15,7 +15,7 @@ BOOST_AUTO_TEST_CASE(TestBasicAttributeSerialization) {
     myMap["key1"] = "value1";
     myMap["mykey2"] = "mv2";
     myMap["k3"] = "myvalue3";
-    const char expected[] = "k3\x00myvalue3\x00key1\x00value1\x00mykey2\x00mv2\x00";
+    const char expected[] = "k3\x1Fmyvalue3\x1Ekey1\x1Fvalue1\x1Emykey2\x1Fmv2\x1E";
     size_t actualSize;
     char* actual = serializeBasicAttributes(myMap, actualSize);
     string str(actual, actualSize);
