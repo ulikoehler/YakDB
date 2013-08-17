@@ -28,5 +28,15 @@ BOOST_AUTO_TEST_CASE(TestBasicAttributeSerialization) {
     BOOST_CHECK(memcmp(expected, actual, actualSize) == 0);
 }
 
+//Tests the extattr key serialization
+BOOST_AUTO_TEST_CASE(TestExtendedAttributeSerialization) {
+    const char expected[] = "myEntityId\x1Dthekey";
+    size_t actualSize;
+    char* actual = serializeExtAttrId("myEntityId","thekey",actualSize);
+    BOOST_CHECK_EQUAL(actualSize, sizeof(expected) - 1);
+    BOOST_CHECK(memcmp(expected, actual, actualSize) == 0);
+    
+}
+
 
 BOOST_AUTO_TEST_SUITE_END()

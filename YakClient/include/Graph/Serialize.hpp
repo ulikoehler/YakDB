@@ -1,5 +1,7 @@
 #ifndef __GRAPH_SERIALIZE_HPP
 #define __GRAPH_SERIALIZE_HPP
+#include <string>
+#include <cstdint>
 
 /**
  * Serialize a basic attribute set
@@ -33,5 +35,19 @@ char* serializeBasicAttributes(const MapType& map, size_t& size) {
     }
     return data;
 }
+
+/**
+ * Serialize the key (=ID) of an extended attribute.
+ * @return A new[]-allocated char array containing the entity ID.
+ *      The targetSize parameter is set to the number of bytes in that array.
+ * @param size The size of the returned array
+ */
+char* serializeExtAttrId(const std::string& entityId, const std::string& key, size_t& targetSize);
+char* serializeExtAttrId(const char* entityId,
+                         size_t entityIdLength,
+                         const char* key,
+                         size_t keyLength,
+                         size_t& targetSize
+                        );
 
 #endif //__GRAPH_SERIALIZE_HPP

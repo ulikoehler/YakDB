@@ -20,7 +20,8 @@ yaklibSrc = ["src/MetaRequests.cpp",
     "src/ReadRequests.cpp",
     "src/WriteRequests.cpp",
     "src/YakClient.cpp",
-    "src/Batch.cpp"
+    "src/Batch.cpp",
+    "src/Graph.cpp"
 ]
 
 testSrc = [
