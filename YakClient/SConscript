@@ -23,8 +23,14 @@ yaklibSrc = ["src/MetaRequests.cpp",
     "src/Batch.cpp"
 ]
 
+testSrc = [
+    "test/TestGraph.cpp",
+    "test/TestMain.cpp"
+]
+
 libyakclientA = env.Library(target="yakclient",source=yaklibSrc,CPPPATH="include")
 libyakclientSO = env.SharedLibrary(target="yakclient",source=yaklibSrc,CPPPATH="include")
+env.Program(target="yakctest",source=testSrc, CPPPATH="include", LIBS=["boost_unit_test_framework",libyakclientA,"zmq","czmq"],LDPATH="../clientbuild")
 env.Install("/usr/local/lib", libyakclientA)
 env.Install("/usr/local/lib", libyakclientSO)
 env.Alias('install', '/usr/local/lib')
