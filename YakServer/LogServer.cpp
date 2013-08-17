@@ -43,9 +43,7 @@ void COLD LogServer::terminate() {
         //We need to create a temporary client socket
         void* tempSocket = zsocket_new_connect(ctx, ZMQ_PUSH, endpoint.c_str());
         //Send the STOP message to the worker thread
-        zmq_msg_t msg;
-        fillMsgConst(&msg, "\x55\x01\xFF", 3);
-        if(zmq_msg_send(&msg, tempSocket, 0) == -1) {
+        if(zmq_send(tempSocket, "\x55\x01\xFF", 3, 0) == -1) {
             logMessageSendError("Log server thread stop message", logger);
         }
         thread->join(); //Wait until it exits

@@ -171,28 +171,40 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
                 options.compression = (parameters->compressionEnabled ? leveldb::kSnappyCompression : leveldb::kNoCompression);
                 //Set optional parameters
                 if (parameters->lruCacheSize != UINT64_MAX) {
-                    logger.trace("LRU cache size : " + std::to_string(parameters->lruCacheSize));
-                    options.block_cache = leveldb::NewLRUCache(parameters->lruCacheSize);
+                    //0 --> disable
+                    if(parameters->lruCacheSize > 0) {
+                        options.block_cache = leveldb::NewLRUCache(parameters->lruCacheSize);
+                    }
                 } else {
                     //Use a small LRU cache per default, because OS cache doesn't cache uncompressed data
                     // , so it's really slow in random-access-mode for uncompressed data
-                    options.block_cache = leveldb::NewLRUCache(1024 * 1024 * 16);
+                    options.block_cache = leveldb::NewLRUCache(configParser.getDefaultTableBlockSize());
                 }
                 if (parameters->tableBlockSize != UINT64_MAX) {
                     options.block_size = parameters->tableBlockSize;
                 } else { //Default table block size (= more than LevelDB default)
-                    options.block_size = 256*1024; //256k, LevelDB default = 4k
+                    //256k, LevelDB default = 4k
+                    options.block_size = configParser.getDefaultTableBlockSize(); 
                 }
                 if (parameters->writeBufferSize != UINT64_MAX) {
                     options.write_buffer_size = parameters->writeBufferSize;
                 } else {
                     //To counteract slow writes on slow HDDs, we now use a WB per default
                     //The default is tuned not to use too much buffer memory at once
-                    options.write_buffer_size = 1024 * 1024 * 64; //64 Mibibytes
+                    options.write_buffer_size = configParser.getDefaultWriteBufferSize(); //64 Mibibytes
                 }
                 if (parameters->bloomFilterBitsPerKey != UINT64_MAX) {
-                    options.filter_policy
-                            = leveldb::NewBloomFilterPolicy(parameters->bloomFilterBitsPerKey);
+                    //0 --> disable
+                    if(parameters->lruCacheSize > 0) {
+                        options.filter_policy
+                                = leveldb::NewBloomFilterPolicy(parameters->bloomFilterBitsPerKey);
+                    }
+                } else {
+                    if(configParser.getDefaultBloomFilterBitsPerKey() > 0) {
+                        options.filter_policy
+                                = leveldb::NewBloomFilterPolicy(
+                                    configParser.getDefaultBloomFilterBitsPerKey());
+                    }
                 }
                 //Open the table
                 leveldb::Status status = leveldb::DB::Open(options, tableDir.c_str(), &databases[tableIndex]);

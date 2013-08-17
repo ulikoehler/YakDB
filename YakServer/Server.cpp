@@ -299,9 +299,6 @@ httpServer(ctx, configParserParam.getHTTPEndpoint()),
 logger(ctx, "Request router"),
 configParser(configParserParam)
  {
-    static const char* reqRepUrl = "tcp://*:7100";
-    static const char* writeSubscriptionUrl = "tcp://*:7101";
-    static const char* errorPubUrl = "tcp://*:7102";
     //Start the log server and configure logsinks
     logServer.addLogSink(new StderrLogSink());
     if(!configParser.getLogFile().empty()) {

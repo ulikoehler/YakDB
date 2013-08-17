@@ -242,7 +242,7 @@ static inline int proxyMultipartMessage(void* srcSocket, void* dstSocket, const 
     zmq_msg_t msg;
     zmq_msg_init(&msg);
     bool rcvmore = socketHasMoreFrames(srcSocket);
-    int frameCounter;
+    int frameCounter = 0;
     while (rcvmore) {
         if(zmq_msg_recv(&msg, srcSocket, 0) == -1) {
             return -1;
@@ -333,20 +333,6 @@ zframe_t* createConstFrame(const char* data, size_t size);
  * @return 
  */
 zframe_t* createConstFrame(const char* data);
-
-
-/**
- * Create a new frame of constant data.
- * The data will not be deallocated after usage.
- * strlen(data) is used as size.
- * @param msg The message to initialize
- * @param data The data
- * @param length The number of bytes in data
- * @return -1 on error (out of memory) 
- */
-static int fillMsgConst(zmq_msg_t* msg, const void* data, size_t length) {
-	return zmq_msg_init_data(msg, (void*)data, length, nullptr, nullptr);
-}
 
 
 void zmsg_remove_destroy(zmsg_t* msg, zframe_t** frame);

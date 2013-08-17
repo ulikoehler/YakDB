@@ -22,6 +22,11 @@ public:
      * and then only execute the server from the same directory.
      */
     void saveConfigFile();
+    uint64_t getDefaultLRUCacheSize();
+    uint64_t getDefaultTableBlockSize();
+    uint64_t getDefaultWriteBufferSize();
+    uint64_t getDefaultBloomFilterBitsPerKey();
+    bool isCompressionEnabledPerDefault();
 private:
     std::string logFile;
     std::vector<std::string> repEndpoints;
@@ -29,6 +34,11 @@ private:
     std::vector<std::string> subEndpoints;
     std::string httpEndpoint;
     bool ipv4Only;
+    uint64_t defaultLRUCacheSize;
+    uint64_t defaultTableBlockSize;
+    uint64_t defaultWriteBufferSize;
+    uint64_t defaultBloomFilterBitsPerKey;
+    bool compressionEnabledPerDefault;
 };
 
 #endif //CONFIGPARSER_HPP

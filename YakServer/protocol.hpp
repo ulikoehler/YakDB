@@ -30,7 +30,7 @@ const uint8_t protocolVersion = 0x01;
  */
 inline static bool COLD checkProtocolVersion(const char* data, size_t size, std::string& errorDescription) {
     if (size < 3) {
-        errorDescription = "Protocol error: Header frame size too small: " + size;
+        errorDescription = "Protocol error: Header frame size too small: " + std::to_string(size);
         return false;
     }
     if (data[0] != 0x31) {

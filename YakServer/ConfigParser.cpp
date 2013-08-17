@@ -43,7 +43,16 @@ void ConfigParser::saveConfigFile() {
     for(string endpoint : subEndpoints) {
         fout << "sub-endpoint=" << endpoint << '\n';
     }
-    fout << "ipv4-only=" << ipv4Only << '\n';
+    if(ipv4Only) {
+        fout << "ipv4-only" << '\n';
+    }
+    fout << "lru-cache-size=" << defaultLRUCacheSize << '\n';
+    fout << "table-block-size=" << defaultTableBlockSize << '\n';
+    fout << "write-buffer-size=" << defaultWriteBufferSize << '\n';
+    fout << "bloom-filter-bits-per-key=" << defaultBloomFilterBitsPerKey << '\n';
+    if(!compressionEnabledPerDefault) {
+        fout << "disable-compression" << '\n';
+    }
     fout.close();
 }
     
@@ -78,9 +87,25 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
             "The endpoint the internal HTTP server will listen on. Defaults to tcp://*:7109")
         ("ipv4-only,4","By default the application uses IPv6 sockets to bind to both IPv6 and IPv4. This option tells the application not to use IPv6 capable sockets.")
     ;
+    po::options_description tableOptions("Table options");
+    tableOptions.add_options()
+        ("lru-cache-size",
+            po::value<uint64_t>(&defaultLRUCacheSize)->default_value(1024 * 1024 * 16),
+            "Set the default LRU cache size in bytes. Overriden by table-specific options.")
+        ("table-block-size",
+            po::value<uint64_t>(&defaultTableBlockSize)->default_value(256*1024),
+            "Set the default table block size in bytes. Overriden by table-specific options.")
+        ("write-buffer-size",
+            po::value<uint64_t>(&defaultWriteBufferSize)->default_value(1024 * 1024 * 64),
+            "Set the default write buffer size in bytes. Overriden by table-specific options.")
+        ("bloom-filter-bits-per-key",
+            po::value<uint64_t>(&defaultBloomFilterBitsPerKey)->default_value(0),
+            "Set the default bits per key for the bloom filter. Set to 0 to disable bloom filter. Overriden by table-specific options.")
+        ("disable-compression,d","By default table compression is enabled for all unconfigured tables. If this option is used, table compression is disabled by default. Overridden by table-specific options.")
+    ;
     //Create the main options group
     po::options_description desc("Options");
-    desc.add(generalOptions).add(socketOptions);
+    desc.add(generalOptions).add(socketOptions).add(tableOptions);
     
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -120,7 +145,9 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
         cout << desc << endl;
         exit(1);
     }
+    //Get bool-ish options
     this->ipv4Only = (vm.count("ipv4-only") > 0);
+    this->compressionEnabledPerDefault = (vm.count("disable-compression") > 0);
     //Write the config data to the config file unless there are no arguments
     if(argc > 1 || (processedConfigFile && configFileName != "yak.cfg")) {
         saveConfigFile();
@@ -150,4 +177,24 @@ const bool ConfigParser::isIPv4Only() {
 
 const std::string& ConfigParser::getHTTPEndpoint() {
     return httpEndpoint;
+}
+
+uint64_t ConfigParser::getDefaultLRUCacheSize() {
+    return defaultLRUCacheSize;
+}
+
+uint64_t ConfigParser::getDefaultTableBlockSize() {
+    return defaultTableBlockSize;
+}
+
+uint64_t ConfigParser::getDefaultWriteBufferSize() {
+    return defaultWriteBufferSize;
+}
+
+uint64_t ConfigParser::getDefaultBloomFilterBitsPerKey() {
+    return defaultBloomFilterBitsPerKey;
+}
+
+bool ConfigParser::isCompressionEnabledPerDefault() {
+    return compressionEnabledPerDefault;
 }
