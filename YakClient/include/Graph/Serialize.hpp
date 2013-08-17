@@ -39,7 +39,7 @@ char* serializeBasicAttributes(const MapType& map, size_t& size) {
 /**
  * Serialize the key (=ID) of an extended attribute.
  * @return A new[]-allocated char array containing the entity ID.
- *      The targetSize parameter is set to the number of bytes in that array.
+ *      The calculatedLength parameter is set to the number of bytes in that array.
  * @param size The size of the returned array
  */
 char* serializeExtAttrId(const std::string& entityId, const std::string& key, size_t& targetSize);
@@ -47,7 +47,33 @@ char* serializeExtAttrId(const char* entityId,
                          size_t entityIdLength,
                          const char* key,
                          size_t keyLength,
-                         size_t& targetSize
+                         size_t& calculatedLength
                         );
+
+/**
+ * Serialize both edge IDs at once
+ * @param sourceNodeId The source node identifier
+ * @param targetNodeId The target node identifier
+ * @param type The edge type
+ * @param calculatedLength This will be set to the number of valid chars in forwardTarget and backwardTarget
+ * @param forwardTarget A new[] allocated pointer to the forward edge ID will be placed here
+ * @param backwardTarget A new[] allocated pointer to the backward edge ID will be placed here
+ */
+void serializeEdgeId(const std::string& sourceNodeId,
+                     const std::string& targetNodeId,
+                     const std::string& edgeType,
+                     size_t& calculatedLength,
+                     char** forwardTarget,
+                     char** backwardTarget);
+void serializeEdgeId(const char* sourceNodeId,
+                   size_t sourceNodeIdLength,
+                   const char* targetNodeId,
+                   size_t targetNodeIdLength,
+                   const char* type,
+                   size_t typeLength,
+                   size_t& calculatedLength,
+                   char** forwardTarget,
+                   char** backwardTarget
+                  );
 
 #endif //__GRAPH_SERIALIZE_HPP
