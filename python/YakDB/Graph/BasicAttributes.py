@@ -83,28 +83,19 @@ class BasicAttributes(object):
         @param attrSet A string containing the serialized attributes
         @return A dictionary of the parsed values
         
-        >>> BasicAttributes._parseAttributeSet("k1\\x00val1\\x00key2\\x00value2\\x00")
+        >>> BasicAttributes._parseAttributeSet("k1\\x1Fval1\\x1Ekey2\\x1Fvalue2\\x1E")
         {'key2': 'value2', 'k1': 'val1'}
         >>> BasicAttributes._parseAttributeSet("")
         {}
         """
         ret = {}
-        currentlyInValue = False
-        currentKey = ""
-        currentValue = ""
-        for c in attrSet:
-            #Check for cstring NUL delimiter
-            if ord(c) == 0:
-                if currentlyInValue:
-                    ret[currentKey] = currentValue
-                    currentKey = ""
-                    currentValue = ""
-                currentlyInValue = not currentlyInValue
-            else: #It's not a NUL delimiter
-                if currentlyInValue:
-                    currentValue += c
-                else:
-                    currentKey += c
+        while len(attrSet) > 0:
+            keyEnd = attrSet.index('\x1F')
+            valueEnd = attrSet.index('\x1E')
+            key = attrSet[:keyEnd]
+            value = attrSet[keyEnd+1:valueEnd]
+            attrSet = attrSet[valueEnd+1:]
+            ret[key] = value
         return ret
     @staticmethod
     def _serialize(attrDict):
@@ -113,9 +104,9 @@ class BasicAttributes(object):
         database.
         
         >>> BasicAttributes._serialize({'key1': 'value1', 'k2': 'val2'})
-        'k2\\x00val2\\x00key1\\x00value1\\x00'
+        'k2\\x1fval2\\x1ekey1\\x1fvalue1\\x1e'
         """
-        serializedAttrs = ["%s\x00%s\x00" % (key,value)
+        serializedAttrs = ["%s\x1F%s\x1E" % (key,value)
                            for key, value in attrDict.iteritems()]
         return b"".join(serializedAttrs)
 

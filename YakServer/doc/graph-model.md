@@ -119,10 +119,16 @@ at least the following functions (in a language-specific manner)
 
 ## Basic attribute serialization format
 
-Basic attributes shall be saved as values in the tables of their respective entities
+Basic attributes shall be saved as values in the tables of their respective entities.
+The serialization format is designed so searching for any individual value is fast and
+requires only one iteration over the basic attribute string.
+
+Additionally, it shall be possible to zero-copy-convert the basic attribute binary string
+to a consecutive list of NUL-terminated cstrings by only replacing a set of characters
+(\x1E and \x1F) by binary NULs.
 
 The value shall be defined by the following EBNF grammar:
-    KeyValueComposite = NUL delimited Identifier (* Attribute key *), NUL delimited Identifier (* Attribute value *);
+    KeyValueComposite = Identifier (* Attribute key *), '\x1F', Identifier (* Attribute value *), '\x1E';
     Serialized attribute set = {KeyValueComposite} ;
 where *Serialized attribute set* denotes the value that shall be written to the database.
 
