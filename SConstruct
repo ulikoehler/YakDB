@@ -8,7 +8,7 @@ config = {}
 config["git_rev"] = subprocess.check_output(["git", "rev-parse", "HEAD"]).strip()
 is_clean = subprocess.call(["git", "diff-index", "--quiet", config["git_rev"]]) == 0
 config["git_clean_version"] = 1 if is_clean else 0
-with open("include/autoconfig.h", "w") as configfile:
+with open("YakServer/include/autoconfig.h", "w") as configfile:
         configfile.write("""#ifndef AUTOCONFIG_H
 #define SERVER_VERSION "YakDB 0.1 alpha"
 #define AUTOCONFIG_H

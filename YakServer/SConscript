@@ -32,6 +32,7 @@ if stdlib != "default":
 env = Environment(CXX=cxx,
 		  CXXFLAGS=cxxflags,
                   LINKFLAGS=linkflags,
+                  CPPPATH=["include"],
                   ENV = {'PATH' : os.environ['PATH'],
                          'TERM' : os.environ['TERM'],
                          'HOME' : os.environ['HOME']})
@@ -43,22 +44,23 @@ if linkmode == "static":
     libraries.append("snappy")
     #libraries.append("unwind")
 
-zkvSource =  ["zutil.cpp",
-    "BoyerMoore.cpp",
-    "FileUtils.cpp",
-    "main.cpp",
-    "TableOpenHelper.cpp",
-    "ConfigParser.cpp",
-    "Tablespace.cpp",
-    "UpdateWorker.cpp",
-    "ReadWorker.cpp",
-    "Logger.cpp",
-    "LogServer.cpp",
-    "LogSinks.cpp",
-    "AbstractFrameProcessor.cpp",
-    "AsyncJobRouter.cpp",
-    "ClientSidePassiveJob.cpp",
-    "SequentialIDGenerator.cpp",
-    "Server.cpp",
-    "HTTPServer.cpp"]
-hello = env.Program(target="zkv", source=zkvSource,LIBS=libraries)
+yakServerSrc =  ["src/zutil.cpp",
+    "src/BoyerMoore.cpp",
+    "src/FileUtils.cpp",
+    "src/main.cpp",
+    "src/TableOpenHelper.cpp",
+    "src/ConfigParser.cpp",
+    "src/Tablespace.cpp",
+    "src/UpdateWorker.cpp",
+    "src/ReadWorker.cpp",
+    "src/Logger.cpp",
+    "src/LogServer.cpp",
+    "src/LogSinks.cpp",
+    "src/AbstractFrameProcessor.cpp",
+    "src/AsyncJobRouter.cpp",
+    "src/ClientSidePassiveJob.cpp",
+    "src/SequentialIDGenerator.cpp",
+    "src/Server.cpp",
+    "src/HTTPServer.cpp"]
+
+env.Program(target="yakserver", source=yakServerSrc, LIBS=libraries)
