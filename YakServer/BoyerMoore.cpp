@@ -24,7 +24,7 @@ void BoyerMooreHorspoolSearcher::initializeSkipTable() {
     }
     //Calculate skip table for characters that exist in the pattern.
     for (size_t i = 0; i < patternLength - 1; i++) {
-        skipTable[pattern[i]] = patternLength - i - 1;
+        skipTable[(uint8_t)pattern[i]] = patternLength - i - 1;
     }
 }
 
@@ -56,7 +56,7 @@ const int BoyerMooreHorspoolSearcher::find(const char* corpus, size_t corpusLeng
         if (j == -1) {
             return i + 1;
         }
-        k += skipTable[corpus[k]];
+        k += skipTable[(uint8_t)corpus[k]];
     }
     //Couldn't find it 
     return -1;

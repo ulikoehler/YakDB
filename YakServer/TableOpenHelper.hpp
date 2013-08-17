@@ -30,8 +30,7 @@ class TableOpenServer {
 public:
     TableOpenServer(zctx_t* ctx,
                     ConfigParser& configParser, 
-                    std::vector<leveldb::DB*>& databases,
-                    bool dbCompressionEnabled = true);
+                    std::vector<leveldb::DB*>& databases);
     ~TableOpenServer();
     /**
      * Terminate the table open server.
@@ -44,7 +43,6 @@ private:
     std::thread* workerThread;
     Logger logger;
     ConfigParser& configParser;
-    bool dbCompressionEnabled;
     void* repSocket;
     std::vector<leveldb::DB*>& databases;
 };

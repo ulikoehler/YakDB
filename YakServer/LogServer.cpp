@@ -24,8 +24,8 @@ inline static bool isStopServerMessage(zframe_t* headerFrame) {
 
 LogServer::LogServer(zctx_t* ctxParam, LogLevel logLevel, bool autoStart, const std::string& endpointParam)
 : logRequestInputSocket(zsocket_new_bind(ctxParam, ZMQ_PULL, endpointParam.c_str())),
-ctx(ctxParam),
 logLevel(logLevel),
+ctx(ctxParam),
 thread(nullptr),
 logger(ctx, "Log server"),
 endpoint(endpointParam) {

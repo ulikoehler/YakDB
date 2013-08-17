@@ -29,7 +29,7 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
 
 using namespace std;
 
-ReadWorkerController::ReadWorkerController(zctx_t* context, Tablespace& tablespace) : context(context), tablespace(tablespace), numThreads(3) {
+ReadWorkerController::ReadWorkerController(zctx_t* context, Tablespace& tablespace) :  tablespace(tablespace), numThreads(3), context(context) {
     //Initialize the push socket
     workerPushSocket = zsocket_new_bind(context, ZMQ_PUSH, readWorkerThreadAddr);
 }
@@ -73,8 +73,8 @@ void ReadWorkerController::send(zmsg_t** msg) {
 
 ReadWorker::ReadWorker(zctx_t* ctx, Tablespace& tablespace) :
 AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Read worker"),
-tableOpenHelper(ctx),
-tablespace(tablespace) {
+tablespace(tablespace),
+tableOpenHelper(ctx) {
     //Connect the socket that is used to proxy requests to the external req/rep socket
     zsocket_connect(processorOutputSocket, externalRequestProxyEndpoint);
     //Connect the socket that is used by the send() member function

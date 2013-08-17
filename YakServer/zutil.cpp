@@ -57,10 +57,6 @@ std::string frameToString(zframe_t* frame) {
     return std::string((char*) zframe_data(frame), zframe_size(frame));
 }
 
-std::string frameToString(zmq_msg_t* msg) {
-    
-}
-
 void COLD logOperationError(const char* operation, Logger& logger) {
     logger.error("Error '"
                 + std::string(zmq_strerror(errno))

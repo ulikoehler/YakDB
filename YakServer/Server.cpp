@@ -283,7 +283,7 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     return 0;
 }
 
-KeyValueServer::KeyValueServer(ConfigParser& configParserParam, bool dbCompressionEnabled) :
+KeyValueServer::KeyValueServer(ConfigParser& configParserParam) :
 ctx(zctx_new()),
 logServer(ctx, LogLevel::Trace, true), //Autostart log server
 tables(),
@@ -291,7 +291,7 @@ externalRepSocket(nullptr),
 externalSubSocket(nullptr),
 externalPullSocket(nullptr),
 responseProxySocket(nullptr),
-tableOpenServer(ctx, configParserParam, tables.getDatabases(), dbCompressionEnabled),
+tableOpenServer(ctx, configParserParam, tables.getDatabases()),
 updateWorkerController(ctx, tables),
 readWorkerController(ctx, tables),
 asyncJobRouterController(ctx, tables),

@@ -17,7 +17,7 @@
 
 class KeyValueServer {
 public:
-    KeyValueServer(ConfigParser& configParser, bool dbCompressionEnabled = true);
+    KeyValueServer(ConfigParser& configParser);
     void start();
     ~KeyValueServer();
     /**

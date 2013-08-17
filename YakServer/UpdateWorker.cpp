@@ -52,7 +52,7 @@ bool UpdateWorker::processNextMessage() {
      */
     zmq_msg_t haveReplyAddrFrame, routingFrame, delimiterFrame, headerFrame;
     zmq_msg_init(&haveReplyAddrFrame);
-    if(receiveMsgHandleError(&haveReplyAddrFrame, "Have reply addr frame", nullptr, false) == -1) {
+    if(receiveMsgHandleError(&haveReplyAddrFrame, "Have reply addr frame", nullptr, false)) {
         return true;
     }
     //Empty frame means: Stop immediately
