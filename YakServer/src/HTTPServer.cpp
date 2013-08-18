@@ -12,7 +12,7 @@ YakHTTPServer::YakHTTPServer(zctx_t* ctxParam, const std::string& endpointParam)
     controlSocket = zsocket_new_bind(ctx, ZMQ_PAIR, controlEndpoint);
 
     //Start thread
-    thread = new std::thread(std::mem_fun(&YakHTTPServer::workerMain), this);
+    //thread = new std::thread(std::mem_fun(&YakHTTPServer::workerMain), this);
 }
 
 void YakHTTPServer::workerMain() {

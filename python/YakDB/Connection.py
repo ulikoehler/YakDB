@@ -62,17 +62,22 @@ class Connection:
         """Sets the current ZeroDB connection into publish/subscribe mode"""
         self.socket = self.context.socket(zmq.PUB)
         self.mode = zmq.PUB
-    def connect(self, endpoint):
+    def connect(self, endpoints):
         """
         Connect to a YakDB server.
         @param endpoint The ZMQ endpoint to connect to, e.g. tcp://localhost:7100.
+                An array is also allowed
         """
-        self._checkParameterType(endpoint, str, "endpoint")
+        if isinstance(endpoints, str):
+            endpoints = [endpoints]
         #Use request/reply as default
         if self.socket == None:
+            print "RR"
             self.useRequestReplyMode()
-        self.socket.connect(endpoint)
-        self.numConnections += 1
+        for endpoint in endpoints:
+            self._checkParameterType(endpoint, str, "[one of the endpoints]")
+            self.socket.connect(endpoint)
+        self.numConnections += len(endpoints)
     def _checkSingleConnection(self):
         """
         Check if the current instance is connected to

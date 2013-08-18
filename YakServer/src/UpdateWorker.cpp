@@ -52,12 +52,13 @@ bool UpdateWorker::processNextMessage() {
      */
     zmq_msg_t haveReplyAddrFrame, routingFrame, delimiterFrame, headerFrame;
     zmq_msg_init(&haveReplyAddrFrame);
-    if(receiveMsgHandleError(&haveReplyAddrFrame, "Have reply addr frame", nullptr, false)) {
+    if(!receiveMsgHandleError(&haveReplyAddrFrame, "Have reply addr frame", nullptr, false)) {
         return true;
     }
     //Empty frame means: Stop immediately
     if(unlikely(zmq_msg_size(&haveReplyAddrFrame) == 0)) {
         zmq_msg_close(&haveReplyAddrFrame);
+        logger.trace("Update worker thread terminating");
         return false;
     }
     char haveReplyAddrFrameContent = ((char*) zmq_msg_data(&haveReplyAddrFrame))[0];
@@ -111,7 +112,7 @@ bool UpdateWorker::processNextMessage() {
      * All functions must send at least one frame (without SNDMORE) if the last
      * argument is true.
      */
-    if (requestType == PutRequest) {
+    if (likely(requestType == PutRequest)) {
         handlePutRequest(&headerFrame, haveReplyAddr);
     } else if (requestType == DeleteRequest) {
         handleDeleteRequest(&headerFrame, haveReplyAddr);

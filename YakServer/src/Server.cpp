@@ -70,7 +70,7 @@ static void COLD sendProtocolError(zmq_msg_t* addrFrame,
 /**
  * Poll handler for the main request/response socket
  */
-static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
+static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     KeyValueServer* server = (KeyValueServer*) arg;
     //In the REQ/REP handler we only use one socket
     void* sock = server->externalRepSocket;
@@ -240,7 +240,7 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
     return 0;
 }
 
-static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
+static int HOT handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     KeyValueServer* server = (KeyValueServer*) arg;
     void* sock = server->externalPullSocket;
     //Receive the header frame
@@ -265,11 +265,12 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         //Send the message to the update worker (--> processed async)
         //This is simpler than the req/rep controller because no 
         // response flags need to be checked
-        server->logger.trace("Received PULL-update request");;
         void* workerSocket = server->updateWorkerController.workerPushSocket;
         //We don't have reply addr info --> \x00
         sendConstFrame("\x00", 1, workerSocket, server->logger,
                 "(Frame to update worker) No response envelope", ZMQ_SNDMORE);
+        //Send header + rest of msg
+        zmq_msg_send(&headerFrame, workerSocket, ZMQ_SNDMORE);
         proxyMultipartMessage(sock, workerSocket);
         //Proxy the message
     } else if (unlikely(requestType == RequestType::ReadRequest
@@ -279,7 +280,11 @@ static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         //TODO Use the logger
         server->logger.error("Error: Received read-type request over PULL/SUB socket (you need to use REQ/REP sockets for read/count requests)");
     } else {
-        server->logger.error("Unknown message type " + std::to_string(requestType) + " from client");
+        //Dispose non-reused frames
+        zmq_msg_close(&headerFrame);
+        //There might be more frames of the current msg that clog up the queue
+        // and could lead to nasty bugs. Clear them, if any.
+        recvAndIgnore(sock);
     }
     return 0;
 }
@@ -314,7 +319,7 @@ configParser(configParserParam)
         logger.trace("Using IPv6-capable sockets");
         zsocket_set_ipv4only(externalRepSocket, 0);
     }
-    for(std::string endpoint : configParser.getREPEndpoints()) {
+    for(const std::string& endpoint : configParser.getREPEndpoints()) {
         logger.debug("Binding REP socket to " + endpoint);
         zsocket_bind(externalRepSocket, endpoint.c_str());
     }
@@ -324,8 +329,9 @@ configParser(configParserParam)
     if(!configParser.isIPv4Only()) {
         zsocket_set_ipv4only(externalPullSocket, 0);
     }
-    for(std::string endpoint : configParser.getPULLEndpoints()) {
+    for(const std::string& endpoint : configParser.getPULLEndpoints()) {
         logger.debug("Binding PULL socket to " + endpoint);
+        zsocket_bind(externalPullSocket, endpoint.c_str());
     }
     //Response proxy socket to route asynchronous responses
     responseProxySocket = zsocket_new(ctx, ZMQ_PULL);
@@ -365,29 +371,32 @@ void KeyValueServer::start() {
     //The main thread listens to the external sockets and proxies responses from the worker thread
     zmq_pollitem_t reqRepPoller = {externalRepSocket, 0, ZMQ_POLLIN};
     if (zloop_poller(reactor, &reqRepPoller, handleRequestResponse, this)) {
-        debugZMQError("Add REP poller to reactor", errno);
+        logger.critical("Error while adding REQ/REP poller to reactor" + std::string(zmq_strerror(errno)));
     }
     zmq_pollitem_t pushPullPoller = {externalPullSocket, 0, ZMQ_POLLIN};
     if (zloop_poller(reactor, &pushPullPoller, handlePull, this)) {
-        debugZMQError("Add PULL poller to reactor", errno);
+        logger.critical("Error while adding PULL poller to reactor" + std::string(zmq_strerror(errno)));
     }
+    //TODO SUB Poller
     zmq_pollitem_t responsePoller = {responseProxySocket, 0, ZMQ_POLLIN};
     if (zloop_poller(reactor, &responsePoller, proxyWorkerThreadResponse, this)) {
-        debugZMQError("Add response poller to reactor", errno);
+        logger.critical("Error while adding PUB/SUB poller to reactor" + std::string(zmq_strerror(errno)));
     }
     //Start the reactor loop. Returns when interrupted.
     zloop_start(reactor);
+    logger.trace("Main event loop interrupted, cleaning up...");
     /**
      * Cleanup procedure.
      * 
      * Cleanup as much as possible before terminating the ZMQ context
      * in order to be able to log all errors
      */
-    updateWorkerController.terminateAll();
+    //TODO Prevents shutdown - fix that!!
+    //updateWorkerController.terminateAll();
     readWorkerController.terminateAll();
     asyncJobRouterController.terminate();
     tableOpenServer.terminate();
-    httpServer.terminate();
+    //httpServer.terminate();
     tables.cleanup(); //Close & flush tables. This is NOT the table open server!
     logServer.terminate();
     //Cleanup main thread
