@@ -176,8 +176,8 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
             zmq_msg_send(&delimiterFrame, workerSocket, ZMQ_SNDMORE);
         } else {
             //Send the info frame (--> we don't have addr info)
-            sendConstFrame("\x00", 1, workerSocket, server->logger,
-                "(Frame to update worker) No response envelope", ZMQ_SNDMORE);
+                sendConstFrame("\x00", 1, workerSocket, server->logger,
+                    "(Frame to update worker) No response envelope", ZMQ_SNDMORE);
         }
         //Send the message to the update worker (--> processed async)
         zmq_msg_send(&headerFrame, workerSocket, ZMQ_SNDMORE);
@@ -242,41 +242,42 @@ static int handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *ar
 
 static int handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     KeyValueServer* server = (KeyValueServer*) arg;
-    //Initialize a scoped lock
-    zmsg_t *msg = zmsg_recv(server->externalRepSocket);
-    if (unlikely(!msg)) {
-        return -1;
+    void* sock = server->externalPullSocket;
+    //Receive the header frame
+    zmq_msg_t headerFrame;
+    zmq_msg_init(&headerFrame);
+    if(receiveLogError(&headerFrame, sock, server->logger, "Header frame")) {
+        return 0;
     }
-    //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
-    assert(zmsg_size(msg) >= 3); //return addr + empty delimiter + protocol header [+ data frames]
-    //PULL requests do not contain routing information
-    zframe_t* headerFrame = zmsg_first(msg);
-    //The downstream processors require that if the message has been sent over a socket
-    // that does not support replies (like PULL), the magic byte is set to 0x00 (they won't try to send a reply then)
-    zframe_data(headerFrame)[0] = 0x00;
     //Check the header -- send error message if invalid
-    string errorString;
-    char* headerData = (char*) zframe_data(headerFrame);
-    if (unlikely(!checkProtocolVersion(headerData, zframe_size(headerFrame), errorString))) {
-        server->logger.error("Got illegal message (unmatching protocol version / magic bytes) from client");
-        return 1;
+    if (unlikely(!isHeaderFrame(&headerFrame))) {
+        server->logger.warn("Client sent invalid header frame: " + describeMalformedHeaderFrame(&headerFrame));
+        zmq_msg_close(&headerFrame);
+        return 0;
     }
+    //Extract the request type from the header
+    char* headerData = (char*) zmq_msg_data(&headerFrame);
+    std::string errmsg; //The error message, if any, will be stored here
     RequestType requestType = (RequestType) (uint8_t) headerData[2];
-    if (requestType == RequestType::PutRequest || requestType == RequestType::DeleteRequest) {
+    if (likely(requestType == RequestType::PutRequest
+            || requestType == RequestType::DeleteRequest
+            || requestType == RequestType::DeleteRangeRequest)) {
         //Send the message to the update worker (--> processed async)
         //This is simpler than the req/rep controller because no 
         // response flags need to be checked
-        server->updateWorkerController.send(&msg);
-    } else if (requestType == RequestType::OpenTableRequest
-            || requestType == RequestType::CloseTableRequest
-            || requestType == RequestType::CompactTableRequest
-            || requestType == RequestType::TruncateTableRequest) {
-        //Send the message to the update worker (--> processed async)
-        server->updateWorkerController.send(&msg);
-    } else if (unlikely(requestType == RequestType::ReadRequest || requestType == RequestType::CountRequest)) {
+        server->logger.trace("Received PULL-update request");;
+        void* workerSocket = server->updateWorkerController.workerPushSocket;
+        //We don't have reply addr info --> \x00
+        sendConstFrame("\x00", 1, workerSocket, server->logger,
+                "(Frame to update worker) No response envelope", ZMQ_SNDMORE);
+        proxyMultipartMessage(sock, workerSocket);
+        //Proxy the message
+    } else if (unlikely(requestType == RequestType::ReadRequest
+                || requestType == RequestType::CountRequest
+                || requestType == RequestType::ScanRequest)) {
         //These request types demand an response and don't make sense over PUB/SUB sockets
         //TODO Use the logger
-        cerr << "Error: Received read/count/server info request over PULL/SUB socket (you need to use REQ/REP sockets for read/count requests)" << endl;
+        server->logger.error("Error: Received read-type request over PULL/SUB socket (you need to use REQ/REP sockets for read/count requests)");
     } else {
         server->logger.error("Unknown message type " + std::to_string(requestType) + " from client");
     }
