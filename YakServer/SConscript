@@ -29,6 +29,11 @@ if stdlib != "default":
     cxxflags.append("-stdlib=libc++")
     linkflags.append("-stdlib=libc++")
 
+#Removed unused stuff
+cxxflags.append("-ffunction-sections")
+cxxflags.append("-fdata-sections")
+linkflags.append("-Wl,--gc-sections")
+
 env = Environment(CXX=cxx,
 		  CXXFLAGS=cxxflags,
                   LINKFLAGS=linkflags,

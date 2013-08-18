@@ -18,7 +18,7 @@ using std::endl;
 /**
  * Check if a given ZMQ endpoint is a valid TCP or IPC endpoint
  */
-static bool checkTCPIPCEndpoint(const string& endpoint, bool allowIPC = true) {
+static bool COLD checkTCPIPCEndpoint(const string& endpoint, bool allowIPC = true) {
     //Check if the parameter is valid
     bool isTCP = endpoint.find("tcp://") == 0;
     bool isIPC = endpoint.find("ipc://") == 0 && allowIPC;
@@ -29,7 +29,7 @@ static bool checkTCPIPCEndpoint(const string& endpoint, bool allowIPC = true) {
     return true;
 }
 
-void ConfigParser::saveConfigFile() {
+void COLD ConfigParser::saveConfigFile() {
     std::ofstream fout("yak.cfg");
     if(!logFile.empty()) {
         fout << "logfile=" << logFile << '\n';

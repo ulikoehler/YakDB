@@ -86,7 +86,7 @@ class Connection:
         """
         self._checkConnection()
         if self.mode is not zmq.REQ:
-            raise Exception("Only request/reply connections support server info msgs")
+            raise Exception("Only request/reply connections support this message type!")
     def _checkConnection(self):
         """Check if the current instance is correctly connected, else raise an exception"""
         if self.socket is None:
@@ -168,7 +168,9 @@ class Connection:
             raise ParameterException("Parameter '%s' is not a %s but a %s!" % (name, str(expectedType), str(type(value))))
     def put(self, tableNo, valueDict, partsync=False, fullsync=False):
         """
-        Write a dictionary of key-value pairs to the connected servers
+        Write a dictionary of key-value pairs to the connected servers.
+        
+        This request can be used in REQ/REP, PUSH/PULL and PUB/SUB mode.
 
         @param tableNo The numeric, unsigned table number to write to
         @param valueDict A dictionary containing the key/value pairs to be written.
@@ -183,8 +185,6 @@ class Connection:
         #Check parameters
         self._checkParameterType(tableNo, int, "tableNo")
         self._checkParameterType(valueDict, dict, "valueDict")
-        #Check if this connection instance is setup correctly
-        self._checkRequestReply()
         #Before sending any frames, check the value dictionary for validity
         #Else, the socket could be left in an inconsistent state
         if len(valueDict) == 0:
