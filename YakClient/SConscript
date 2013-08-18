@@ -29,11 +29,11 @@ testSrc = [
     "test/TestMain.cpp"
 ]
 
-libyakclientA = env.Library(target="yakclient",source=yaklibSrc,CPPPATH="include")
-libyakclientSO = env.SharedLibrary(target="yakclient",source=yaklibSrc,CPPPATH="include")
+libyakclientA = env.Library(target="yakclient",source=yaklibSrc,CPPPATH="include/yakclient")
+libyakclientSO = env.SharedLibrary(target="yakclient",source=yaklibSrc,CPPPATH="include/yakclient")
 env.Program(target="yakctest",source=testSrc, CPPPATH="include", LIBS=["boost_unit_test_framework",libyakclientA,"zmq","czmq"],LDPATH="../clientbuild")
-env.Install("/usr/local/lib", libyakclientA)
-env.Install("/usr/local/lib", libyakclientSO)
-env.Alias('install', '/usr/local/lib')
+env.Install("/usr/local/lib", [libyakclientSO, libyakclientA])
+env.Install("/usr/local/include", "../YakClient/include/yakclient")    
+env.Alias('install', ['/usr/local/lib','/usr/local/include'])
 #env.Program(target="kvc", source=zkvSource,LIBS=libraries)
 
