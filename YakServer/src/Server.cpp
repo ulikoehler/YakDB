@@ -392,7 +392,7 @@ void KeyValueServer::start() {
      * in order to be able to log all errors
      */
     //TODO Prevents shutdown - fix that!!
-    //updateWorkerController.terminateAll();
+    updateWorkerController.terminateAll();
     readWorkerController.terminateAll();
     asyncJobRouterController.terminate();
     tableOpenServer.terminate();
