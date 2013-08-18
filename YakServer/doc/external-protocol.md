@@ -328,7 +328,7 @@ PARTSYNC may not be sent for non-REQ-REP sockets. Sending PARTSYNC over other so
 * Frame 1-n (odd frame numbers): Key to write to. The next frame specifies the value to write
 * Frame 2-n (even frame numbers): Value to write. The previous frame specifies the corresponding key.
 
-None of the frames may be empty under any circumstances. Empty frames may lead to undefined behaviour.
+If both the key and value frames are empty, the frame pair is ignored.
 
 ##### Delete request:
 

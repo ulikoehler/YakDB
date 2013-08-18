@@ -65,7 +65,7 @@ public:
 private:
     TableOpenHelper tableOpenHelper;
     Tablespace& tablespace;
-    void handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResponse);
+    void handlePutRequest(zmq_msg_t* headerFrame, bool generateResponse);
     void handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResponse);
     void handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generateResponse);
     void handleLimitedDeleteRangeRequest(zmq_msg_t* headerFrame, bool generateResponse);

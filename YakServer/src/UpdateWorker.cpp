@@ -112,7 +112,7 @@ bool UpdateWorker::processNextMessage() {
      * argument is true.
      */
     if (requestType == PutRequest) {
-        handleUpdateRequest(&headerFrame, haveReplyAddr);
+        handlePutRequest(&headerFrame, haveReplyAddr);
     } else if (requestType == DeleteRequest) {
         handleDeleteRequest(&headerFrame, haveReplyAddr);
     } else if (requestType == OpenTableRequest) {
@@ -138,7 +138,7 @@ bool UpdateWorker::processNextMessage() {
     return true;
 }
 
-void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateResponse) {
     static const char* errorResponse = "\x31\x01\x20\x01";
     static const char* ackResponse = "\x31\x01\x20\x00";
     assert(isHeaderFrame(headerFrame));
@@ -171,12 +171,18 @@ void UpdateWorker::handleUpdateRequest(zmq_msg_t* headerFrame, bool generateResp
             return;
         }
         receiveLogError(&valueFrame, processorInputSocket, logger, "Value frame");
-        //Convert to LevelDB
-        leveldb::Slice keySlice((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
-        leveldb::Slice valueSlice((char*) zmq_msg_data(&valueFrame), zmq_msg_size(&valueFrame));
-        batch.Put(keySlice, valueSlice);
         //Check if we have more frames
         haveMoreData = zmq_msg_more(&valueFrame);
+        //Ignore frame pair if both are empty
+        size_t keySize = zmq_msg_size(&keyFrame);
+        size_t valueSize = zmq_msg_size(&valueFrame);
+        if(keySize == 0 && valueSize == 0) {
+            continue;
+        }
+        //Convert to LevelDB
+        leveldb::Slice keySlice((char*) zmq_msg_data(&keyFrame), keySize);
+        leveldb::Slice valueSlice((char*) zmq_msg_data(&valueFrame), valueSize);
+        batch.Put(keySlice, valueSlice);
         //Cleanup
         zmq_msg_close(&keyFrame);
         zmq_msg_close(&valueFrame);

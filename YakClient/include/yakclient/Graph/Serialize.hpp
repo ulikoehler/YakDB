@@ -2,6 +2,7 @@
 #define __GRAPH_SERIALIZE_HPP
 #include <string>
 #include <cstdint>
+#include <map>
 
 /**
  * Serialize a basic attribute set

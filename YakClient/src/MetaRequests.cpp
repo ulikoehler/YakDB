@@ -1,10 +1,11 @@
 #include <zmq.h>
 #include <cstdint>  
 #include "MetaRequests.hpp"
-#include "../include/zeromq_utils.hpp"
+#include "zeromq_utils.hpp"
 
 int ServerInfoRequest::sendRequest(void* socket) {
     sendConstFrame(socket, "\x31\x01\x00", 3);
+    return 0;
 }
 
 int ServerInfoRequest::receiveFeatureFlags(void* socket, uint64_t& flags) {
@@ -78,7 +79,7 @@ int TableOpenRequest::receiveResponse(void* socket, std::string& errorString) {
 }
 
 int TableCloseRequest::sendRequest(void* socket, uint32_t tableNum) {
-    zmq_send(socket, "\x31\x01\x02\x00", 4, ZMQ_SNDMORE);
+    return zmq_send(socket, "\x31\x01\x02\x00", 4, ZMQ_SNDMORE);
 }
 
 int TableCloseRequest::receiveResponse(void* socket, std::string& errorString) {
@@ -90,7 +91,7 @@ int CompactRequest::sendRequest(void* socket, uint32_t tableNum, const std::stri
     //If the strings are empty, zero-length frames are generated automatically
     sendUint32Frame(socket, tableNum, ZMQ_SNDMORE);
     sendStringFrame(socket, startKey, ZMQ_SNDMORE);
-    sendStringFrame(socket, endKey);
+    return sendStringFrame(socket, endKey);
 }
 
 int CompactRequest::receiveResponse(void* socket, std::string& errorString) {

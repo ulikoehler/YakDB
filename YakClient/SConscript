@@ -3,7 +3,8 @@ import os
 
 cxx = ARGUMENTS.get('cxx','clang++')
 
-env = Environment(CXX=cxx,CXXFLAGS=["-std=c++0x","-march=core2"],CPPPATH='../ZKVStore',ENV =
+env = Environment(CXX=cxx,CXXFLAGS=["-std=c++0x","-march=core2"],CPPPATH=['include/yakclient','../ZKVStore'],
+                  ENV =
 						{'PATH' : os.environ['PATH'],
                          'TERM' : os.environ['TERM'],
                          'HOME' : os.environ['HOME']})
@@ -29,9 +30,9 @@ testSrc = [
     "test/TestMain.cpp"
 ]
 
-libyakclientA = env.Library(target="yakclient",source=yaklibSrc,CPPPATH="include/yakclient")
-libyakclientSO = env.SharedLibrary(target="yakclient",source=yaklibSrc,CPPPATH="include/yakclient")
-env.Program(target="yakctest",source=testSrc, CPPPATH="include", LIBS=["boost_unit_test_framework",libyakclientA,"zmq","czmq"],LDPATH="../clientbuild")
+libyakclientA = env.Library(target="yakclient",source=yaklibSrc)
+libyakclientSO = env.SharedLibrary(target="yakclient",source=yaklibSrc)
+env.Program(target="yakctest",source=testSrc, LIBS=["boost_unit_test_framework",libyakclientA,"zmq","czmq"],LDPATH="../clientbuild")
 env.Install("/usr/local/lib", [libyakclientSO, libyakclientA])
 env.Install("/usr/local/include", "../YakClient/include/yakclient")    
 env.Alias('install', ['/usr/local/lib','/usr/local/include'])
