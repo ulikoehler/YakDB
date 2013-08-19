@@ -90,8 +90,10 @@ int CompactRequest::sendRequest(void* socket, uint32_t tableNum, const std::stri
     zmq_send(socket, "\x31\x01\x03\x00", 4, ZMQ_SNDMORE);
     //If the strings are empty, zero-length frames are generated automatically
     sendUint32Frame(socket, tableNum, ZMQ_SNDMORE);
-    sendStringFrame(socket, startKey, ZMQ_SNDMORE);
-    return sendStringFrame(socket, endKey);
+    if(zmq_send(socket, startKey.data(), startKey.size(), ZMQ_SNDMORE) == -1) {
+        return -1;
+    }
+    return zmq_send(socket, endKey.data(), endKey.size(), 0);
 }
 
 int CompactRequest::receiveResponse(void* socket, std::string& errorString) {

@@ -48,13 +48,13 @@ int CountRequest::sendHeader(void* socket, uint32_t table) {
 int CountRequest::sendKey(void* socket,
         const std::string& key,
         bool last) {
-    return sendStringFrame(socket, key, (last ? 0 : ZMQ_SNDMORE));
+    return zmq_send(socket, key.data(), key.size(), (last ? 0 : ZMQ_SNDMORE));
 }
 
 int CountRequest::sendKey(void* socket,
         const char* key,
         bool last) {
-    return sendCStringFrame(socket, key, (last ? 0 : ZMQ_SNDMORE));
+    return zmq_send(socket, key, strlen(key), (last ? 0 : ZMQ_SNDMORE));
 }
 
 int CountRequest::sendKey(void* socket,
@@ -82,13 +82,13 @@ int ExistsRequest::sendHeader(void* socket, uint32_t table) {
 int ExistsRequest::sendKey(void* socket,
         const std::string& key,
         bool last) {
-    return sendStringFrame(socket, key, (last ? 0 : ZMQ_SNDMORE));
+    return zmq_send(socket, key.data(), key.size(), (last ? 0 : ZMQ_SNDMORE));
 }
 
 int ExistsRequest::sendKey(void* socket,
         const char* key,
         bool last) {
-    return sendCStringFrame(socket, key, (last ? 0 : ZMQ_SNDMORE));
+    return zmq_send(socket, key, strlen(key), (last ? 0 : ZMQ_SNDMORE));
 }
 
 int ExistsRequest::sendKey(void* socket,
@@ -125,10 +125,10 @@ int ScanRequest::sendRequest(void* socket, uint32_t tableNum,
     if(sendRange(socket, startKey, endKey, ZMQ_SNDMORE) == -1) {
         return -1;
     }
-    if(sendStringFrame(socket, keyFilter, ZMQ_SNDMORE) == -1) {
+    if(zmq_send(socket, keyFilter.data(), keyFilter.size(), ZMQ_SNDMORE) == -1) {
         return -1;
     }
-    return sendStringFrame(socket, valueFilter, 0);
+    return zmq_send(socket, valueFilter.data(), valueFilter.size(), 0);
 }
 
 int ScanRequest::receiveResponseHeader(void* socket, std::string& errorMessage) {

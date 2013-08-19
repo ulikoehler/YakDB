@@ -58,46 +58,7 @@ static inline int sendConstFrame(void* socket, const char* constStr, size_t size
  * @return -1 on error (you can check errno to get more information), 0 on success
  */
 static inline int sendEmptyFrame(void* socket, int flags = 0) {
-    zmq_msg_t msg;
-    zmq_msg_init_data(&msg, nullptr, 0, nullptr, nullptr);
-    if (zmq_msg_send(&msg, socket, flags) == -1) {
-        zmq_msg_close(&msg);
-        return -1;
-    }
-    return 0;
-}
-
-/**
- * Send a cstring (length determined using strlen()) in a single frame
- * @param socket The socket to send the data over
- * @param data A pointer to the beginning of the cstring
- * @param flags The ZeroMQ zmq_send flags to use, e.g. ZMQ_SNDMORE
- * @return -1 on error (you can check errno to get more information), 0 on success
- */
-static inline int sendStringFrame(void* socket, const std::string& str, int flags = 0) {
-    zmq_msg_t msg;
-    zmq_msg_init_size(&msg, str.size());
-    memcpy(zmq_msg_data(&msg), str.c_str(), str.size());
-    return (zmq_msg_send(&msg, socket, flags) == -1) ? errno : 0;
-}
-
-/**
- * Send a cstring (length determined using strlen()) in a single frame
- * @param socket The socket to send the data over
- * @param data A pointer to the beginning of the cstring
- * @param flags The ZeroMQ zmq_send flags to use, e.g. ZMQ_SNDMORE
- * @return -1 on error (you can check errno to get more information), 0 on success
- */
-static inline int sendCStringFrame(void* socket, const char* str, int flags = 0) {
-    zmq_msg_t msg;
-    size_t len = strlen(str);
-    zmq_msg_init_size(&msg, len);
-    memcpy((char*) zmq_msg_data(&msg), str, len);
-    if (zmq_msg_send(&msg, socket, flags) == -1) {
-        zmq_msg_close(&msg);
-        return -1;
-    }
-    return 0;
+    return (zmq_send(socket, nullptr, 0, flags) == -1);
 }
 
 /**
@@ -191,78 +152,17 @@ static inline int receiveSimpleResponse(void* socket, std::string& errorString) 
 }
 
 /**
- * Send a key-value frame
- * @param socket The socket to send over
- * @param key The key to send (always sent without ZMQ_SNDMORE)
- * @param value The value to send
- * @param last If this parameter is set to true, the value frame will be sent without SNDMORE flag
- * @return -1 on error (--> check errno with zmq_strerror()), 0 else
- */
-static int sendKeyValue(void* socket,
-        const std::string& key,
-        const std::string& value,
-        bool last = false) {
-    int rc = sendStringFrame(socket, key, ZMQ_SNDMORE);
-    if (!rc) {
-        return rc;
-    }
-    return sendStringFrame(socket, value, (last ? 0 : ZMQ_SNDMORE));
-}
-
-/**
- * Send a key-value frame
- * @param socket The socket to send over
- * @param key The cstring key to send (always sent without ZMQ_SNDMORE)
- * @param value The cstring value to send
- * @param last If this parameter is set to true, the value frame will be sent without SNDMORE flag
- * @return -1 on error (--> check errno with zmq_strerror()), 0 else
- */
-static int sendKeyValue(void* socket,
-        const char* key,
-        const char* value,
-        bool last = false) {
-    int rc = sendCStringFrame(socket, key, ZMQ_SNDMORE);
-    if (!rc) {
-        return rc;
-    }
-    return sendCStringFrame(socket, value, (last ? 0 : ZMQ_SNDMORE));
-}
-
-/**
- * Send a key-value frame
- * @param socket The socket to send over
- * @param key The key to send (always sent without ZMQ_SNDMORE)
- * @param keyLength The length of the key in bytes
- * @param value The value to send
- * @param valueLength The length of the value in bytes
- * @param last If this parameter is set to true, the value frame will be sent without SNDMORE flag
- * @return -1 on error (--> check errno with zmq_strerror()), 0 else
- */
-static inline int sendKeyValue(void* socket,
-        const char* key,
-        size_t keyLength,
-        const char* value,
-        size_t valueLength,
-        bool last = false) {
-    int rc = zmq_send(socket, key, keyLength, ZMQ_SNDMORE);
-    if (!rc) {
-        return rc;
-    }
-    return zmq_send(socket, value, valueLength, (last ? 0 : ZMQ_SNDMORE));
-}
-
-/**
  * This sends a two-frame-range construct.
  * @param startKey The range start or the empty string to generate a zero-length frame
  * @param endKey The range end or the empty string to generate a zero-length frame
  * @return -1 on error (--> check errno with zmq_strerror()), 0 else
  */
 static inline int sendRange(void* socket, const std::string& startKey, const std::string& endKey, int flags = 0) {
-    int rc = sendStringFrame(socket, startKey, ZMQ_SNDMORE);
+    int rc = zmq_send(socket, startKey.data(), startKey.size(), ZMQ_SNDMORE);
     if (!rc) {
         return rc;
     }
-    return sendStringFrame(socket, endKey, flags);
+    return zmq_send(socket, endKey.data(), endKey.size(), flags);
 }
 
 /**

@@ -18,14 +18,14 @@ int PutRequest::sendKeyValue(void* socket,
         const std::string& key,
         const std::string& value,
         bool last) {
-    return sendKeyValue(socket, key, value, last);
+    return sendKeyValue(socket, key.data(), key.size(), value.data(), value.size(), last);
 }
 
 int PutRequest::sendKeyValue(void* socket,
         const char* key,
         const char* value,
         bool last) {
-    return sendKeyValue(socket, key, value, last);
+    return sendKeyValue(socket, key, strlen(key), value, strlen(value), last);
 }
 
 int PutRequest::sendKeyValue(void* socket,
@@ -34,7 +34,10 @@ int PutRequest::sendKeyValue(void* socket,
         const char* value,
         size_t valueLength,
         bool last) {
-    return sendKeyValue(socket, key, keyLength, value, valueLength, last);
+    if(zmq_send(socket, key, keyLength, ZMQ_SNDMORE) == -1) {
+        return -1;
+    }
+    return zmq_send(socket, value, valueLength, (last ? 0 : ZMQ_SNDMORE));
 }
 
 int PutRequest::receiveResponse(void* socket, std::string& errorString) {
@@ -54,13 +57,13 @@ int DeleteRequest::sendHeader(void* socket, uint32_t table, uint8_t flags) {
 int DeleteRequest::sendKey(void* socket,
         const std::string& key,
         bool last) {
-    return sendStringFrame(socket, key, (last ? 0 : ZMQ_SNDMORE));
+    return zmq_send(socket, key.data(), key.size(), (last ? 0 : ZMQ_SNDMORE));
 }
 
 int DeleteRequest::sendKey(void* socket,
         const char* key,
         bool last) {
-    return sendCStringFrame(socket, key, (last ? 0 : ZMQ_SNDMORE));
+    return zmq_send(socket, key, strlen(key), (last ? 0 : ZMQ_SNDMORE));
 }
 
 int DeleteRequest::sendKey(void* socket,
