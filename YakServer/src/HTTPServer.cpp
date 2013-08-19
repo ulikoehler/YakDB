@@ -8,11 +8,10 @@
 
 using namespace std;
 
-YakHTTPServer::YakHTTPServer(zctx_t* ctxParam, const std::string& endpointParam) : ctx(ctxParam), logger(ctx, "HTTP Server"), endpoint(endpointParam) {
+YakHTTPServer::YakHTTPServer(zctx_t* ctxParam, const std::string& endpointParam) : endpoint(endpointParam), ctx(ctxParam), thread(nullptr), logger(ctx, "HTTP Server") {
     controlSocket = zsocket_new_bind(ctx, ZMQ_PAIR, controlEndpoint);
-
     //Start thread
-    //thread = new std::thread(std::mem_fun(&YakHTTPServer::workerMain), this);
+    thread = new std::thread(std::mem_fun(&YakHTTPServer::workerMain), this);
 }
 
 void YakHTTPServer::workerMain() {

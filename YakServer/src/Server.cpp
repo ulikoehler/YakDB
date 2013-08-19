@@ -179,8 +179,8 @@ static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void
             zmq_msg_send(&delimiterFrame, workerSocket, ZMQ_SNDMORE);
         } else {
             //Send the info frame (--> we don't have addr info)
-                sendConstFrame("\x00", 1, workerSocket, server->logger,
-                    "(Frame to update worker) No response envelope", ZMQ_SNDMORE);
+            sendConstFrame("\x00", 1, workerSocket, server->logger,
+                "(Frame to update worker) No response envelope", ZMQ_SNDMORE);
         }
         //Send the message to the update worker (--> processed async)
         zmq_msg_send(&headerFrame, workerSocket, ZMQ_SNDMORE);
@@ -402,7 +402,7 @@ void KeyValueServer::start() {
     readWorkerController.terminateAll();
     asyncJobRouterController.terminate();
     tableOpenServer.terminate();
-    //httpServer.terminate();
+    httpServer.terminate();
     tables.cleanup(); //Close & flush tables. This is NOT the table open server!
     logServer.terminate();
     //Cleanup main thread
