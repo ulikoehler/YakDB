@@ -147,16 +147,16 @@ def yakCLI():
     parser = argparse.ArgumentParser(description="YakDB client tool")
     #Server optionstype=int
     serverArgsGroup = parser.add_argument_group(parser, "Server options")
-    serverArgsGroup.add_argument("-s, --server",
+    serverArgsGroup.add_argument("-s","--server",
             help="Specifies server URL to connect to",
             default="tcp://localhost:7100",
             action='store',
             dest="serverURL")
-    serverArgsGroup.add_argument("-g, --server-group",
+    serverArgsGroup.add_argument("-g","--server-group",
             help="Specifies the server group to connect to for PUB/SUB connections",
             action='store',
             dest="serverGroup")
-    serverArgsGroup.add_argument("-c, --connection-mode",
+    serverArgsGroup.add_argument("-c","--connection-mode",
             choices=["PUB","PUSH","REQ"],
             default="REQ",
             action="store",
@@ -164,7 +164,7 @@ def yakCLI():
             help="The connection mode to use for requests. Most requests only work in REQ mode.")
     #Database options
     dbOptsGroup = parser.add_argument_group(parser, "Database options")
-    dbOptsGroup.add_argument("-t, --table",
+    dbOptsGroup.add_argument("-t","--table",
             help="The table number / ID to use",
             action="store",
             default=1,
@@ -173,12 +173,12 @@ def yakCLI():
     #CLI options
     cliOptsGroup = parser.add_argument_group(parser, "CLI options")
     #Data is remapped in connection class
-    cliOptsGroup.add_argument("-q, --quiet",
+    cliOptsGroup.add_argument("-q","--quiet",
             help="Don't print connection info",
             action="store_true",
             dest="quiet",
             default=False)
-    cliOptsGroup.add_argument("-r, --repl",
+    cliOptsGroup.add_argument("-r","--repl",
             help="Start into a REPL where db is the database connection",
             action="store_true",
             default=False,
@@ -196,7 +196,7 @@ def yakCLI():
             nargs='+',
             action="store",
             help="The keys to read")
-    parserRead.add_argument('-p, --print-raw',
+    parserRead.add_argument('-p","--print-raw',
             dest="printRaw",
             action="store_true",
             default=False,
@@ -215,12 +215,12 @@ def yakCLI():
             nargs='+',
             action="store",
             help="The keys to check for existence")
-    parserExists.add_argument('-n, --numeric-boolean',
+    parserExists.add_argument('-n","--numeric-boolean',
             dest="printNumeric",
             action="store_true",
             default=False,
             help="Instead of printing True or False, print 1 or 0")
-    parserExists.add_argument('-p, --print-raw',
+    parserExists.add_argument('-p","--print-raw',
             dest="printRaw",
             action="store_true",
             default=False,
@@ -245,7 +245,7 @@ def yakCLI():
             dest="toKey",
             default=None,
             help="The key to stop deleting at (exclusive, must not be used together with --limit), default: end of table")
-    parserDeleteRange.add_argument('-l,--limit',
+    parserDeleteRange.add_argument('-l","--limit',
             action="store",
             dest="scanLimit",
             type=int,
@@ -264,17 +264,17 @@ def yakCLI():
             dest="toKey",
             default=None,
             help="The key to stop scanning at (exclusive, must not be used together with --limit), default: end of table")
-    parserScan.add_argument('-k,--key-filter',
+    parserScan.add_argument('-k","--key-filter',
             action="store",
             dest="keyFilter",
             default=None,
             help="The server-side key filter. Ignored KV pairs don't count when calculating the limit.")
-    parserScan.add_argument('-v,--value-filter',
+    parserScan.add_argument('-v","--value-filter',
             action="store",
             dest="valueFilter",
             default=None,
             help="The server-side value filter. Ignored KV pairs don't count when calculating the limit.")
-    parserScan.add_argument('-l,--limit',
+    parserScan.add_argument('-l","--limit',
             action="store",
             dest="scanLimit",
             type=int,
@@ -319,30 +319,30 @@ def yakCLI():
             type=int,
             action="store",
             help="The tables to compact. Overrides -t option.")
-    parserOpenTable.add_argument('-n, --no-compression',
+    parserOpenTable.add_argument('-n","--no-compression',
             dest="noCompression",
             action="store_false",
             default=True,
             help="Disable blocklevel compression. Increases database size, might increase random access speed for large datasets.")
-    parserOpenTable.add_argument('-l,--lru-cache-size',
+    parserOpenTable.add_argument('-l","--lru-cache-size',
             action="store",
             dest="lruCacheSize",
             type=int,
             default=None,
             help="The size of the LRU cache where uncompressed block data will be stored. Increasing this yields better performance for random-read-access-heavy workloads.")
-    parserOpenTable.add_argument('-w,--write-buffer-size',
+    parserOpenTable.add_argument('-w","--write-buffer-size',
             action="store",
             dest="writeBufferSize",
             type=int,
             default=None,
             help="The size of the write buffer. Increasing this yields better write performance")
-    parserOpenTable.add_argument('-b,--blocksize',
+    parserOpenTable.add_argument('-b","--blocksize',
             action="store",
             dest="blocksize",
             type=int,
             default=None,
             help="The table blocksize. Larger blocks yield better compression and scan performance, but usually worse random-access performance. See LevelDB docs for details")
-    parserOpenTable.add_argument('-f,--bloom-filter-bits-per-key',
+    parserOpenTable.add_argument('-f","--bloom-filter-bits-per-key',
             action="store",
             dest="bloomFilterBitsPerKey",
             type=int,
@@ -364,7 +364,7 @@ def yakCLI():
             type=int,
             action="store",
             help="The tables to compact. Overrides -t option.")
-    parserTruncateTable.add_argument('-y, --yes',
+    parserTruncateTable.add_argument('-y","--yes',
             dest="confirmed",
             action="store_true",
             default=False,

@@ -69,7 +69,7 @@ static inline int sendEmptyFrame(void* socket, int flags = 0) {
  * @return -1 on error (you can check errno to get more information), 0 on success
  */
 static inline int sendUint32Frame(void* socket, uint32_t num, int flags = 0) {
-    return zmq_send(socket, (char*) &num, sizeof (uint32_t), flags);
+    return zmq_send(socket, (void*) &num, sizeof (uint32_t), flags);
 }
 
 /**
