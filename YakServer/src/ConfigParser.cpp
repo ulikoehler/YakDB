@@ -96,7 +96,7 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
             po::value<uint64_t>(&defaultTableBlockSize)->default_value(256*1024),
             "Set the default table block size in bytes. Overriden by table-specific options.")
         ("write-buffer-size",
-            po::value<uint64_t>(&defaultWriteBufferSize)->default_value(1024 * 1024 * 64),
+            po::value<uint64_t>(&defaultWriteBufferSize)->default_value(1024 * 1024 * 16),
             "Set the default write buffer size in bytes. Overriden by table-specific options.")
         ("bloom-filter-bits-per-key",
             po::value<uint64_t>(&defaultBloomFilterBitsPerKey)->default_value(0),

@@ -4,7 +4,7 @@ import os
 linkmode = ARGUMENTS.get("link","dynamic")
 
 linkflags=[]
-cxxflags=["-std=c++0x","-march=core2","-Wall","-O2"]
+cxxflags=["-std=c++0x","-march=core2","-Wall","-O2","-ffast-math"]
 if linkmode == "static":
     cxxflags.append("-static")
     linkflags.append("-static")
