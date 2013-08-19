@@ -10,6 +10,9 @@ import YakDB
 def info(db, args):
     print(db.serverInfo())
     
+def stop(db, args):
+    db.stopServer()
+    
 def read(db, args):
     tableNo = args.tableNo
     keys = args.keys
@@ -190,6 +193,9 @@ def yakCLI():
     #Info
     parserInfo = subparsers.add_parser("info", description="Request server information (features and version number)")
     parserInfo.set_defaults(func=info)
+    #Stop
+    parserStop = subparsers.add_parser("stop", description="Stop the YakDB server")
+    parserStop.set_defaults(func=stop)
     #Read
     parserRead = subparsers.add_parser("read", description="Read the values for one or more keys")
     parserRead.add_argument('keys',

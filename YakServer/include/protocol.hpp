@@ -52,6 +52,7 @@ enum RequestType : uint8_t {
     CloseTableRequest = 0x02,
     CompactTableRequest = 0x03,
     TruncateTableRequest = 0x04,
+    StopServerRequest = 0x05,
     ReadRequest = 0x10,
     CountRequest = 0x11,
     ExistsRequest = 0x12,

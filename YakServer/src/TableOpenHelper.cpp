@@ -169,16 +169,19 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
                 leveldb::Options options;
                 options.create_if_missing = true;
                 options.compression = (parameters->compressionEnabled ? leveldb::kSnappyCompression : leveldb::kNoCompression);
+                leveldb::Cache* cache = nullptr;
                 //Set optional parameters
                 if (parameters->lruCacheSize != UINT64_MAX) {
                     //0 --> disable
                     if(parameters->lruCacheSize > 0) {
                         options.block_cache = leveldb::NewLRUCache(parameters->lruCacheSize);
+                        cache = options.block_cache;
                     }
                 } else {
                     //Use a small LRU cache per default, because OS cache doesn't cache uncompressed data
                     // , so it's really slow in random-access-mode for uncompressed data
                     options.block_cache = leveldb::NewLRUCache(configParser.getDefaultTableBlockSize());
+                    cache = options.block_cache;
                 }
                 if (parameters->tableBlockSize != UINT64_MAX) {
                     options.block_size = parameters->tableBlockSize;
@@ -211,6 +214,8 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
                 if (unlikely(!status.ok())) {
                     logger.error("Error while trying to open table #" + std::to_string(tableIndex) + " in directory " + tableDir + ": " + status.ToString());
                 }
+                //Add the cache to the map
+                cacheMap[databases[tableIndex]] = cache;
                 //Write the persistent config data
                 writeTableConfigFile(tableDir, *parameters);
             }
@@ -224,8 +229,12 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
                 zframe_data(tableIdFrame)[0] = 0x01; //0x01 == Table already closed
             } else {
                 leveldb::DB* db = databases[tableIndex];
-                databases[tableIndex] = NULL;
+                databases[tableIndex] = NULL; //Erase map entry as early as possi
                 delete db;
+                //Delete the cache, if any
+                leveldb::Cache* cache = cacheMap[db];
+                cacheMap.erase(db);
+                delete cache;
                 zframe_data(tableIdFrame)[0] = 0x00; //0x00 == acknowledge, no error
             }
             if (unlikely(zmsg_send(&msg, repSocket) == -1)) {
@@ -296,7 +305,8 @@ COLD TableOpenServer::TableOpenServer(zctx_t* context,
 logger(context, "Table open server"),
 configParser(configParserParam),
 repSocket(zsocket_new_bind(context, ZMQ_REP, tableOpenEndpoint)),
-databases(databasesParam) {
+databases(databasesParam),
+cacheMap() {
     //We need to bind the inproc transport synchronously in the main thread because zmq_connect required that the endpoint has already been bound
     assert(repSocket);
     //NOTE: The child thread will now own repSocket. It will destroy it on exit!
@@ -307,6 +317,12 @@ COLD TableOpenServer::~TableOpenServer() {
     //Logging after the context has been terminated would cause memleaks
     if(workerThread) {
         logger.debug("Table open server terminating");
+    }
+    //Delete all caches
+    for(auto pair : cacheMap) {
+        if(pair.second != nullptr) {
+            delete pair.second;
+        }
     }
     //Terminate the thread
     terminate();

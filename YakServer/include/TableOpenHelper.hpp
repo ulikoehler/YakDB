@@ -9,6 +9,7 @@
 #define	TABLEOPENHELPER_HPP
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <czmq.h>
 #include <thread>
 #include <leveldb/db.h>
@@ -45,6 +46,10 @@ private:
     ConfigParser& configParser;
     void* repSocket;
     std::vector<leveldb::DB*>& databases;
+    /**
+     * We need to save a list of LRU caches to delete.
+     */
+    std::map<leveldb::DB*, leveldb::Cache*> cacheMap;
 };
 
 /**

@@ -176,7 +176,8 @@ Response codes:
 * 0x00 Success (--> frame 1 not present)
 * 0x01 Error (--> frame 1 contains error description cstring)
 
-###### Truncate request
+
+##### Truncate request
 
 Close a table and truncate all its contents.
 
@@ -189,7 +190,7 @@ if you wish to use non-standard table open options.
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x04 Request type (truncate request)]
 * Frame 1: 4-byte unsigned table number
 
-###### Truncate response
+##### Truncate response
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x04 Request type (truncate response)][1-byte response code]
 * Frame 1 (if response code indicates an error): NUL-terminated string describing the error
@@ -197,6 +198,23 @@ if you wish to use non-standard table open options.
 Response codes:
 * 0x00 Success (--> frame 1 not present)
 * 0x01 Error (--> frame 1 contains error description cstring)
+
+
+##### Stop server request
+
+This request causes the server to shutdown cleanly.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x05 Request type (server stop request)]
+
+##### Stop server response
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x05 Request type (server stop request)][1 byte status code]
+
+Status codes:
+    * 0x00 Success, server stopping
+    * 0x01 Permission denied
+
+
 -------------------------------
 
 ## Read-only requests

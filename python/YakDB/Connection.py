@@ -559,6 +559,18 @@ class Connection:
         self._sendBinary32(tableNo, more=False) #No SNDMORE flag
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x02')
+    def stopServer(self):
+        """
+        Stop the YakDB server. Use with caution
+        """
+        self.socket.send("\x31\x01\x05")        
+        if self.mode is zmq.REQ:
+            response = self.socket.recv_multipart(copy=True)
+            self._checkHeaderFrame(response,  '\x05')
+            #Check responseCode
+            responseCode = response[0][3]
+            if ord(responseCode) != 0:
+                raise Exception("Server stop code was %d instead of 0 (ACK)" % responseCode)
     def compactRange(self, tableNo, fromKey=None, toKey=None):
         """
         Compact a range in a table.

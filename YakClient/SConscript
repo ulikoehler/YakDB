@@ -3,7 +3,7 @@ import os
 
 cxx = ARGUMENTS.get('cxx','clang++')
 
-env = Environment(CXX=cxx,CXXFLAGS=["-std=c++0x","-march=core2"],CPPPATH=['include/yakclient','../ZKVStore'],
+env = Environment(CXX=cxx,CXXFLAGS=["-std=c++0x","-march=core2","-O2","-Wall"],CPPPATH=['include/yakclient','../ZKVStore'],
                   ENV =
 						{'PATH' : os.environ['PATH'],
                          'TERM' : os.environ['TERM'],

@@ -229,6 +229,16 @@ static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void
         if(proxyMultipartMessage(sock, workerSocket) == -1) {
             logMessageSendError("Some frame while proxying data processing request", server->logger);
         }
+    } else if(requestType == RequestType::StopServerRequest) {
+        server->logger.debug("Received server stop request from client");
+        //Send response envelope
+        zmq_msg_send(&addrFrame, sock, ZMQ_SNDMORE);
+        zmq_msg_send(&delimiterFrame, sock, ZMQ_SNDMORE);
+        //Send header (ACK)
+        zmq_msg_close(&headerFrame);
+        zmq_send(sock, "\x31\x01\x05\x00", 4, 0);
+        //Stop the reactor
+        return -1;
     } else {
         server->logger.warn("Unknown message type " + std::to_string(requestType) + " from client");
         //Send a protocol error back to the client
@@ -311,6 +321,8 @@ httpServer(ctx, configParserParam.getHTTPEndpoint()),
 logger(ctx, "Request router"),
 configParser(configParserParam)
  {
+    //Set a 10-sec default linger period
+    zctx_set_linger(ctx, 10000);
     //Start the log server and configure logsinks
     logServer.addLogSink(new StderrLogSink());
     if(!configParser.getLogFile().empty()) {
