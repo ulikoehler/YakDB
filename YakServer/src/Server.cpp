@@ -80,6 +80,9 @@ static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void
     zmq_msg_init(&addrFrame);
     if (unlikely(receiveExpectMore(&addrFrame, sock, server->logger, "Routing addr") == -1)) {
         server->logger.error("Frame envelope could not be received correctly");
+        //There might be more frames of the current msg that clog up the queue
+        // and could lead to nasty bugs. Clear them, if any.
+        recvAndIgnore(sock);
         //We can't even send back an error message, because the address can't be correct,
         // considering the envelope is missing
         zmq_msg_close(&addrFrame);
@@ -252,6 +255,9 @@ static int HOT handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     //Check the header -- send error message if invalid
     if (unlikely(!isHeaderFrame(&headerFrame))) {
         server->logger.warn("Client sent invalid header frame: " + describeMalformedHeaderFrame(&headerFrame));
+        //There might be more frames of the current msg that clog up the queue
+        // and could lead to nasty bugs. Clear them, if any.
+        recvAndIgnore(sock);
         zmq_msg_close(&headerFrame);
         return 0;
     }
