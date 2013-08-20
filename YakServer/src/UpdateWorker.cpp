@@ -142,6 +142,12 @@ bool UpdateWorker::processNextMessage() {
 }
 
 void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    /**
+     * IMPORTANT: We stopped using batches because they are *incredibly*
+     * inefficient! They just append to a std::string on each operation.
+     * This is so inefficient the worker thread sometimes needs
+     * several *seconds* for a single 10k batch!
+     */
     static const char* errorResponse = "\x31\x01\x20\x01";
     static const char* ackResponse = "\x31\x01\x20\x00";
     assert(isHeaderFrame(headerFrame));
@@ -163,17 +169,23 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
     //The entire update is processed in one batch. Empty batches are allowed.
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
     zmq_msg_t keyFrame, valueFrame;
-    leveldb::WriteBatch batch;
+    uint64_t elementCounter = 0;
     while (haveMoreData) {
         zmq_msg_init(&keyFrame);
         zmq_msg_init(&valueFrame);
         //The next two frames contain key and value
-        receiveLogError(&keyFrame, processorInputSocket, logger, "Key frame");
+        if (unlikely(!receiveMsgHandleError(&keyFrame,
+                "Receive put key frame", errorResponse, generateResponse))) {
+            break;
+        }
         //Check if there is a key but no value
         if (!expectNextFrame("Protocol error: Found key frame, but no value frame. They must occur in pairs!", generateResponse, "\x31\x01\x20\x01")) {
             return;
         }
-        receiveLogError(&valueFrame, processorInputSocket, logger, "Value frame");
+        if (unlikely(!receiveMsgHandleError(&valueFrame,
+                "Receive put value frame", errorResponse, generateResponse))) {
+            break;
+        }
         //Check if we have more frames
         haveMoreData = zmq_msg_more(&valueFrame);
         //Ignore frame pair if both are empty
@@ -185,20 +197,21 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
         //Convert to LevelDB
         leveldb::Slice keySlice((char*) zmq_msg_data(&keyFrame), keySize);
         leveldb::Slice valueSlice((char*) zmq_msg_data(&valueFrame), valueSize);
-        batch.Put(keySlice, valueSlice);
+        leveldb::Status status = db->Put(writeOptions, keySlice, valueSlice);
+        if (!checkLevelDBStatus(status,
+                "Database error while processing update request: ",
+                generateResponse,
+                errorResponse)) {
+            break;
+        }
+        //batch.Put(keySlice, valueSlice);
+        //Statistics
+        elementCounter++;
         //Cleanup
         zmq_msg_close(&keyFrame);
         zmq_msg_close(&valueFrame);
     }
-    //Commit the batch
-    leveldb::Status status = db->Write(writeOptions, &batch);
     //If something went wrong, send an error response
-    if (!checkLevelDBStatus(status,
-            "Database error while processing update request: ",
-            generateResponse,
-            errorResponse)) {
-        return;
-    }
     //Send success code
     if (generateResponse) {
         //Send success code

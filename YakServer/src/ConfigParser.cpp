@@ -50,8 +50,10 @@ void COLD ConfigParser::saveConfigFile() {
     fout << "table-block-size=" << defaultTableBlockSize << '\n';
     fout << "write-buffer-size=" << defaultWriteBufferSize << '\n';
     fout << "bloom-filter-bits-per-key=" << defaultBloomFilterBitsPerKey << '\n';
+    fout << "internal-hwm=" << internalHWM << '\n';
+    fout << "external-hwm=" << externalHWM << '\n';
     if(!compressionEnabledPerDefault) {
-        fout << "disable-compression" << '\n';
+        fout << "disable-compression=true" << '\n';
     }
     fout.close();
 }
