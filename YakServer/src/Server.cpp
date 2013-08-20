@@ -314,7 +314,7 @@ externalSubSocket(nullptr),
 externalPullSocket(nullptr),
 responseProxySocket(nullptr),
 tableOpenServer(ctx, configParserParam, tables.getDatabases()),
-updateWorkerController(ctx, tables),
+updateWorkerController(ctx, tables, configParserParam),
 readWorkerController(ctx, tables),
 asyncJobRouterController(ctx, tables),
 httpServer(ctx, configParserParam.getHTTPEndpoint()),
@@ -333,6 +333,7 @@ configParser(configParserParam)
      */
     //REP
     externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
+    zsocket_set_hwm(externalRepSocket, configParser.getExternalHWM());
     if(!configParser.isIPv4Only()) {
         logger.trace("Using IPv6-capable sockets");
         zsocket_set_ipv4only(externalRepSocket, 0);
@@ -344,6 +345,7 @@ configParser(configParserParam)
     zsocket_bind(externalRepSocket, mainRouterAddr); //Bind to inproc router
     //PULL
     externalPullSocket = zsocket_new(ctx, ZMQ_PULL);
+    zsocket_set_hwm(externalPullSocket, configParser.getExternalHWM());
     if(!configParser.isIPv4Only()) {
         zsocket_set_ipv4only(externalPullSocket, 0);
     }
@@ -353,6 +355,7 @@ configParser(configParserParam)
     }
     //Response proxy socket to route asynchronous responses
     responseProxySocket = zsocket_new(ctx, ZMQ_PULL);
+    zsocket_set_hwm(responseProxySocket, configParser.getExternalHWM());
     zsocket_bind(responseProxySocket, externalRequestProxyEndpoint);
     //Now start the update and read workers
     //(before starting the worker threads the response sockets need to be bound)

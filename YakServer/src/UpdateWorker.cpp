@@ -22,15 +22,17 @@
 
 using namespace std;
 
-UpdateWorker::UpdateWorker(zctx_t* ctx, Tablespace& tablespace) :
+UpdateWorker::UpdateWorker(zctx_t* ctx, Tablespace& tablespace, ConfigParser& configParser) :
 AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Update worker"),
 tableOpenHelper(ctx),
 tablespace(tablespace) {
+    //Set HWM
+    zsocket_set_hwm(processorInputSocket, configParser.getInternalHWM());
     //Connect the socket that is used to proxy requests to the external req/rep socket
     if(zsocket_connect(processorOutputSocket, externalRequestProxyEndpoint) == -1) {
         logOperationError("Connect Update worker processor output socket", logger);
     }
-    //Connect the socket that is used by the send() member function
+    //Connect the socket that is used by the send() member functions
     if(zsocket_connect(processorInputSocket, updateWorkerThreadAddr)) {
         logOperationError("Connect Update worker processor input socket", logger);
     }
@@ -519,8 +521,8 @@ void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool gener
  * Pretty stubby update thread loop.
  * This is what should contain the scheduler client code in the future.
  */
-static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
-    UpdateWorker updateWorker(ctx, tablespace);
+static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace, ConfigParser& configParser) {
+    UpdateWorker updateWorker(ctx, tablespace, configParser);
     while (true) {
         if (!updateWorker.processNextMessage()) {
             break;
@@ -529,20 +531,26 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
 }
 
 
-UpdateWorkerController::UpdateWorkerController(zctx_t* context, Tablespace& tablespace)
+UpdateWorkerController::UpdateWorkerController(zctx_t* context, Tablespace& tablespace, ConfigParser& configParserArg)
 : tablespace(tablespace),
 numThreads(3),
-context(context)
+context(context),
+configParser(configParserArg)
  {
     //Initialize the push socket
     workerPushSocket = zsocket_new(context, ZMQ_PUSH);
+    zsocket_set_hwm(workerPushSocket, configParser.getInternalHWM());
     zsocket_bind(workerPushSocket, updateWorkerThreadAddr);
 }
 
 void UpdateWorkerController::start() {
     threads = new std::thread*[numThreads];
     for (unsigned int i = 0; i < numThreads; i++) {
-        threads[i] = new std::thread(updateWorkerThreadFunction, context, std::ref(tablespace));
+        threads[i] = new std::thread(updateWorkerThreadFunction,
+                                     context,
+                                     std::ref(tablespace),
+                                     std::ref(configParser)
+                                    );
     }
 }
 

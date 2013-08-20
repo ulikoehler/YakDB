@@ -27,13 +27,19 @@ public:
     uint64_t getDefaultWriteBufferSize();
     uint64_t getDefaultBloomFilterBitsPerKey();
     bool isCompressionEnabledPerDefault();
+    int getInternalHWM();
+    int getExternalHWM();
 private:
     std::string logFile;
+    //Socket options
     std::vector<std::string> repEndpoints;
     std::vector<std::string> pullEndpoints;
     std::vector<std::string> subEndpoints;
     std::string httpEndpoint;
     bool ipv4Only;
+    int externalHWM;
+    int internalHWM;
+    //Table options
     uint64_t defaultLRUCacheSize;
     uint64_t defaultTableBlockSize;
     uint64_t defaultWriteBufferSize;

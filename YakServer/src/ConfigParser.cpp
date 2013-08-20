@@ -86,6 +86,12 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
         ("http-endpoint,e", po::value<vector<string> >(&pullEndpoints),
             "The endpoint the internal HTTP server will listen on. Defaults to tcp://*:7109")
         ("ipv4-only,4","By default the application uses IPv6 sockets to bind to both IPv6 and IPv4. This option tells the application not to use IPv6 capable sockets.")
+        ("external-hwm",
+            po::value<int>(&externalHWM)->default_value(250),
+            "Set the ZMQ High-watermark for external sockets")
+        ("internal-hwm",
+            po::value<int>(&internalHWM)->default_value(250),
+            "Set the ZMQ High-watermark for internal sockets")
     ;
     po::options_description tableOptions("Table options");
     tableOptions.add_options()
@@ -197,4 +203,12 @@ uint64_t ConfigParser::getDefaultBloomFilterBitsPerKey() {
 
 bool ConfigParser::isCompressionEnabledPerDefault() {
     return compressionEnabledPerDefault;
+}
+
+int ConfigParser::getInternalHWM() {
+    return internalHWM;
+}
+
+int ConfigParser::getExternalHWM() {
+    return externalHWM;
 }
