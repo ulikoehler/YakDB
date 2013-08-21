@@ -43,6 +43,7 @@ void COLD ConfigParser::saveConfigFile() {
     for(string endpoint : subEndpoints) {
         fout << "sub-endpoint=" << endpoint << '\n';
     }
+    fout << "http-endpoint=" << httpEndpoint << '\n';
     if(ipv4Only) {
         fout << "ipv4-only" << '\n';
     }
@@ -83,9 +84,9 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
             "The endpoints the REP backend will bind to.\nDefaults to tcp://*:7100, ipc:///tmp/yakserver-rep")
         ("pull-endpoint,p", po::value<vector<string> >(&pullEndpoints),
             "The endpoints the PULL backend will bind to.\nDefaults to tcp://*:7101, ipc:///tmp/yakserver-pull")
-        ("sub-endpoint,s", po::value<vector<string> >(&pullEndpoints),
+        ("sub-endpoint,s", po::value<vector<string> >(&subEndpoints),
             "The endpoints the SUB backend will bind to.\nDefaults to tcp://*:7102, ipc:///tmp/yakserver-sub")
-        ("http-endpoint,e", po::value<vector<string> >(&pullEndpoints),
+        ("http-endpoint,e", po::value<string>(&httpEndpoint),
             "The endpoint the internal HTTP server will listen on. Defaults to tcp://*:7109")
         ("ipv4-only,4","By default the application uses IPv6 sockets to bind to both IPv6 and IPv4. This option tells the application not to use IPv6 capable sockets.")
         ("external-hwm",
