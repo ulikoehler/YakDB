@@ -146,7 +146,10 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
      * IMPORTANT: We stopped using batches because they are *incredibly*
      * inefficient! They just append to a std::string on each operation.
      * This is so inefficient the worker thread sometimes needs
-     * several *seconds* for a single 10k batch!
+     * several *seconds* for a single >10k batch!
+     * 
+     * Instead, we re-batch into fixed-size batches. Individual puts
+     * are too slow and lock too much.
      */
     static const char* errorResponse = "\x31\x01\x20\x01";
     static const char* ackResponse = "\x31\x01\x20\x00";
@@ -164,6 +167,9 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
     }
     //Get the table
     leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    leveldb::WriteBatch batch;
+    const uint32_t maxBatchSize = 32;
+    uint32_t currentBatchSize = 0;
     //If this point is reached in the control flow, header frame will not be reused
     zmq_msg_close(headerFrame);
     //The entire update is processed in one batch. Empty batches are allowed.
@@ -194,15 +200,22 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
         if(keySize == 0 && valueSize == 0) {
             continue;
         }
-        //Convert to LevelDB
+        //Write into batch
         leveldb::Slice keySlice((char*) zmq_msg_data(&keyFrame), keySize);
         leveldb::Slice valueSlice((char*) zmq_msg_data(&valueFrame), valueSize);
-        leveldb::Status status = db->Put(writeOptions, keySlice, valueSlice);
-        if (!checkLevelDBStatus(status,
-                "Database error while processing update request: ",
-                generateResponse,
-                errorResponse)) {
-            break;
+        batch.Put(keySlice, valueSlice);
+        currentBatchSize++;
+        //If batch is full, write to db
+        if(currentBatchSize >= maxBatchSize) {
+            leveldb::Status status = db->Write(writeOptions, &batch);
+            if (!checkLevelDBStatus(status,
+                    "Database error while processing update request: ",
+                    generateResponse,
+                    errorResponse)) {
+                return;
+            }
+            batch.Clear();
+            currentBatchSize = 0;
         }
         //batch.Put(keySlice, valueSlice);
         //Statistics
@@ -211,7 +224,14 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
         zmq_msg_close(&keyFrame);
         zmq_msg_close(&valueFrame);
     }
-    //If something went wrong, send an error response
+    //Write last batch part
+    leveldb::Status status = db->Write(writeOptions, &batch);
+    if (!checkLevelDBStatus(status,
+            "Database error while processing update request: ",
+            generateResponse,
+            errorResponse)) {
+        return;
+    }
     //Send success code
     if (generateResponse) {
         //Send success code

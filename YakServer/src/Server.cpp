@@ -331,6 +331,13 @@ configParser(configParserParam)
     /*
      * Initialize and bind the external sockets
      */
+    //Print HWM, if not default
+    if(configParser.getExternalHWM() != 250) {
+        logger.trace("Using external HWM of " + std::to_string(configParser.getExternalHWM()));
+    }
+    if(configParser.getInternalHWM() != 250) {
+        logger.trace("Using internal HWM of " + std::to_string(configParser.getInternalHWM()));
+    }
     //REP
     externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
     zsocket_set_hwm(externalRepSocket, configParser.getExternalHWM());
