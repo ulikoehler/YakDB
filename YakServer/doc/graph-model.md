@@ -62,7 +62,7 @@ All integers shall be saved in little-endian format.
 The graph API shall support arbitrary identifiers for nodes and attributes,
 as long as they fulfil these requirements:
     - They are not zero-length
-    - In their binary representation, all bytes are >= 0x20
+    - In their binary representation, all bytes are >= 0x20, but no byte is equal to 0xFF.
 
 ## EBNF grammar specifications
 
