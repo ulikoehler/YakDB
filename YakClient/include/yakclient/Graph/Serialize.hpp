@@ -11,14 +11,14 @@
  *         The caller must ensure it frees the return value
  */
 template<typename MapType>
-char* serializeBasicAttributes(const MapType& map, size_t& size) {
+char* serializeBasicAttributes(const MapType& map, size_t* size) {
     //Get size
-    size = 0;
+    *size = 0;
     for(auto pair : map) {
-        size += pair.first.size() + pair.second.size() + 2;
+        *size += pair.first.size() + pair.second.size() + 2;
     }
     //Serialize
-    char* data = new char[size];
+    char* data = new char[*size];
     char* curPos = data;
     for(auto pair : map) {
         //Write key
@@ -38,17 +38,24 @@ char* serializeBasicAttributes(const MapType& map, size_t& size) {
 }
 
 /**
+ * Serialize a single-key-value basic attribute set
+ * @return A new[] allocated serialized dataset.
+ *         The caller must ensure it frees the return value
+ */
+char* serializeBasicAttributes(const std::string& key, const std::string& value, size_t* actualSize);
+
+/**
  * Serialize the key (=ID) of an extended attribute.
  * @return A new[]-allocated char array containing the entity ID.
  *      The calculatedLength parameter is set to the number of bytes in that array.
  * @param size The size of the returned array
  */
-char* serializeExtAttrId(const std::string& entityId, const std::string& key, size_t& targetSize);
+char* serializeExtAttrId(const std::string& entityId, const std::string& key, size_t* targetSize);
 char* serializeExtAttrId(const char* entityId,
                          size_t entityIdLength,
                          const char* key,
                          size_t keyLength,
-                         size_t& calculatedLength
+                         size_t* calculatedLength
                         );
 
 /**
@@ -63,7 +70,7 @@ char* serializeExtAttrId(const char* entityId,
 void serializeEdgeId(const std::string& sourceNodeId,
                      const std::string& targetNodeId,
                      const std::string& edgeType,
-                     size_t& calculatedLength,
+                     size_t* calculatedLength,
                      char** forwardTarget,
                      char** backwardTarget);
 void serializeEdgeId(const char* sourceNodeId,
@@ -72,7 +79,7 @@ void serializeEdgeId(const char* sourceNodeId,
                    size_t targetNodeIdLength,
                    const char* type,
                    size_t typeLength,
-                   size_t& calculatedLength,
+                   size_t* calculatedLength,
                    char** forwardTarget,
                    char** backwardTarget
                   );

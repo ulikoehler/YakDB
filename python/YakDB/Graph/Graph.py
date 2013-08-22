@@ -98,9 +98,11 @@ class Graph:
         @param deleteExtAttrs If this is set to true, all node extended attributes will be deleted as well.
             Otherwise, when creating a node with the same ID, it will automatically inherit the extended attributes left in the database.
         """
-        node = Node(nodeId, self)
-        node.delete() #TODO implement
-        #TODO delete extattrs
+        #Delete the node itself
+        self._deleteNodeKeys(nodeId)
+        #Delete extended attributes
+        if deleteExtAttrs:
+            deleteExtendedAttributeRange(nodeId)
     @property
     def nodes(self):
         """
@@ -131,7 +133,7 @@ class Graph:
     def _scanEdges(self, startKey, endKey, limit=None):
         """
         Do a scan over the edge table.
-        Internally used by the node class.
+        Internally used by the Node class.
         @param startKey The edge table start key
         @param endKey The edge table start key
         @return a list of edge objects
@@ -145,6 +147,15 @@ class Graph:
             edge = Edge(edgeTuple[0], edgeTuple[1], self, edgeTuple[2], basicAttrs)
             edges.append(edge)
         return edges
+    def _countEdges(self, startKey, endKey):
+        """
+        Do a scan over the edge table.
+        Internally used by the Node class.
+        @param startKey The edge table start key
+        @param endKey The edge table start key
+        @return a list of edge objects
+        """
+        return self.conn.count(self.edgeTableId, startKey, endKey)
     def nodeExists(self, nodeId):
         """
         Check if a node (or a list of nodes exists within the database
@@ -261,3 +272,13 @@ class Graph:
         the value (= basic attributes)
         """
         return self.conn.read(self.nodeTableId,  node)
+    def _deleteEdgeKeys(self, keys):
+        """
+        Internal function to delete a list of keys in the edge table
+        """
+        self.conn.delete(self.edgeTableId, keys, partsync=self.partsyncFlag)
+    def _deleteNodeKeys(self, keys):
+        """
+        Internal function to delete a list
+        """
+        self.conn.delete(self.nodeTableId, keys, partsync=self.partsyncFlag)

@@ -4,18 +4,37 @@
 #include <cstring>
 #include "Graph/Serialize.hpp"
 
-char* serializeExtAttrId(const std::string& entityId, const std::string& key, size_t& calculatedLength) {
+char* serializeExtAttrId(const std::string& entityId, const std::string& key, size_t* calculatedLength) {
     return serializeExtAttrId(entityId.data(), entityId.size(), key.data(), key.size(), calculatedLength);
+}
+
+char* serializeBasicAttributes(const std::string& key, const std::string& value, size_t* actualSize) {
+    size_t keySize = key.size();
+    size_t valueSize = value.size();
+    *actualSize = keySize + valueSize + 2;
+    char* res = new char[*actualSize];
+    char* curPos = res;
+    //Write key
+    memcpy(curPos, key.c_str(), keySize);
+    curPos += keySize;
+    *curPos = 0x1F;
+    curPos++;
+    //Write value
+    memcpy(curPos, value.c_str(), valueSize);
+    curPos += valueSize;
+    *curPos = 0x1E;
+    curPos++;
+    return res;
 }
 
 char* serializeExtAttrId(const char* entityId,
                          size_t entityIdLength,
                          const char* key,
                          size_t keyLength,
-                         size_t& calculatedLength
+                         size_t* calculatedLength
                         ) {
-    calculatedLength = entityIdLength + keyLength + 1;
-    char* buf = new char[calculatedLength];
+    *calculatedLength = entityIdLength + keyLength + 1;
+    char* buf = new char[*calculatedLength];
     memcpy(buf, entityId, entityIdLength);
     buf[entityIdLength] = '\x1D';
     memcpy(buf + entityIdLength + 1, key, keyLength);
@@ -25,7 +44,7 @@ char* serializeExtAttrId(const char* entityId,
 void serializeEdgeId(const std::string& sourceNodeId,
                      const std::string& targetNodeId,
                      const std::string& edgeType,
-                     size_t& calculatedLength,
+                     size_t* calculatedLength,
                      char** forwardTarget,
                      char** backwardTarget) {
     serializeEdgeId(
@@ -47,13 +66,13 @@ void serializeEdgeId(const char* sourceNodeId,
                    size_t targetNodeIdLength,
                    const char* type,
                    size_t typeLength,
-                   size_t& calculatedLength,
+                   size_t* calculatedLength,
                    char** forwardTarget,
                    char** backwardTarget
                   ) {
-    calculatedLength = sourceNodeIdLength + targetNodeIdLength + typeLength + 2;
-    char* forward = new char[calculatedLength];
-    char* backward = new char[calculatedLength];
+    *calculatedLength = sourceNodeIdLength + targetNodeIdLength + typeLength + 2;
+    char* forward = new char[*calculatedLength];
+    char* backward = new char[*calculatedLength];
     *forwardTarget = forward;
     *backwardTarget = backward;
     //--Serialize--

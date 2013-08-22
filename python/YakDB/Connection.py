@@ -376,7 +376,7 @@ class Connection:
         for i in range(0,len(dataParts),2):
             mappedData[dataParts[i]] = dataParts[i+1]
         return mappedData
-    def deleteRange(self, tableNo, startKey, endKey,  limit=None):
+    def deleteRange(self, tableNo, startKey, endKey, limit=None):
         """
         Deletes a range of keys in the database
         The deletion stops at the table end, endKey (exclusive) or when

@@ -58,9 +58,10 @@ class Edge(Entity):
         self.graph.saveEdge(self)
     def delete(self, deleteExtendedAttributes=True):
         """
-        Deletes the current edge instance
+        Deletes the current edge in the database.
         @param deleteExtendedAttributes Whether to delete the extended attributes
         """
+        self._deleteEdgeKeys([self.activeKey, self.passiveKey])
     @staticmethod
     def _getAllEdgesScanKeys(nodeId, edgeType=""):
         """

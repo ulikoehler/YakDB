@@ -17,7 +17,7 @@ BOOST_AUTO_TEST_CASE(TestBasicAttributeSerialization) {
     myMap["k3"] = "myvalue3";
     const char expected[] = "k3\x1Fmyvalue3\x1Ekey1\x1Fvalue1\x1Emykey2\x1Fmv2\x1E";
     size_t actualSize;
-    char* actual = serializeBasicAttributes(myMap, actualSize);
+    char* actual = serializeBasicAttributes(myMap, &actualSize);
     //For debugging. Replace NUL by 'X'.
     /*
     string str(actual, actualSize);
@@ -30,11 +30,20 @@ BOOST_AUTO_TEST_CASE(TestBasicAttributeSerialization) {
     delete[] actual;
 }
 
+BOOST_AUTO_TEST_CASE(TestOneKeyBasicAttributeSerialization) {
+    const char expected[] = "k3\x1Fmyvalue3\x1E";
+    size_t actualSize;
+    char* actual = serializeBasicAttributes("k3", "myvalue3", &actualSize);
+    BOOST_CHECK_EQUAL(actualSize, sizeof(expected) - 1);
+    BOOST_CHECK(memcmp(expected, actual, actualSize) == 0);
+    delete[] actual;
+}
+
 //Tests the extattr key serialization
 BOOST_AUTO_TEST_CASE(TestExtendedAttributeSerialization) {
     const char expected[] = "myEntityId\x1Dthekey";
     size_t actualSize;
-    char* actual = serializeExtAttrId("myEntityId","thekey",actualSize);
+    char* actual = serializeExtAttrId("myEntityId", "thekey", &actualSize);
     BOOST_CHECK_EQUAL(actualSize, sizeof(expected) - 1);
     BOOST_CHECK(memcmp(expected, actual, actualSize) == 0);
     delete[] actual;
@@ -48,8 +57,7 @@ BOOST_AUTO_TEST_CASE(TestEdgeSerialization) {
     size_t actualSize;
     char* actualFwd;
     char* actualBwd;
-    serializeEdgeId("firstNode","secondNode","etype",
-                    actualSize, &actualFwd, &actualBwd);
+    serializeEdgeId("firstNode","secondNode","etype", &actualSize, &actualFwd, &actualBwd);
     //For debugging. Replace \x1F by 'X', \x0E by 'Y' and \x0F by 'Z'
     /*std::string str(actualFwd, actualSize);
     for(int i = 0; i < str.size(); i++) {
