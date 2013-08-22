@@ -13,6 +13,8 @@ class Entity(object):
         """
         Initialize self.basicAttributes and self.extendedAttributes.
         """
-        #Initialize the basic and extended attributes
+        #Parse basic attrs if needed
+        if type(basicAttributes) is str:
+            basicAttributes = BasicAttributes._parseAttributeSet(basicAttributes)
         self.basicAttributes = BasicAttributes(self, basicAttributes)
         self.extendedAttributes = ExtendedAttributes(self)

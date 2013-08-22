@@ -17,7 +17,8 @@ class Node(Entity):
         
         @param nodeId The ID of the node (must be an identifier)
         @param graph The graph 
-        @param basicAttrs The set of basic attributes or None to use empty set
+        @param basicAttrs The set of basic attributes or None to use empty set.
+            Any binary string passed here is automatically deserialized
         """
         Identifier.checkIdentifier(nodeId)
         #if not isinstance(graph, Graph):

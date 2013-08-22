@@ -5,9 +5,9 @@ from collections import deque
 
 from YakDB.Utils import YakDBUtils
 
-class KeyValueIterator:
+class KeyValueIterator(object):
     """
-    An iterator that iterates over nodes in a graph.
+    An iterator that iterates over key-value pairs in a table.
     
     The iterator yields tuples (key, value).
     """
@@ -29,9 +29,9 @@ class KeyValueIterator:
         self.buf = deque()
     def __iter__(self):
         return self
-    def __loadNextNodes(self):
+    def __loadNextChunk(self):
         """
-        Load the next set of nodes into the buffer
+        Load the next chunk of key-value pairs into the buffer
         """
         scanRes = self.conn.scan(self.tableNo, startKey=self.nextStartKey, endKey=self.endKey, limit=self.chunkSize, keyFilter=self.keyFilter, valueFilter=self.valueFilter)
         #Stop if there's nothing left to scan
@@ -45,8 +45,42 @@ class KeyValueIterator:
         self.nextStartKey= YakDBUtils.incrementKey(lastIdentifier)
     def next(self):
         """
+        Get the next key-value pair
+        """
+        if len(self.buf) == 0:
+            self.__loadNextChunk() #raises StopIteration if needed
+        return self.buf.popleft()
+
+class JobIterator(object):
+    """
+    An iterator that iterates over key-value pairs from a job.
+    The iterator yields tuples (key, value).
+    """
+    def __init__(self, job):
+        """
+        Initialize a new job key-value iterator
+        @param job the job object to use
+        @param limit The number of nodes to load at once
+        """
+        self.job = job
+        self.buf = deque()
+    def __iter__(self):
+        return self
+    def __loadNextChunk(self):
+        """
+        Load the next chunk into the buffer
+        """
+        chunk = self.job.requestDataChunk()
+        #Stop if there's nothing left to scan
+        if len(chunk) is 0:
+            raise StopIteration
+        for key, value in chunk.iteritems():
+            dataTuple = (key, value)
+            self.buf.append(dataTuple)
+    def next(self):
+        """
         Get the next node
         """
         if len(self.buf) == 0:
-            self.__loadNextNodes() #raises StopIteration if needed
+            self.__loadNextChunk() #raises StopIteration if needed
         return self.buf.popleft()

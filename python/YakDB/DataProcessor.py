@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 
-class ClientSidePassiveJob:
+from YakDB.Iterators import JobIterator
+
+class ClientSidePassiveJob(object):
     """
     A server job that waits for data chunk request from
     arbitrary clients. The server does neither spawn
@@ -22,8 +24,16 @@ class ClientSidePassiveJob:
         not request any more data blocks (they will always be empty).
         """
         return self.connection._requestJobDataChunk(self.apid)
-    def getAPID(self):
+    @property
+    def apid(self):
         """
         Getter for the job-specific APID that is guaranteed to be unique
+        for a single server
         """
         return self.apid
+    def iteritems():
+        """
+        Iterate over the key-value pairs in the current job.
+        Automatically loads chunks if needed.
+        """
+        return JobIterator(self)
