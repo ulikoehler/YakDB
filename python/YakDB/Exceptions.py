@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
+
 class ParameterException(Exception):
     """
     An exception that relates to  any caller-supplied parameter

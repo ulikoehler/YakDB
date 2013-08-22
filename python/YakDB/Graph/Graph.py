@@ -110,7 +110,7 @@ class Graph:
         """
         Get a node iterator
         """
-        return NodeIterator
+        return NodeIterator(self, startKey, endKey, limit)
     def scanNodes(self, startKey=None, endKey=None, limit=None):
         """
         Do a scan over the node table.

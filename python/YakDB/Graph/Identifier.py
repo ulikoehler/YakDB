@@ -51,6 +51,8 @@ class Identifier:
         'node;'
         >>> Identifier.incrementKey("node;")
         'node<'
+        >>> Identifier.incrementKey("x")
+        'y'
         """
         #Ensure the argument is an identifier
         Identifier.checkIdentifier(key)

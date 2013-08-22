@@ -30,7 +30,11 @@ graph.createEdge("c", "a", basicAttrs={"text":"This is an edge from c to a"})
 #Set some additional attributes
 nodeA.basicAttributes["myattr"] = "myvalue"
 #Print the node list
-print "Nodes in the graph: %s" % graph.nodes
+print "Nodes in the graph (all at once): %s" % graph.nodes
+#Use the node iterator to do the same thing
+print "Nodes in graph (using iterator):"
+for node in graph.iternodes(limit=2):
+    print "\t%s" % node
 #Create some extended attributes
 extAttrsX = nodeX.extendedAttributes
 extAttrsX["foo"] = "bar"
