@@ -170,13 +170,17 @@ ClientSidePassiveJob::~ClientSidePassiveJob() {
         zmq_msg_init(&routingFrame);
         zmq_msg_init(&delimiterFrame);
         zmq_msg_init(&headerFrame);
-        const int gracePeriod = 1000; //ms
+        const int gracePeriod = 100000; //us
         while(zmq_poll(items, 1, gracePeriod) != 0) {
             //If this branch is executed, a request arrived
             // after we told the AP router thread we want to terminate.
             //TODO error handling
             //Just send a NODATA header
             zmq_msg_recv(&routingFrame, inSocket, 0);
+            //Handle stop msg
+            if(zmq_msg_size(&routingFrame) == 0) {
+                break;
+            }
             zmq_msg_send(&routingFrame, outSocket, ZMQ_SNDMORE);
             zmq_msg_recv(&delimiterFrame, inSocket, 0);
             zmq_msg_send(&delimiterFrame, outSocket, ZMQ_SNDMORE);
