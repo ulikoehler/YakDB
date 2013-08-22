@@ -72,7 +72,6 @@ class Connection:
             endpoints = [endpoints]
         #Use request/reply as default
         if self.socket == None:
-            print "RR"
             self.useRequestReplyMode()
         for endpoint in endpoints:
             self._checkParameterType(endpoint, str, "[one of the endpoints]")
