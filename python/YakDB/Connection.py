@@ -107,19 +107,19 @@ class Connection:
         Send a binary 32-bit number (little-endian) over the current socket
         """
         ZMQBinaryUtil.sendBinary64(self.socket,  value,  more)
-    def _sendRange(self, fromKey,  toKey,  more=False):
+    def _sendRange(self, startKey,  endKey,  more=False):
         """
         Send a dual-frame range over the socket.
         If any of the keys is None or empty, a zero-sized frame is sent
         @param more If this is set to true, not only the range start frame but also the range end frame is sent
             with the ZMQ_SNDMORE flag
         """
-        if fromKey is not None: fromKey = ZMQBinaryUtil.convertToBinary(fromKey)
-        else: fromKey = ""
-        if toKey is not None: toKey = ZMQBinaryUtil.convertToBinary(toKey)
-        else: toKey = ""
-        self.socket.send(fromKey, zmq.SNDMORE)
-        self.socket.send(toKey,  (zmq.SNDMORE if more else 0))
+        if startKey is not None: startKey = ZMQBinaryUtil.convertToBinary(startKey)
+        else: startKey = ""
+        if endKey is not None: endKey = ZMQBinaryUtil.convertToBinary(endKey)
+        else: endKey = ""
+        self.socket.send(startKey, zmq.SNDMORE)
+        self.socket.send(endKey,  (zmq.SNDMORE if more else 0))
     def _checkHeaderFrame(self,  msgParts,  expectedResponseType):
         """
         Given a list of received message parts, checks the first message part.
@@ -328,18 +328,18 @@ class Connection:
             for i in range(len(values)):
                 res[keys[i]] = values[i]
             return res
-    def scan(self, tableNo, fromKey=None, toKey=None, limit=None, keyFilter=None, valueFilter=None):
+    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None):
         """
         Synchronous scan. Scans an entire range at once.
-        The scan stops at the table end, toKey (exclusive) or when
+        The scan stops at the table end, endKey (exclusive) or when
         *limit* keys have been read, whatever occurs first
 
         See self.read() documentation for an explanation of how
         non-str values are mapped.
 
         @param tableNo The table number to scan in
-        @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
-        @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @param startKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
+        @param endKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
         @param limit The maximum number of keys to read, or None, if no limit shall be imposed
         @param keyFilter If this is non-None, the server filters for keys containing (exactly) this substring
         @param valueFilter If this is non-None, the server filters for values containing (exactly) this substring
@@ -361,7 +361,7 @@ class Connection:
         else: #We have a limit
             self._sendBinary64(limit)
         #Send range. "" --> empty frame --> start/end of table
-        self._sendRange(fromKey,  toKey, more=True)
+        self._sendRange(startKey,  endKey, more=True)
         #Send key filter parameters
         if keyFilter is None: self.socket.send("", zmq.SNDMORE)
         else: self.socket.send(keyFilter, zmq.SNDMORE)
@@ -376,15 +376,15 @@ class Connection:
         for i in range(0,len(dataParts),2):
             mappedData[dataParts[i]] = dataParts[i+1]
         return mappedData
-    def deleteRange(self, tableNo, fromKey, toKey,  limit=None):
+    def deleteRange(self, tableNo, startKey, endKey,  limit=None):
         """
         Deletes a range of keys in the database
-        The deletion stops at the table end, toKey (exclusive) or when
+        The deletion stops at the table end, endKey (exclusive) or when
         *limit* keys have been read, whatever occurs first
 
         @param tableNo The table number to scan in
-        @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
-        @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @param startKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
+        @param endKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
         @param limit The maximum number of keys to delete, or None, if no limit shall be imposed
         @return A dictionary of the returned key/value pairs
         """
@@ -398,11 +398,11 @@ class Connection:
         #Send the table number frame
         self._sendBinary32(tableNo, more=True)
         #Send range. "" --> empty frame --> start/end of tabe
-        self._sendRange(fromKey,  toKey)
+        self._sendRange(startKey,  endKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x22')
-    def count(self, tableNo, fromKey, toKey):
+    def count(self, tableNo, startKey, endKey):
         """
         self._checkSingleConnection()
         Count a range of
@@ -411,8 +411,8 @@ class Connection:
         non-str values are mapped.
 
         @param tableNo The table number to scan in
-        @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
-        @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @param startKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
+        @param endKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
         @return The count, as integer
         """
         #Check parameters and create binary-string only key list
@@ -425,7 +425,7 @@ class Connection:
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send range. "" --> empty frame --> start/end of table
-        self._sendRange(fromKey,  toKey)
+        self._sendRange(startKey,  endKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x11')
@@ -570,7 +570,7 @@ class Connection:
             responseCode = response[0][3]
             if ord(responseCode) != 0:
                 raise Exception("Server stop code was %d instead of 0 (ACK)" % responseCode)
-    def compactRange(self, tableNo, fromKey=None, toKey=None):
+    def compactRange(self, tableNo, startKey=None, endKey=None):
         """
         Compact a range in a table.
         This operation might take a long time and might not be useful at all
@@ -585,15 +585,15 @@ class Connection:
         self.socket.send("\x31\x01\x03", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo, more=true)
-        self._sendRange(fromKey,  toKey)
+        self._sendRange(startKey,  endKey)
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x03')
-    def initializePassiveDataJob(self, tableNo, fromKey=None, toKey=None, scanLimit=None, chunksize=None):
+    def initializePassiveDataJob(self, tableNo, startKey=None, endKey=None, scanLimit=None, chunksize=None):
         """
         Initialize a job on the server that waits for client requests.
         @param tableNo The table number to scan in
-        @param fromKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
-        @param toKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @param startKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
+        @param endKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
         @param scanLimit The maximum number of keys to scan, or None (--> no limit)
         @param chunksize How many key/value pairs will be returned for a single request. None --> Serverside default
         @return A PassiveDataJob instance, exposing requestDataBlock()
@@ -611,7 +611,7 @@ class Connection:
         self._sendBinary32(chunksize)
         self._sendBinary64(scanLimit)
         #Send range to be scanned
-        self._sendRange(fromKey,  toKey)
+        self._sendRange(startKey,  endKey)
         #Receive response
         msgParts = self.socket.recv_multipart(copy=True)
         self._checkHeaderFrame(msgParts,  '\x42')

@@ -33,7 +33,7 @@ nodeA.basicAttributes["myattr"] = "myvalue"
 print "Nodes in the graph (all at once): %s" % graph.nodes
 #Use the node iterator to do the same thing
 print "Nodes in graph (using iterator):"
-for node in graph.iternodes(limit=2):
+for node in graph.iternodes():
     print "\t%s" % node
 #Create some extended attributes
 extAttrsX = nodeX.extendedAttributes
