@@ -8,6 +8,8 @@ from YakDB.Utils import YakDBUtils
 class KeyValueIterator:
     """
     An iterator that iterates over nodes in a graph.
+    
+    The iterator yields tuples (key, value).
     """
     def __init__(self, conn, tableNo=1, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, chunkSize=1000):
         """
@@ -35,8 +37,9 @@ class KeyValueIterator:
         #Stop if there's nothing left to scan
         if len(scanRes) is 0:
             raise StopIteration
-        for node in scanRes:
-            self.buf.append(node)
+        for key, value in scanRes.iteritems():
+            dataTuple = (key, value)
+            self.buf.append(dataTuple)
         #Get the key to use as start key on chunk load
         lastIdentifier = (scanRes.keys()[-1])
         self.nextStartKey= YakDBUtils.incrementKey(lastIdentifier)

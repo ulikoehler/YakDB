@@ -9,6 +9,7 @@ from YakDB.Exceptions import ParameterException
 from YakDB.Graph.Exceptions import ConsistencyException
 from YakDB.Graph.Identifier import Identifier
 from YakDB.Iterators import KeyValueIterator
+from YakDB.Graph.Iterators import NodeIterator
 
 class Graph:
     """
@@ -110,7 +111,8 @@ class Graph:
         """
         Get a node iterator
         """
-        return KeyValueIterator(self.conn, tableNo=self.nodeTableId, startKey=startKey, endKey=endKey, chunkSize=chunkSize, limit=limit, keyFilter=keyFilter, valueFilter=valueFilter)
+        kvIt = KeyValueIterator(self.conn, tableNo=self.nodeTableId, startKey=startKey, endKey=endKey, chunkSize=chunkSize, limit=limit, keyFilter=keyFilter, valueFilter=valueFilter)
+        return NodeIterator(self, kvIt)
     def scanNodes(self, startKey=None, endKey=None, limit=None):
         """
         Do a scan over the node table.

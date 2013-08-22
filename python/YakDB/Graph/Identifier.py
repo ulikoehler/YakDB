@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
+
 from Exceptions import *
+from YakDB.Utils import YakDBUtils
 
 class Identifier:
     """
@@ -54,13 +56,9 @@ class Identifier:
         >>> Identifier.incrementKey("x")
         'y'
         """
-        #Ensure the argument is an identifier
+        #We can use the generic key increment algorithm
         Identifier.checkIdentifier(key)
-        #Increment the last char.
-        keyList = list(key)
-        newLastChar = ord(keyList[-1])+1
-        keyList[-1] = chr(newLastChar)
-        return "".join(keyList)
+        return YakDBUtils.incrementKey(key)
 
 if __name__ == "__main__":
     import doctest
