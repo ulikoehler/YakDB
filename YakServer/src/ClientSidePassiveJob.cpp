@@ -26,6 +26,7 @@ ClientSidePassiveJob::ClientSidePassiveJob(zctx_t* ctxParam,
                     chunksize(chunksizeParam),
                     db(tablespace.getTable(tableId, ctxParam)),
                     tti(tti),
+                    threadStatisticsInfo(statisticsInfo),
                     logger(ctxParam, "AP worker " + std::to_string(apid)),
                     ctx(ctxParam) {
         //Create the socket to receive requests from

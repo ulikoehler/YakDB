@@ -23,6 +23,8 @@ static void clientSidePassiveWorkerThreadFn(zctx_t* ctxParam,
              Tablespace& tablespace,
              ThreadTerminationInfo* tti,
              ThreadStatisticsInfo* statisticsInfo) {
+    assert(tti);
+    assert(statisticsInfo);
     ClientSidePassiveJob job(ctxParam, apid, tableId, chunksize, rangeStart, rangeEnd, scanLimit, tablespace, tti, statisticsInfo);
     job.mainLoop();
 }
@@ -136,7 +138,6 @@ bool AsyncJobRouter::processNextRequest() {
     RequestType requestType = getRequestType(&headerFrame);
     //Process the rest of the framex
     if (requestType == ClientDataRequest) {
-        logger.trace("Client data request");
         //Parse the APID frame
         uint64_t apid;
         if(!parseUint64Frame(apid, "APID frame", true, "\x31\01\x50\x01")) {
