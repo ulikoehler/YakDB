@@ -24,7 +24,7 @@ ClientSidePassiveJob::ClientSidePassiveJob(zctx_t* ctxParam,
                     rangeEnd(rangeEndParam),
                     scanLimit(scanLimitParam),
                     chunksize(chunksizeParam),
-                    db(tablespace.getTable(tableId, ctx)),
+                    db(tablespace.getTable(tableId, ctxParam)),
                     tti(tti),
                     logger(ctxParam, "AP worker " + std::to_string(apid)),
                     ctx(ctxParam) {
@@ -92,6 +92,7 @@ void ClientSidePassiveJob::mainLoop() {
             * the router sends a stop msg.
             * We don't NEED to be super-clean here, but it won't do any harm either.
             */
+            logger.trace("Job received stop message, exiting");
             for(unsigned int i = 0 ; i < bufferValidSize; i++) {
                 zmq_msg_close(&keyMsgBuffer[i]);
                 zmq_msg_close(&valueMsgBuffer[i]);
@@ -154,28 +155,32 @@ ClientSidePassiveJob::~ClientSidePassiveJob() {
     //Free buffer memory
     delete[] keyMsgBuffer;
     delete[] valueMsgBuffer;
-    //See ThreadTerminationInfo docs for information about what is done where
+    //See ThreadTerminationInfo docs for information about what is done here
     tti->setWantToTerminate();
     logger.trace("Reached AP end of life");
-    //Note that settings the RCVTIMEOUT sockopt only affects subsequent connects,
-    // so we have pollers here
-    zmq_pollitem_t items[1];
-    items[0].socket = inSocket;
-    items[0].events = ZMQ_POLLIN;
-    zmq_msg_t routingFrame, delimiterFrame, headerFrame;
-    zmq_msg_init(&routingFrame);
-    zmq_msg_init(&delimiterFrame);
-    zmq_msg_init(&headerFrame);
-    while(zmq_poll(items, 1, 1000000) != 0) {
-        //If this branch is executed, a request arrived
-        // after we told the AP router thread we want to terminate.
-        //TODO error handling
-        //Just send a NODATA header
-        zmq_msg_recv(&routingFrame, inSocket, 0);
-        zmq_msg_send(&routingFrame, outSocket, ZMQ_SNDMORE);
-        zmq_msg_recv(&delimiterFrame, inSocket, 0);
-        zmq_msg_send(&delimiterFrame, outSocket, ZMQ_SNDMORE);
-        sendConstFrame(responseNoData, 4, outSocket, logger, "No data response header frame", 0);
+    //Skip the grace period if the server was SIGINTED
+    if(!zctx_interrupted) {
+        //Note that settings the RCVTIMEOUT sockopt only affects subsequent connects,
+        // so we have pollers here
+        zmq_pollitem_t items[1];
+        items[0].socket = inSocket;
+        items[0].events = ZMQ_POLLIN;
+        zmq_msg_t routingFrame, delimiterFrame, headerFrame;
+        zmq_msg_init(&routingFrame);
+        zmq_msg_init(&delimiterFrame);
+        zmq_msg_init(&headerFrame);
+        const int gracePeriod = 1000; //ms
+        while(zmq_poll(items, 1, gracePeriod) != 0) {
+            //If this branch is executed, a request arrived
+            // after we told the AP router thread we want to terminate.
+            //TODO error handling
+            //Just send a NODATA header
+            zmq_msg_recv(&routingFrame, inSocket, 0);
+            zmq_msg_send(&routingFrame, outSocket, ZMQ_SNDMORE);
+            zmq_msg_recv(&delimiterFrame, inSocket, 0);
+            zmq_msg_send(&delimiterFrame, outSocket, ZMQ_SNDMORE);
+            sendConstFrame(responseNoData, 4, outSocket, logger, "No data response header frame", 0);
+        }
     }
     //Cleanup sockets
     zsocket_destroy(ctx, inSocket);

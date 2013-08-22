@@ -4,7 +4,7 @@ import struct
 #Local imports
 from YakDB.Conversion import ZMQBinaryUtil
 from YakDB.Exceptions import ParameterException, YakDBProtocolException
-import YakDB.DataProcessor
+from YakDB.DataProcessor import ClientSidePassiveJob
 #Use ZMQPy inside PyPy
 import platform
 if platform.python_implementation() == "PyPy":
@@ -619,7 +619,7 @@ class Connection:
             raise YakDBProtocolException("CSPTMIR response does not contain APID frame")
         #Get the APID and create a new job instance
         apid = struct.unpack('<q', msgParts[1])[0]
-        return DataProcessor.ClientSidePassiveJob(self,  apid)
+        return ClientSidePassiveJob(self,  apid)
     def _requestJobDataChunk(self,  apid):
         """
         Requests a data chunk for a given asynchronous Job.

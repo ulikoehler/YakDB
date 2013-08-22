@@ -9,6 +9,7 @@ class ClientSidePassiveJob(object):
     arbitrary clients. The server does neither spawn
     any workers nor actively send data somewhere.
     """
+    apid = None
     def __init__(self,  connection,  apid):
         """
         Create a new clientside passive job to request data
@@ -24,13 +25,6 @@ class ClientSidePassiveJob(object):
         not request any more data blocks (they will always be empty).
         """
         return self.connection._requestJobDataChunk(self.apid)
-    @property
-    def apid(self):
-        """
-        Getter for the job-specific APID that is guaranteed to be unique
-        for a single server
-        """
-        return self.apid
     def iteritems():
         """
         Iterate over the key-value pairs in the current job.

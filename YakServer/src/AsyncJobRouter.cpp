@@ -294,7 +294,7 @@ void AsyncJobRouter::cleanupJob(uint64_t apid) {
 }
 
 void AsyncJobRouter::terminate(uint64_t apid) {
-    void* socket = processThreadMap[apid];
+    void* socket = processSocketMap[apid];
     //Send stop signal to thread
     sendEmptyFrameMessage(socket);
     //Wait for thread to exit completely and cleanup
@@ -304,6 +304,7 @@ void AsyncJobRouter::terminate(uint64_t apid) {
 void COLD  AsyncJobRouter::terminateAll() {
     for(auto pair : processThreadMap) {
         uint64_t apid = pair.first;
+        logger.trace("terminateAll(): Terminating job " + std::to_string(apid));
         terminate(apid);
     }
     //Manually execute scrub job
