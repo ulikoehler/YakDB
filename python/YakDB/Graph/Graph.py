@@ -155,12 +155,21 @@ class Graph:
     def saveEdge(self, edge):
         """
         Write an edge to the database.
+        @param edge The Edge instance to save
         """
-        if not isinstance(edge, Edge):
-            raise ParameterException("Edge parameter must by an Edge instance!")
-        serializedBasicAttrs = edge.basicAttributes.serialize()
-        putDict = {edge.activeKey: serializedBasicAttrs,
-                   edge.passiveKey: serializedBasicAttrs}
+        self.saveEdges([edge])
+    def saveEdges(self, edges):
+        """
+        Save multiple edges at once.
+        @param edges The edge list to save
+        """
+        putDict = {}
+        for edge in edges:
+            if not isinstance(edge, Edge):
+                raise ParameterException("Edge parameter must by an Edge instance!")
+            serializedBasicAttrs = edge.basicAttributes.serialize()
+            putDict[edge.activeKey] = serializedBasicAttrs
+            putDict[edge.passiveKey] = serializedBasicAttrs
         self.conn.put(self.edgeTableId, putDict, partsync=self.partsyncFlag)
     def saveNode(self, node):
         """
