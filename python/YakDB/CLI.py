@@ -79,6 +79,9 @@ def deleteRange(db, args):
 
 def scan(db, args):
     tableNo = args.tableNo
+    #Override -t with positional argument, if any
+    if args.table is not None:
+        table = args.table
     fromKey = args.fromKey
     toKey = args.toKey
     limit = args.scanLimit
@@ -92,6 +95,9 @@ def scan(db, args):
     
 def count(db, args):
     tableNo = args.tableNo
+    #Override -t with positional argument, if any
+    if args.table is not None:
+        table = args.table
     fromKey = args.fromKey
     toKey = args.toKey
     print(db.count(tableNo, fromKey, toKey))
@@ -270,22 +276,26 @@ def yakCLI():
             dest="toKey",
             default=None,
             help="The key to stop scanning at (exclusive, must not be used together with --limit), default: end of table")
-    parserScan.add_argument('-k","--key-filter',
+    parserScan.add_argument('-k','--key-filter',
             action="store",
             dest="keyFilter",
             default=None,
             help="The server-side key filter. Ignored KV pairs don't count when calculating the limit.")
-    parserScan.add_argument('-v","--value-filter',
+    parserScan.add_argument('-v','--value-filter',
             action="store",
             dest="valueFilter",
             default=None,
             help="The server-side value filter. Ignored KV pairs don't count when calculating the limit.")
-    parserScan.add_argument('-l","--limit',
+    parserScan.add_argument('-l','--limit',
             action="store",
             dest="scanLimit",
             type=int,
             default=None,
             help="The maximum number of keys to scan (must not be used together with --to)")
+    parserScan.add_argument('table',
+            type=int,
+            action="store",
+            help="The tables to scan. Overrides -t option.")
     parserScan.set_defaults(func=scan)
     #Count
     parserCount = subparsers.add_parser("count", description="Count how many keys exist in a specified range of the table")
@@ -299,6 +309,10 @@ def yakCLI():
             dest="toKey",
             default=None,
             help="The key to stop scanning at (exclusive, must not be used together with --limit)")
+    parserCount.add_argument('table',
+            type=int,
+            action="store",
+            help="The tables to count in. Overrides -t option.")
     parserCount.set_defaults(func=count)
     #Compact
     parserCompact = subparsers.add_parser("compact", description="Compact a specified range of the table\nThis operation may take a long time, especially for large tables.")
