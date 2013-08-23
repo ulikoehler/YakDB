@@ -81,7 +81,7 @@ def scan(db, args):
     tableNo = args.tableNo
     #Override -t with positional argument, if any
     if args.table is not None:
-        table = args.table
+        tableNo = args.table
     fromKey = args.fromKey
     toKey = args.toKey
     limit = args.scanLimit
@@ -97,7 +97,7 @@ def count(db, args):
     tableNo = args.tableNo
     #Override -t with positional argument, if any
     if args.table is not None:
-        table = args.table
+        tableNo = args.table
     fromKey = args.fromKey
     toKey = args.toKey
     print(db.count(tableNo, fromKey, toKey))
