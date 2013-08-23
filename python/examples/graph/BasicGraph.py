@@ -27,6 +27,7 @@ nodeC = graph.createNode("c", basicAttrs={"nodeText":"This is node c"})
 graph.createEdge("a", "b", basicAttrs={"text":"This is an edge from a to b"})
 graph.createEdge("b", "c", basicAttrs={"text":"This is an edge from b to c"})
 graph.createEdge("c", "a", basicAttrs={"text":"This is an edge from c to a"})
+graph.createEdge("x", "b", basicAttrs={"text":"This is an edge from a to b"})
 #Set some additional attributes
 nodeA.basicAttributes["myattr"] = "myvalue"
 #Print the node list
@@ -34,7 +35,7 @@ print "Nodes in the graph (all at once): %s" % graph.nodes
 #Use the node iterator to do the same thing
 print "Nodes in graph (using iterator):"
 for node in graph.iternodes():
-    print "\t%s" % node
+    print "\t%s - Indegree %d - Outdegree %d" % (node.id, node.indegree, node.outdegree)
 #Create some extended attributes
 extAttrsX = nodeX.extendedAttributes
 extAttrsX["foo"] = "bar"

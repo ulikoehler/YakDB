@@ -59,14 +59,14 @@ class Node(Entity):
         @return The indegree (as int) of the node
         """
         (startKey, endKey) = Edge._getIncomingEdgesScanKeys(self.id)
-        return self.graph._countEdges(startkey, endKey)
+        return self.graph._countEdges(startKey, endKey)
     @property
     def outdegree(self):
         """
         @return The indegree (as int) of the node
         """
         (startKey, endKey) = Edge._getOutgoingEdgesScanKeys(self.id)
-        return self.graph._countEdges(startkey, endKey)
+        return self.graph._countEdges(startKey, endKey)
     def delete(self):
         """
         Deletes the current node.
