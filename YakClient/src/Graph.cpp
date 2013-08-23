@@ -2,6 +2,7 @@
  * Note: This file contains implementations for different header files.
  */
 #include <cstring>
+#include <czmq.h>
 #include "Graph/Serialize.hpp"
 
 char* serializeExtAttrId(const std::string& entityId, const std::string& key, size_t* calculatedLength) {
@@ -60,21 +61,20 @@ void serializeEdgeId(const std::string& sourceNodeId,
     );
 }
 
+
+size_t calculateEdgeIdSize(size_t activeNodeSize, size_t passiveNodeSize, size_t typeLength) {
+    return activeNodeSize + passiveNodeSize + typeLength + 2;
+}
+
 void serializeEdgeId(const char* sourceNodeId,
                    size_t sourceNodeIdLength,
                    const char* targetNodeId,
                    size_t targetNodeIdLength,
                    const char* type,
                    size_t typeLength,
-                   size_t* calculatedLength,
-                   char** forwardTarget,
-                   char** backwardTarget
+                   char* forward,
+                   char* backward
                   ) {
-    *calculatedLength = sourceNodeIdLength + targetNodeIdLength + typeLength + 2;
-    char* forward = new char[*calculatedLength];
-    char* backward = new char[*calculatedLength];
-    *forwardTarget = forward;
-    *backwardTarget = backward;
     //--Serialize--
     //Type
     memcpy(forward, type, typeLength);
@@ -93,4 +93,59 @@ void serializeEdgeId(const char* sourceNodeId,
     //Secondary node
     memcpy(forward + forwardPos + 1, targetNodeId, targetNodeIdLength);
     memcpy(backward + backwardPos + 1, sourceNodeId, sourceNodeIdLength);
+}
+
+void serializeEdgeId(const char* sourceNodeId,
+                   size_t sourceNodeIdLength,
+                   const char* targetNodeId,
+                   size_t targetNodeIdLength,
+                   const char* type,
+                   size_t typeLength,
+                   size_t* calculatedLength,
+                   char** forwardTarget,
+                   char** backwardTarget
+                  ) {
+    *calculatedLength = calculateEdgeIdSize(sourceNodeIdLength, targetNodeIdLength, typeLength);
+    char* forward = new char[*calculatedLength];
+    char* backward = new char[*calculatedLength];
+    *forwardTarget = forward;
+    *backwardTarget = backward;
+    //Call the function that generates the IDs in the existing buffers
+    serializeEdgeId(sourceNodeId,
+                   sourceNodeIdLength,
+                   targetNodeId,
+                   targetNodeIdLength,
+                   type,
+                   typeLength,
+                   forward,
+                   backward);
+}
+
+void sendEdge(void* socket,
+              const std::string& sourceNodeId,
+              const std::string& targetNodeId,
+              const std::string& edgeType,
+              const char* basicAttributes,
+              size_t basicAttributeLength,
+              bool last) {
+    size_t edgeKeyLength = calculateEdgeIdSize(sourceNodeId.size(), targetNodeId.size(), edgeType.size());
+    //Create msgs with the appropriate sizes...
+    zmq_msg_t activeKeyMsg;
+    zmq_msg_t passiveKeyMsg;
+    zmq_msg_init_size(&activeKeyMsg, edgeKeyLength);
+    zmq_msg_init_size(&passiveKeyMsg, edgeKeyLength);
+    // ...and serialize directly to their buffers
+    serializeEdgeId(sourceNodeId.data(),
+                   sourceNodeId.size(),
+                   targetNodeId.data(),
+                   targetNodeId.size(),
+                   edgeType.data(),
+                   edgeType.size(),
+                   (char*)zmq_msg_data(&activeKeyMsg),
+                   (char*)zmq_msg_data(&passiveKeyMsg));
+    //Send the data
+    zmq_msg_send(&activeKeyMsg, socket, ZMQ_SNDMORE);
+    zmq_send(socket, (void*)basicAttributes, basicAttributeLength, ZMQ_SNDMORE);
+    zmq_msg_send(&passiveKeyMsg, socket, ZMQ_SNDMORE);
+    zmq_send(socket, (void*)basicAttributes, basicAttributeLength, (last ? 0 : ZMQ_SNDMORE));
 }

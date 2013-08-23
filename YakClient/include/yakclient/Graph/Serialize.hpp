@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <map>
 
+/***
+ *  TODO Forward/Backward is used synonymously to Active/Passive. Change code to use latter only!
+ */
+
 /**
  * Serialize a basic attribute set
  * @param size The result size will be placed here.
@@ -58,6 +62,12 @@ char* serializeExtAttrId(const char* entityId,
                          size_t* calculatedLength
                         );
 
+
+/**
+ * Calculate the size of an active or passive edge ID
+ */
+size_t calculateEdgeIdSize(size_t activeNodeSize, size_t passiveNodeSize, size_t typeLength);
+
 /**
  * Serialize both edge IDs at once
  * @param sourceNodeId The source node identifier
@@ -83,5 +93,30 @@ void serializeEdgeId(const char* sourceNodeId,
                    char** forwardTarget,
                    char** backwardTarget
                   );
+/**
+ * Serialize an edge using existing buffers.
+ * The caller must ensure at least the number of
+ * bytes returned by calculateEdgeIdSize() with the same
+ * parameters are available.
+ */
+void serializeEdgeId(const char* sourceNodeId,
+                   size_t sourceNodeIdLength,
+                   const char* targetNodeId,
+                   size_t targetNodeIdLength,
+                   const char* type,
+                   size_t typeLength,
+                   size_t* calculatedLength,
+                   char* forwardTarget,
+                   char* backwardTarget
+                  );
+
+void sendEdge(void* socket,
+              const std::string& activeNode,
+              const std::string& passiveNode,
+              const std::string& edgeType,
+              const char* basicAttributes,
+              size_t basicAttributeLength,
+              bool last=false
+             );
 
 #endif //__GRAPH_SERIALIZE_HPP
