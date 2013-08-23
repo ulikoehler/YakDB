@@ -143,8 +143,6 @@ void sendEdge(void* socket,
                    edgeType.size(),
                    (char*)zmq_msg_data(&activeKeyMsg),
                    (char*)zmq_msg_data(&passiveKeyMsg));
-    std::string str((char*)zmq_msg_data(&activeKeyMsg), edgeKeyLength);
-    printf(str.c_str());
     //Send the data
     zmq_msg_send(&activeKeyMsg, socket, ZMQ_SNDMORE);
     zmq_send(socket, (void*)basicAttributes, basicAttributeLength, ZMQ_SNDMORE);
