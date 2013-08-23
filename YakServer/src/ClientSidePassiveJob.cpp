@@ -42,7 +42,8 @@ ClientSidePassiveJob::ClientSidePassiveJob(zctx_t* ctxParam,
         } else {
             it->SeekToFirst();
         }
-        logger.debug("AP Worker successfully started up");
+        logger.debug("Initialized client-side job with chunksize "
+                     + std::to_string(chunksize) + " - waiting fro ");
     }
 
 void ClientSidePassiveJob::mainLoop() {

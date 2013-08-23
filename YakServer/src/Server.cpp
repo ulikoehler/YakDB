@@ -16,6 +16,7 @@
 #include "endpoints.hpp"
 #include "macros.hpp"
 #include "autoconfig.h"
+#include "ThreadUtil.hpp"
 
 using namespace std;
 
@@ -395,6 +396,7 @@ KeyValueServer::~KeyValueServer() {
 }
 
 void KeyValueServer::start() {
+    setCurrentThreadName("YakDB Router");
     zloop_t *reactor = zloop_new();
     //The main thread listens to the external sockets and proxies responses from the worker thread
     zmq_pollitem_t reqRepPoller = {externalRepSocket, 0, ZMQ_POLLIN};

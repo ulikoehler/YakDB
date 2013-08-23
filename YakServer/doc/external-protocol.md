@@ -543,18 +543,22 @@ This request uses several sub-requests, determined by the 'statistics request ty
     * 0x00 Show APID statistics.
         For each APID, yields a list of frames:
             * Header: [64-bit APID] [8-bit job type] [8-bit job state]
-            * Alter
-            * Empty delimiter frame (to separate from next entry
-        
-
-Job state:
-    0x00: Initializing
-    0x10: Running
-    0x20: Terminating
-    0x30: Terminated
+            * Alternating keys and values (statistics info)
+            * Empty delimiter frame (to separate from next entry)
 
 Job type:
-+
+    0x00: Undefined
+    0x10: Client-side passive
+    0x11: Client-side active
+    0x12: Server-side (LLVM)
+    0x20: Table copy
+
+Job state:
+    0x00: Unknown
+    0x10: Initializing
+    0x20: Running
+    0x30: Terminating
+    0x40: Terminated
 
 -------------------------------
 

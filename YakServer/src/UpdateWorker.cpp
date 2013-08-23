@@ -19,6 +19,7 @@
 #include "protocol.hpp"
 #include "endpoints.hpp"
 #include "macros.hpp"
+#include "ThreadUtil.hpp"
 
 using namespace std;
 
@@ -555,6 +556,7 @@ void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool gener
  * This is what should contain the scheduler client code in the future.
  */
 static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace, ConfigParser& configParser) {
+    setCurrentThreadName("Yak update worker");
     UpdateWorker updateWorker(ctx, tablespace, configParser);
     while (true) {
         if (!updateWorker.processNextMessage()) {

@@ -66,6 +66,7 @@ yakServerSrc =  ["src/zutil.cpp",
     "src/ClientSidePassiveJob.cpp",
     "src/SequentialIDGenerator.cpp",
     "src/Server.cpp",
+    "src/ThreadUtil.cpp",
     "src/HTTPServer.cpp"]
 
 env.Program(target="yakserver", source=yakServerSrc, LIBS=libraries)

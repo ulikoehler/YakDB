@@ -16,11 +16,13 @@
 #include "Logger.hpp"
 #include "endpoints.hpp"
 #include "macros.hpp"
+#include "ThreadUtil.hpp"
 
 /**
  * The main function for the read worker thread.
  */
 static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
+    setCurrentThreadName("Yak read worker");
     ReadWorker readWorker(ctx, tablespace);
     //Process requests until stop msg is encountered
     while (readWorker.processNextRequest()) {
