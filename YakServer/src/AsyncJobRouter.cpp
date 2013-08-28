@@ -291,7 +291,6 @@ void AsyncJobRouter::cleanupJob(uint64_t apid) {
     apTerminationInfo.erase(apid);
     //Don't delete the statistics info immediately
     // -- clients might request info after the job has finished
-    apStatisticsInfo[apid] = new ThreadStatisticsInfo();
 }
 
 void AsyncJobRouter::terminate(uint64_t apid) {

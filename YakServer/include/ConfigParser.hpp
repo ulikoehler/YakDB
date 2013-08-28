@@ -22,6 +22,7 @@ public:
      * and then only execute the server from the same directory.
      */
     void saveConfigFile();
+    uint64_t getStatisticsExpungeTimeout();
     uint64_t getDefaultLRUCacheSize();
     uint64_t getDefaultTableBlockSize();
     uint64_t getDefaultWriteBufferSize();
@@ -31,6 +32,7 @@ public:
     int getExternalHWM();
 private:
     std::string logFile;
+    uint64_t statisticsExpungeTimeout;
     //Socket options
     std::vector<std::string> repEndpoints;
     std::vector<std::string> pullEndpoints;

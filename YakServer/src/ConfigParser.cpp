@@ -31,6 +31,7 @@ static bool COLD checkTCPIPCEndpoint(const string& endpoint, bool allowIPC = tru
 
 void COLD ConfigParser::saveConfigFile() {
     std::ofstream fout("yak.cfg");
+    fout << "statistics-expunge-timeout=" << statisticsExpungeTimeout << '\n';
     if(!logFile.empty()) {
         fout << "logfile=" << logFile << '\n';
     }
@@ -58,6 +59,10 @@ void COLD ConfigParser::saveConfigFile() {
     }
     fout.close();
 }
+
+uint64_t ConfigParser::getStatisticsExpungeTimeout() {
+    return statisticsExpungeTimeout;
+}
     
 
 COLD ConfigParser::ConfigParser(int argc, char** argv) {
@@ -76,7 +81,10 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
         ("logfile,l", po::value<string>(&logFile)->default_value(""), "The file the log will be written to")
         ("config,c",
             po::value<string>(&configFileName)->default_value("yak.cfg"),
-            "The configuration file to use");
+            "The configuration file to use")
+        ("statistics-expunge-timeout",
+            po::value<uint64_t>(&statisticsExpungeTimeout)->default_value(3600*1000)/*1 hour default*/, 
+            "The time in milliseconds statistics will be saved for retrieval after a job has finished.");
     po::options_description socketOptions("Socket options");
     socketOptions.add_options()
         ("req-endpoints,r", 
