@@ -18,13 +18,12 @@ void YakHTTPServer::workerMain() {
     //TODO proper error handling
     logger.trace("HTTP Server starting");
     //Initialize router socket
-    void* routerSocket = zsocket_new(ctx, ZMQ_ROUTER);
-    zsocket_set_router_raw(routerSocket, 1);
+    void* routerSocket = zsocket_new(ctx, ZMQ_STREAM);
     assert(zsocket_bind(routerSocket, endpoint.c_str()) != -1);
     //Initialize other stuff
     zmq_msg_t replyAddr;
     zmq_msg_init(&replyAddr);
-    //Initialize control socket
+    //Initialize control socket (receives STOP cmd etc.)
     void* controlRecvSocket = zsocket_new_connect(ctx, ZMQ_PAIR, controlEndpoint);
     zmq_pollitem_t items[2];
     items[0].socket = routerSocket;
