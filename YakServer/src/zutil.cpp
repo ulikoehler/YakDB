@@ -10,11 +10,11 @@ void standardFree(void *data, void *hint) {
 }
 
 zframe_t* createEmptyFrame() {
-    return zframe_new_zero_copy(NULL, 0, doNothingFree, NULL);
+    return zframe_new(NULL, 0);
 }
 
 zframe_t* createConstFrame(const char* data, size_t size) {
-    return zframe_new_zero_copy(const_cast<char*> (data), size, doNothingFree, NULL);
+    return zframe_new(const_cast<char*> (data), size);
 }
 
 zframe_t* createConstFrame(const char* data) {
