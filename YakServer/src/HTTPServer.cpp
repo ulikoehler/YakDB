@@ -139,7 +139,7 @@ void YakHTTPServer::serveStaticFile(const char* fileURL) {
 }
 
 void YakHTTPServer::sendReplyIdentity() {
-    if(unlikely(zmq_send_const (httpSocket, replyAddr, replyAddrSize, ZMQ_SNDMORE) == -1)) {
+    if(unlikely(zmq_send (httpSocket, replyAddr, replyAddrSize, ZMQ_SNDMORE) == -1)) {
         logger.error("Error while sending stream reply adress: " + string(zmq_strerror(errno)));
     }
 }
@@ -155,7 +155,7 @@ void YakHTTPServer::workerMain() {
     zmq_msg_init(&replyAddrFrame);
     zmq_msg_t request;
     zmq_msg_init(&request);
-    zmq_msg_t response;
+    zmq_msg_t response; 
     zmq_msg_init(&response);
     //Initialize control socket (receives STOP cmd etc.)
     void* controlRecvSocket = zsocket_new_connect(ctx, ZMQ_PAIR, controlEndpoint);
