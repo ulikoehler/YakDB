@@ -218,8 +218,7 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
                  << strerror(errno)
                  << "' while trying to check the HTTP static file directory. The HTTP server probably won't work.\x1B[0m" << endl;
         }
-    }
-    if(staticFilePath.back() != '/') {
+    } else if(staticFilePath.back() != '/') {
         staticFilePath += "/";
     }
     //Get bool-ish options
