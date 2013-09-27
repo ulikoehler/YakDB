@@ -1,6 +1,7 @@
 #include <fstream>
 #include <string>
 #include <regex>
+#include <unistd.h>
 #include <vector>
 #include <iostream>
 #include <boost/program_options.hpp>
@@ -13,6 +14,7 @@ namespace po = boost::program_options;
 using std::string;
 using std::vector;
 using std::cout;
+using std::cerr;
 using std::endl;
 
 /**
@@ -63,7 +65,40 @@ void COLD ConfigParser::saveConfigFile() {
 uint64_t ConfigParser::getStatisticsExpungeTimeout() {
     return statisticsExpungeTimeout;
 }
-    
+
+/**
+ * A buffer-overflow-safe readlink() wrapper for C++.
+ * @return A string containing the readlink()ed filename, or
+ *         an empty string with errno being set to the appropriate error.
+ *         See the readlink() man(2) for errno details.
+ */
+static std::string safeReadlink(const std::string& filename) {
+    size_t bufferSize = 255;
+
+    //Increase buffer size until the buffer is large enough
+    while (1) {
+        char* buffer = new char[bufferSize];
+        size_t rc = readlink (filename.c_str(), buffer, bufferSize);
+        if (rc == -1) {
+            delete[] buffer;
+            if(errno == EINVAL) {
+                //We know that bufsize is positive, so
+                // the file is not a symlink.
+                errno = 0;
+                return filename;
+            } else if(errno == ENAMETOOLONG) {
+                bufferSize += 255;
+            } else {
+                //errno still contains the error value
+                return "";
+            }
+        } else {
+            //Success! rc == number of valid chars in buffer
+            errno = 0;
+            return string(buffer, rc);
+        }
+    }
+}
 
 COLD ConfigParser::ConfigParser(int argc, char** argv) {
     /**
@@ -83,7 +118,7 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
             po::value<string>(&configFileName)->default_value("yak.cfg"),
             "The configuration file to use")
         ("static-file-path",
-            po::value<string>(&staticFilePath)->default_value("/home/uli/dev/YakWebUI/static"),
+            po::value<string>(&staticFilePath)->default_value("./static"),
             "The static file directory for HTML files")
         ("statistics-expunge-timeout",
             po::value<uint64_t>(&statisticsExpungeTimeout)->default_value(3600*1000)/*1 hour default*/, 
@@ -165,7 +200,25 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
         cout << desc << endl;
         exit(1);
     }
-    //Check directories
+    //Check directories & ensure symlinks are resolved properly
+    // and they exist and are readable
+    string originalStaticFilePath = staticFilePath;
+    staticFilePath = safeReadlink(staticFilePath);
+    if(unlikely(staticFilePath.size() == 0)) {
+        if(errno == ENOENT) {
+            cerr << "\x1B[33m[Warn] Static file directory '"
+                 << originalStaticFilePath
+                 << "' does not exist! The HTTP server definitely won't work.\x1B[0m" << endl;
+        } else if (errno == EACCES) {
+            cerr << "\x1B[33m[Warn] Static file directory '"
+                 << originalStaticFilePath
+                 << "' can't be used because the current user does not have the permission to read / list the directory! The HTTP server probably won't work.\x1B[0m" << endl;
+        } else {
+            cerr << "\x1B[33m[Warn] Unknown error '"
+                 << strerror(errno)
+                 << "' while trying to check the HTTP static file directory. The HTTP server probably won't work.\x1B[0m" << endl;
+        }
+    }
     if(staticFilePath.back() != '/') {
         staticFilePath += "/";
     }

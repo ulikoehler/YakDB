@@ -99,7 +99,9 @@ void YakHTTPServer::serveStaticFile(const char* fileURL) {
     sendReplyIdentity();
     //Security: Check if the file contains relative paths
     if(strstr(fileURL, "..") != nullptr) {
-        zmq_send_const(httpSocket, securityErrorMessage, sizeof(securityErrorMessage), 0);
+        if(zmq_send_const(httpSocket, securityErrorMessage, sizeof(securityErrorMessage), 0) == -1) {
+            logger.warn("Sending security violation error to HTTP client failed: " + string(zmq_strerror(errno)));
+        }
         return;
     }
     //No security violation, check if the file exists
@@ -111,7 +113,9 @@ void YakHTTPServer::serveStaticFile(const char* fileURL) {
     }
     string absoluteFilePath = staticFileRoot + string(fileURL);
     if(!fileExists(absoluteFilePath.c_str())) {
-        zmq_send_const(httpSocket, notFoundError, sizeof(notFoundError), 0);
+        if(zmq_send_const(httpSocket, notFoundError, sizeof(notFoundError), 0) == -1) {
+            logger.warn("Sending HTTP 404 to client failed: " + string(zmq_strerror(errno)));
+        }
         return;
     }
     //File exists, mmap if neccessary
@@ -124,10 +128,14 @@ void YakHTTPServer::serveStaticFile(const char* fileURL) {
     //Send the header
     string header("HTTP/1.1 200 OK\r\nContent-type: " + string(mimeType) 
                     + "\r\nContent-Length: " + std::to_string(file->size) +  "\r\n\r\n");
-    zmq_send_const(httpSocket, header.data(), header.size(), 0);
+    if(zmq_send_const(httpSocket, header.data(), header.size(), 0) == -1) {
+        logger.warn("Sending HTTP header to client failed: " + string(zmq_strerror(errno)));   
+    }
     //Send data
     sendReplyIdentity();
-    zmq_send_const(httpSocket, file->mem, file->size, 0);
+    if(zmq_send_const(httpSocket, file->mem, file->size, 0) == -1) {
+        logger.warn("Sending HTTP body to client failed: " + string(zmq_strerror(errno)));
+    }
 }
 
 void YakHTTPServer::sendReplyIdentity() {
@@ -138,7 +146,7 @@ void YakHTTPServer::sendReplyIdentity() {
 
 void YakHTTPServer::workerMain() {
     //TODO proper error handling
-    logger.trace("HTTP Server starting");
+    logger.trace("HTTP Server starting on " + endpoint);
     //Initialize router socket
     httpSocket = zsocket_new(ctx, ZMQ_STREAM);
     assert(zsocket_bind(httpSocket, endpoint.c_str()) != -1);
