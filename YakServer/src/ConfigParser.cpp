@@ -82,6 +82,9 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
         ("config,c",
             po::value<string>(&configFileName)->default_value("yak.cfg"),
             "The configuration file to use")
+        ("static-file-path",
+            po::value<string>(&staticFilePath)->default_value("/home/uli/dev/YakWebUI/static"),
+            "The static file directory for HTML files")
         ("statistics-expunge-timeout",
             po::value<uint64_t>(&statisticsExpungeTimeout)->default_value(3600*1000)/*1 hour default*/, 
             "The time in milliseconds statistics will be saved for retrieval after a job has finished.");
@@ -162,6 +165,10 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
         cout << desc << endl;
         exit(1);
     }
+    //Check directories
+    if(staticFilePath.back() != '/') {
+        staticFilePath += "/";
+    }
     //Get bool-ish options
     this->ipv4Only = (vm.count("ipv4-only") > 0);
     this->compressionEnabledPerDefault = (vm.count("disable-compression") > 0);
@@ -222,4 +229,8 @@ int ConfigParser::getInternalHWM() {
 
 int ConfigParser::getExternalHWM() {
     return externalHWM;
+}
+
+std::string ConfigParser::getStaticFilePath() {
+    return staticFilePath;
 }

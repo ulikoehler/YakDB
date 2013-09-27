@@ -142,12 +142,7 @@ static inline int receiveExpectNoMore(zmq_msg_t* msg, void* sock, Logger& logger
  * Returns -1 on error
  */
 static inline int sendConstFrame(const void* data, size_t size, void* socket, Logger& logger, const char* frameDesc, int flags = 0) {
-    zmq_msg_t msg;
-    if (unlikely(zmq_msg_init_data(&msg, (void*) data, size, nullptr, nullptr) == -1)) {
-        logMessageInitializationError(frameDesc, logger);
-        return -1;
-    }
-    if (unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
+    if (unlikely(zmq_send_const(socket, data, size, flags) == -1)) {
         logMessageSendError(frameDesc, logger);
         return -1;
     }
@@ -163,13 +158,7 @@ static inline int sendConstFrame(const void* data, size_t size, void* socket, Lo
  * Returns -1 on error
  */
 static inline int sendFrame(const void* data, size_t size, void* socket, Logger& logger, const char* frameDesc, int flags = 0) {
-    zmq_msg_t msg;
-    if (unlikely(zmq_msg_init_size(&msg, size) == -1)) {
-        logMessageInitializationError(frameDesc, logger);
-        return -1;
-    }
-    memcpy(zmq_msg_data(&msg), data, size);
-    if (unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
+    if (unlikely(zmq_send(socket, data, size, flags) == -1)) {
         logMessageSendError(frameDesc, logger);
         return -1;
     }

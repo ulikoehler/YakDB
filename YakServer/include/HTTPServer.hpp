@@ -2,7 +2,10 @@
 #define HTTPSERVER_HPP
 #include <czmq.h>
 #include <thread>
+#include <unordered_map>
 #include "Logger.hpp"
+
+class MMappedStaticFile;
 
 /**
  * A minimalistic ZMQ-based HTTP server that
@@ -23,20 +26,43 @@ public:
     /**
      * Create a new HTTP server instance and start the worker thread
      */
-    YakHTTPServer(zctx_t* ctx, const std::string& endpoint);
+    YakHTTPServer(zctx_t* ctx, const std::string& endpoint, const std::string& staticFileRoot);
     void terminate();
     ~YakHTTPServer();
 private:
     void workerMain();
+    /**
+     * Serve a static, mmapped file.
+     * mmaps the file if neccessary
+     */
+    void serveStaticFile(const char* filename);
+    /**
+     * Close the current TCP connection, identified by
+     * this->replyAddr
+     */
+    void closeTCPConnection();
+    
+    /**
+     * Send this->replyAddr over this->httpSocket.
+     */
+    void sendReplyIdentity();
     std::string endpoint;
     /**
      * This is used to send control messages to the HTTP server
      * (currently STOP command
      */
     void* controlSocket;
+    void* httpSocket; //Socket to the outer world, used by the worker thread
     zctx_t* ctx;
     std::thread* thread;
     Logger logger;
+    const char* replyAddr;
+    size_t replyAddrSize;
+    std::string staticFileRoot;
+    /**
+     * Static files mmapped into memory
+     */
+    std::unordered_map<std::string, MMappedStaticFile*> mappedFiles;
 };
 
 #endif //HTTPSERVER_HPP

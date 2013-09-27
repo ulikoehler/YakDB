@@ -318,7 +318,7 @@ tableOpenServer(ctx, configParserParam, tables.getDatabases()),
 updateWorkerController(ctx, tables, configParserParam),
 readWorkerController(ctx, tables),
 asyncJobRouterController(ctx, tables),
-httpServer(ctx, configParserParam.getHTTPEndpoint()),
+httpServer(ctx, configParserParam.getHTTPEndpoint(), configParserParam.getStaticFilePath()),
 logger(ctx, "Request router"),
 configParser(configParserParam)
  {

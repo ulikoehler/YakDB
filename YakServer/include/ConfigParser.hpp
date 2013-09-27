@@ -22,6 +22,7 @@ public:
      * and then only execute the server from the same directory.
      */
     void saveConfigFile();
+    std::string getStaticFilePath();
     uint64_t getStatisticsExpungeTimeout();
     uint64_t getDefaultLRUCacheSize();
     uint64_t getDefaultTableBlockSize();
@@ -38,6 +39,7 @@ private:
     std::vector<std::string> pullEndpoints;
     std::vector<std::string> subEndpoints;
     std::string httpEndpoint;
+    std::string staticFilePath;
     bool ipv4Only;
     int externalHWM;
     int internalHWM;
