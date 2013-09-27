@@ -161,9 +161,23 @@ void YakHTTPServer::workerMain() {
         assert(zmq_poll(items, 2, -1) != -1);
         //Check if we received a control msg
         if(items[1].revents) {
-            //It must be a stop message
-            zmq_recv(controlRecvSocket, nullptr, 0, 0);
-            break;
+            //Valid control msgs: STOP, HUP
+            char* controlMsg = zstr_recv(controlRecvSocket);
+            if(strcmp(controlMsg, "HUP") == 0) {
+                //HUP: munmap all static files --> 'reload' static files
+                logger.trace("HUP received, reloading all mmap'ed files");
+                for(auto pair : mappedFiles) {
+                    delete pair.second;
+                }
+                free(controlMsg);
+                continue;
+            } else if(strcmp(controlMsg, "STOP") == 0) {
+                free(controlMsg);
+                break;
+            } else {
+                logger.warn("Received unknown control message: '" + string(controlMsg) + "'");
+                continue;
+            }
         }
         assert(items[0].revents);
         //Receive the reply adress
@@ -214,7 +228,7 @@ void YakHTTPServer::closeTCPConnection() {
 void YakHTTPServer::terminate() {
     if(thread != nullptr) {
         //Send control msg
-        zmq_send(controlSocket, NULL, 0, 0);
+        zstr_send(controlSocket, "STOP");
         zsocket_destroy(ctx, controlSocket);
         //Wait until the thread exists
         thread->join();
