@@ -116,6 +116,7 @@ void YakHTTPServer::serveStaticFile(const char* fileURL) {
     }
     //File exists, mmap if neccessary
     if(mappedFiles.count(absoluteFilePath) == 0) {
+        logger.trace("mmap'ing static file " + absoluteFilePath);
         mappedFiles[absoluteFilePath] = new MMappedStaticFile(absoluteFilePath.c_str());
     }
     MMappedStaticFile* file = mappedFiles[absoluteFilePath];
