@@ -34,6 +34,7 @@ static bool COLD checkTCPIPCEndpoint(const string& endpoint, bool allowIPC = tru
 void COLD ConfigParser::saveConfigFile() {
     std::ofstream fout("yak.cfg");
     fout << "statistics-expunge-timeout=" << statisticsExpungeTimeout << '\n';
+    fout << "static-file-path=" << staticFilePath << '\n';
     if(!logFile.empty()) {
         fout << "logfile=" << logFile << '\n';
     }

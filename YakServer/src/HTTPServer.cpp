@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <assert.h>
+#include "BoyerMoore.hpp"
 #include "zutil.hpp"
 
 #define controlEndpoint "inproc://http/control"
@@ -144,6 +145,17 @@ void YakHTTPServer::sendReplyIdentity() {
     }
 }
 
+static bool startsWith(const string& corpus, const string& pattern) {
+    return pattern.length() <= corpus.length() 
+        && equal(pattern.begin(), pattern.end(), corpus.begin());
+}
+
+void YakHTTPServer::serveAPI(const char* requestPathCstr) {
+    string requestPath(requestPathCstr);
+    if(startsWith(requestPath, "")) {
+    }
+}
+
 void YakHTTPServer::workerMain() {
     //TODO proper error handling
     logger.trace("HTTP Server starting on " + endpoint);
@@ -207,7 +219,10 @@ void YakHTTPServer::workerMain() {
         recvAndIgnore(httpSocket);
         //Make a NUL-delimited string from the request path
         char* requestPath = strchr(requestData, ' ') + 1;
-        *(strchr(requestPath, ' ')) = '\0';
+        char* requestPathEnd = strchr(requestPath, ' ');
+        size_t requestPathLength = requestPathEnd - requestPath;
+        string requestPathString(requestPath, requestPathLength);
+        *requestPathEnd = '\0';
         /**
          * NOTE: Even if the reply adress is non-const data,
          * it is deallocated by the IO thread when the connection is closed
@@ -216,8 +231,12 @@ void YakHTTPServer::workerMain() {
          */
         replyAddr = (char*) zmq_msg_data(&replyAddrFrame);
         replyAddrSize = zmq_msg_size(&replyAddrFrame);
-        //TODO Check routes
-        serveStaticFile(requestPath);
+        //Check whether a static file or an API route is requested
+        if(strncmp(requestPath, "/api/v1", 7) == 0) {
+            serveAPI(requestPath+7);
+        } else {
+            serveStaticFile(requestPath);
+        }
         //Cleanup
         closeTCPConnection();
         zmq_msg_close(&replyAddrFrame);

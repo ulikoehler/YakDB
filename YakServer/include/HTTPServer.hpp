@@ -36,6 +36,8 @@ private:
      * mmaps the file if neccessary
      */
     void serveStaticFile(const char* filename);
+    
+    void serveAPI(const char* requestPath);
     /**
      * Close the current TCP connection, identified by
      * this->replyAddr

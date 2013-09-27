@@ -21,7 +21,7 @@ public:
      */
     BoyerMooreHorspoolSearcher(const std::string& pattern);
     /**
-     * Find 
+     * Find an occurrence of the pattern in a given corpus
      */
     const int find(const char* corpus);
     const int find(const std::string& corpus);
