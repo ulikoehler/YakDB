@@ -76,7 +76,7 @@ int DeleteRequest::sendKey(void* socket,
 int DeleteRangeRequest::sendRequest(void* socket, uint32_t tableNum,
         const std::string& startKey,
         const std::string& endKey) {
-    if (sendConstFrame(socket, "\x31\x01\x22", 3, ZMQ_SNDMORE) == -1) {
+    if (zmq_send_const(socket, "\x31\x01\x22", 3, ZMQ_SNDMORE) == -1) {
         return -1;
     }
     if (sendUint32Frame(socket, tableNum, ZMQ_SNDMORE) == -1) {

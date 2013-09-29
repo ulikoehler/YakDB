@@ -31,34 +31,13 @@ static inline bool currentMessageHasAnotherFrame(void* socket) {
 }
 
 /**
- * Send constant binary data in a single frame.
- * The data is assumed to be in a const-memory section that is assumed
- * not to change. This function may therefore use zero-copy mechanisms,
- * without freeing the data pointer afterwards in any way.
- * @param socket The socket to send the data over
- * @param constStr A pointer to the beginning of the data
- * @param size The number of bytes to send, beginning at param constStr
- * @param flags The ZeroMQ zmq_send flags to use, e.g. ZMQ_SNDMORE
- * @return -1 on error (you can check errno to get more information), 0 on success
- */
-static inline int sendConstFrame(void* socket, const char* constStr, size_t size, int flags = 0) {
-    zmq_msg_t msg;
-    zmq_msg_init_data(&msg, (void*) constStr, size, nullptr, nullptr);
-    if (zmq_msg_send(&msg, socket, flags) == -1) {
-        zmq_msg_close(&msg);
-        return -1;
-    }
-    return 0;
-}
-
-/**
  * Send an empty (zero-length) frame
  * @param socket The socket to send data over
  * @param flags The send flags, e.g. ZMQ_SNDMORE
  * @return -1 on error (you can check errno to get more information), 0 on success
  */
 static inline int sendEmptyFrame(void* socket, int flags = 0) {
-    return (zmq_send(socket, nullptr, 0, flags) == -1);
+    return (zmq_send_const (socket, nullptr, 0, flags) == -1);
 }
 
 /**

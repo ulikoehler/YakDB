@@ -152,7 +152,8 @@ static bool startsWith(const string& corpus, const string& pattern) {
 
 void YakHTTPServer::serveAPI(const char* requestPathCstr) {
     string requestPath(requestPathCstr);
-    if(startsWith(requestPath, "")) {
+    if(startsWith(requestPath, "/scan")) {
+        
     }
 }
 

@@ -4,7 +4,7 @@
 #include "zeromq_utils.hpp"
 
 int ServerInfoRequest::sendRequest(void* socket) {
-    sendConstFrame(socket, "\x31\x01\x00", 3);
+    zmq_send_const(socket, "\x31\x01\x00", 3, 0);
     return 0;
 }
 
@@ -101,7 +101,7 @@ int CompactRequest::receiveResponse(void* socket, std::string& errorString) {
 }
 
 int TruncateRequest::sendRequest(void* socket, uint32_t tableNum) {
-    if(sendConstFrame(socket, "\x31\x01\x04\x00", 4, ZMQ_SNDMORE) == -1) {
+    if(zmq_send_const (socket, "\x31\x01\x04\x00", 4, ZMQ_SNDMORE) == -1) {
         return -1;
     }
     //If the strings are empty, zero-length frames are generated automatically

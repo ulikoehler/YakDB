@@ -5,7 +5,7 @@
 #include "zeromq_utils.hpp"
 
 int ReadRequest::sendHeader(void* socket, uint32_t table) {
-    if (sendConstFrame(socket, "\x31\x01\x10", 3, ZMQ_SNDMORE) == -1) {
+    if (zmq_send_const(socket, "\x31\x01\x10", 3, ZMQ_SNDMORE) == -1) {
         return -1;
     }
     return sendUint32Frame(socket, table, ZMQ_SNDMORE);
@@ -39,7 +39,7 @@ int ReadRequest::receiveResponseValue(void* socket, std::string& target) {
 }
 
 int CountRequest::sendHeader(void* socket, uint32_t table) {
-    if (sendConstFrame(socket, "\x31\x01\x11", 3, ZMQ_SNDMORE) == -1) {
+    if (zmq_send_const(socket, "\x31\x01\x11", 3, ZMQ_SNDMORE) == -1) {
         return -1;
     }
     return sendUint32Frame(socket, table, ZMQ_SNDMORE);
@@ -73,7 +73,7 @@ int CountRequest::receiveResponseValue(void* socket, std::string& target) {
 }
 
 int ExistsRequest::sendHeader(void* socket, uint32_t table) {
-    if (sendConstFrame(socket, "\x31\x01\x12", 3, ZMQ_SNDMORE) == -1) {
+    if (zmq_send_const(socket, "\x31\x01\x12", 3, ZMQ_SNDMORE) == -1) {
         return -1;
     }
     return sendUint32Frame(socket, table, ZMQ_SNDMORE);
@@ -113,7 +113,7 @@ int ScanRequest::sendRequest(void* socket, uint32_t tableNum,
         const std::string& keyFilter,
         const std::string& valueFilter
         ) {
-    if (sendConstFrame(socket, "\x31\x01\x13", 3, ZMQ_SNDMORE) == -1) {
+    if (zmq_send_const(socket, "\x31\x01\x13", 3, ZMQ_SNDMORE) == -1) {
         return -1;
     }
     if (sendUint32Frame(socket, tableNum, ZMQ_SNDMORE) == -1) {

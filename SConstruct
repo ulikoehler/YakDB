@@ -17,7 +17,7 @@ with open("YakServer/include/autoconfig.h", "w") as configfile:
 #endif //AUTOCONFIG_H
 """%config)
 
+#Build C++ client library (which is a dependency of the server)
+SConscript(dirs='YakClient', variant_dir='clientbuild', src_dir='YakClient', duplicate=0)
 #Build server
 SConscript(dirs='YakServer', variant_dir='build', src_dir='YakServer', duplicate=0)
-#Build C++ client library
-SConscript(dirs='YakClient', variant_dir='clientbuild', src_dir='YakClient', duplicate=0)
