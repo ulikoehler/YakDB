@@ -21,3 +21,5 @@ with open("YakServer/include/autoconfig.h", "w") as configfile:
 SConscript(dirs='YakClient', variant_dir='clientbuild', src_dir='YakClient', duplicate=0)
 #Build server
 SConscript(dirs='YakServer', variant_dir='build', src_dir='YakServer', duplicate=0)
+#Build unit test
+SConscript("YakServer/unittest.sconscript", variant_dir='testbuild', src_dir='YakServer', duplicate=0)

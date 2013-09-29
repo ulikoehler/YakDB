@@ -7,9 +7,10 @@ linkmode = ARGUMENTS.get("link","dynamic")
 Import("yaklibSrc")
 yaklibSrc = ["../YakClient/" + filename for filename in yaklibSrc]
 
+march = ARGUMENTS.get('march','core2')
 
 linkflags=[]
-cxxflags=["-std=c++0x","-march=core2","-Wall","-O2","-ffast-math"]
+cxxflags=["-std=c++0x","-march=" + march,"-Wall","-O2","-ffast-math"]
 if linkmode == "static":
     cxxflags.append("-static")
     linkflags.append("-static")
@@ -34,6 +35,10 @@ if stdlib != "default":
     cxxflags.append("-stdlib=libc++")
     linkflags.append("-stdlib=libc++")
 
+#Fix clang bug on precise
+if cxx == "clang++":
+    cxxflags.append("-D__extern_always_inline=inline")
+
 #Removed unused stuff
 cxxflags.append("-ffunction-sections")
 cxxflags.append("-fdata-sections")
@@ -48,7 +53,7 @@ env = Environment(CXX=cxx,
                          'HOME' : os.environ['HOME']})
 
 malloc = ARGUMENTS.get("malloc","jemalloc")
-libraries = ["zmq","czmq","leveldb","boost_program_options",malloc]
+libraries = ["leveldb","zmq","czmq","boost_program_options",malloc]
 if linkmode == "static":
     #Somehow we need this
     libraries.append("snappy")
@@ -75,6 +80,6 @@ yakServerSrc =  ["src/zutil.cpp",
     "src/HTTPServer.cpp",
     "src/http/URLParser.cpp"]
 
+Export(["yakServerSrc","env"])
+
 env.Program(target="yakserver", source=yakServerSrc + yaklibSrc, LIBS=libraries)
-#Build unit test
-env.Program(target="yaktest",source=yakServerSrc + yaklibSrc, LIBS=["boost_unit_test_framework","zmq","czmq"])

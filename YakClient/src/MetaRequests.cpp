@@ -1,5 +1,5 @@
 #include <zmq.h>
-#include <cstdint>  
+#include <cstdint>
 #include "yakclient/MetaRequests.hpp"
 #include "yakclient/zeromq_utils.hpp"
 

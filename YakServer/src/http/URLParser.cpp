@@ -1,5 +1,5 @@
 #include "http/URLParser.hpp"
-
+#include <cstring>
 
 using std::string;
 
@@ -29,19 +29,30 @@ bool decodeURLEntities(const std::string& in, std::string& out) {
 
 
 
-std::map<std::string, std::string> parseQueryPart(const std::string& in) {
+std::map<std::string, std::string> parseQueryPart(const char* query) {
     std::map<std::string, std::string> ret;
-    vector<string> andSplit;
-    split(andSplit, queryPart, is_any_of("&"));
+    
+    //Skip '?' at the beginning, if any
+    if(query[0] == '?') {
+        query++;
+    }
 
-    for(string kv : andSplit) {
-        vector<string> kvPair;
-        split(kvPair, kv, is_any_of("="));
-        //Decode the paths
-        string key, value;
-        url_decode(kvPair[0], key);
-        url_decode(kvPair[1], value);
-        ret[kvPair[0]] = kvPair[1];
+    while(true) {
+        char* kvSeparator = strchr(query, '=');
+        if(kvSeparator == nullptr) {
+            //No separator -- no argument left
+            break;
+        }
+        char* argSeparator = strchr(kvSeparator, '&');
+        string key(query, (kvSeparator - query));
+        if(argSeparator == nullptr) {
+            //last argument
+            ret[key] = string(kvSeparator);
+            break;
+        } else {
+            ret[key] = string(kvSeparator, argSeparator - kvSeparator - 1);
+        }
+        query = argSeparator + 1;
     }
     return ret;
 }

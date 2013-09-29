@@ -2,10 +2,10 @@
 import os
 
 cxx = ARGUMENTS.get('cxx','clang++')
+march = ARGUMENTS.get('march','core2')
 
-env = Environment(CXX=cxx,CXXFLAGS=["-std=c++0x","-march=core2","-O2","-Wall"],CPPPATH=['include'],
-                  ENV =
-						{'PATH' : os.environ['PATH'],
+env = Environment(CXX=cxx,CXXFLAGS=["-std=c++0x","-march=" + march,"-O2","-Wall"],CPPPATH=['include'],
+                  ENV = {'PATH' : os.environ['PATH'],
                          'TERM' : os.environ['TERM'],
                          'HOME' : os.environ['HOME']})
 #Get CLI flags
@@ -35,8 +35,9 @@ testSrc = [
 libyakclientA = env.Library(target="yakclient",source=yaklibSrc)
 libyakclientSO = env.SharedLibrary(target="yakclient",source=yaklibSrc)
 env.Program(target="yakctest",source=testSrc, LIBS=["boost_unit_test_framework",libyakclientA,"zmq","czmq"],LDPATH="../clientbuild")
+
 env.Install("/usr/local/lib", [libyakclientSO, libyakclientA])
-env.Install("/usr/local/include", "../YakClient/include/yakclient")    
+env.Install("/usr/local/include", "../YakClient/include/yakclient")
 env.Alias('install', ['/usr/local/lib','/usr/local/include'])
 #env.Program(target="kvc", source=zkvSource,LIBS=libraries)
 
