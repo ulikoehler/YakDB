@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <assert.h>
+#include "endpoints.hpp"
 #include "BoyerMoore.hpp"
 #include "zutil.hpp"
 
@@ -152,7 +153,7 @@ static bool startsWith(const string& corpus, const string& pattern) {
 
 void YakHTTPServer::serveAPI(const char* requestPathCstr) {
     string requestPath(requestPathCstr);
-    if(startsWith(requestPath, "/scan")) {
+    if(startsWith(requestPath, "/read")) {
         
     }
 }
@@ -160,9 +161,11 @@ void YakHTTPServer::serveAPI(const char* requestPathCstr) {
 void YakHTTPServer::workerMain() {
     //TODO proper error handling
     logger.trace("HTTP Server starting on " + endpoint);
-    //Initialize router socket
+    //Initialize HTTP socket
     httpSocket = zsocket_new(ctx, ZMQ_STREAM);
     assert(zsocket_bind(httpSocket, endpoint.c_str()) != -1);
+    //Connect to main Yak router
+    mainRouterSocket = zsocket_new_connect(ctx, ZMQ_REQ, mainRouterAddr);
     //Initialize other stuff
     zmq_msg_t replyAddrFrame;
     zmq_msg_init(&replyAddrFrame);
@@ -245,6 +248,7 @@ void YakHTTPServer::workerMain() {
     logger.debug("HTTP Server terminating...");
     zsocket_destroy(ctx, controlRecvSocket);
     zsocket_destroy(ctx, httpSocket);
+    zsocket_destroy(ctx, mainRouterSocket);
     httpSocket = nullptr;
 }
 

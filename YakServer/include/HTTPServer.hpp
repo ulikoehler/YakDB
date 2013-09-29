@@ -55,6 +55,7 @@ private:
      */
     void* controlSocket;
     void* httpSocket; //Socket to the outer world, used by the worker thread
+    void* mainRouterSocket; //Socket to the main router (inproc)
     zctx_t* ctx;
     std::thread* thread;
     Logger logger;

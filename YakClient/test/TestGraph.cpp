@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 #include <cstring>
-#include "Graph/Serialize.hpp"
+#include "yakclient/Graph/Serialize.hpp"
 
 using namespace std;
 

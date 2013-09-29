@@ -1,8 +1,8 @@
 #include <zmq.h>
 #include <string>
 #include <cstdint>
-#include "ReadRequests.hpp"
-#include "zeromq_utils.hpp"
+#include "yakclient/ReadRequests.hpp"
+#include "yakclient/zeromq_utils.hpp"
 
 int ReadRequest::sendHeader(void* socket, uint32_t table) {
     if (zmq_send_const(socket, "\x31\x01\x10", 3, ZMQ_SNDMORE) == -1) {

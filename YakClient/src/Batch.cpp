@@ -1,6 +1,6 @@
-#include "Batch.hpp"
-#include "YakClient.hpp"
-#include "WriteRequests.hpp"
+#include "yakclient/Batch.hpp"
+#include "yakclient/YakClient.hpp"
+#include "yakclient/WriteRequests.hpp"
 
 AutoPutBatch::AutoPutBatch(YakClient& conn, uint32_t tableNo, size_t batchSize, uint8_t flags) :
 socket(conn.getSocket()),

@@ -1,7 +1,7 @@
 #include <zmq.h>
 #include <cstdint>  
-#include "MetaRequests.hpp"
-#include "zeromq_utils.hpp"
+#include "yakclient/MetaRequests.hpp"
+#include "yakclient/zeromq_utils.hpp"
 
 int ServerInfoRequest::sendRequest(void* socket) {
     zmq_send_const(socket, "\x31\x01\x00", 3, 0);

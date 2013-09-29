@@ -1,8 +1,8 @@
 #include <zmq.h>
 #include <string>
 #include <cstdint>
-#include "WriteRequests.hpp"
-#include "zeromq_utils.hpp"
+#include "yakclient/WriteRequests.hpp"
+#include "yakclient/zeromq_utils.hpp"
 
 int PutRequest::sendHeader(void* socket, uint32_t table, uint8_t flags) {
     char data[] = "\x31\x01\x20\x00";

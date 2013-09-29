@@ -3,6 +3,11 @@ import os
 
 linkmode = ARGUMENTS.get("link","dynamic")
 
+#Yaklib (client library) is needed for the HTTP API
+Import("yaklibSrc")
+yaklibSrc = ["../YakClient/" + filename for filename in yaklibSrc]
+
+
 linkflags=[]
 cxxflags=["-std=c++0x","-march=core2","-Wall","-O2","-ffast-math"]
 if linkmode == "static":
@@ -35,9 +40,9 @@ cxxflags.append("-fdata-sections")
 linkflags.append("-Wl,--gc-sections")
 
 env = Environment(CXX=cxx,
-		  CXXFLAGS=cxxflags,
+                  CXXFLAGS=cxxflags,
                   LINKFLAGS=linkflags,
-                  CPPPATH=["include"],
+                  CPPPATH=["include","../YakClient/include"],
                   ENV = {'PATH' : os.environ['PATH'],
                          'TERM' : os.environ['TERM'],
                          'HOME' : os.environ['HOME']})
@@ -69,4 +74,4 @@ yakServerSrc =  ["src/zutil.cpp",
     "src/ThreadUtil.cpp",
     "src/HTTPServer.cpp"]
 
-env.Program(target="yakserver", source=yakServerSrc, LIBS=libraries)
+env.Program(target="yakserver", source=yakServerSrc + yaklibSrc, LIBS=libraries)

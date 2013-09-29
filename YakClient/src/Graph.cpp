@@ -3,7 +3,7 @@
  */
 #include <cstring>
 #include <czmq.h>
-#include "Graph/Serialize.hpp"
+#include "yakclient/Graph/Serialize.hpp"
 
 char* serializeExtAttrId(const std::string& entityId, const std::string& key, size_t* calculatedLength) {
     return serializeExtAttrId(entityId.data(), entityId.size(), key.data(), key.size(), calculatedLength);

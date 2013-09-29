@@ -5,10 +5,10 @@
  * Created on 30. April 2013, 20:17
  */
 
-#include "YakClient.hpp"
-#include "ReadRequests.hpp"
-#include "WriteRequests.hpp"
-#include "MetaRequests.hpp"
+#include "yakclient/YakClient.hpp"
+#include "yakclient/ReadRequests.hpp"
+#include "yakclient/WriteRequests.hpp"
+#include "yakclient/MetaRequests.hpp"
 
 
 YakClient::YakClient() : context(zctx_new()), destroyContextOnExit(true), socketType(SocketType::None) {
