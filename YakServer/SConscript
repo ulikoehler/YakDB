@@ -72,6 +72,9 @@ yakServerSrc =  ["src/zutil.cpp",
     "src/SequentialIDGenerator.cpp",
     "src/Server.cpp",
     "src/ThreadUtil.cpp",
-    "src/HTTPServer.cpp"]
+    "src/HTTPServer.cpp",
+    "src/http/URLParser.cpp"]
 
 env.Program(target="yakserver", source=yakServerSrc + yaklibSrc, LIBS=libraries)
+#Build unit test
+env.Program(target="yaktest",source=yakServerSrc + yaklibSrc, LIBS=["boost_unit_test_framework","zmq","czmq"])

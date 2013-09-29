@@ -1,25 +1,12 @@
-#include <cstdlib>
-#include <string>
+#include "http/URLParser.hpp"
+
 
 using std::string;
 
-/**
- * Convert a two-char hex character code (in URLs prefixed by '%')
- * to the corresponding character
- * @param hex1 The most significant hex char, e.g. 2 for %20
- * @param hex2 The most significant hex char, e.g. 2 for %20
- */
 char hexToChar(char hex1, char hex2) {
     return (hex1 - '0') * 16 + (hex2 - '0');
 }
 
-/**
- * Decode entities like %20 in a string
- * Examples:
- *  "a%20b" --> "a b"
- *  "c+d" --> "c d"
- * @return true if the URL has been parsed successfully
- */
 bool decodeURLEntities(const std::string& in, std::string& out) {
     out.clear();
     out.reserve(in.size());
@@ -38,4 +25,23 @@ bool decodeURLEntities(const std::string& in, std::string& out) {
         }
     }
     return true;
+}
+
+
+
+std::map<std::string, std::string> parseQueryPart(const std::string& in) {
+    std::map<std::string, std::string> ret;
+    vector<string> andSplit;
+    split(andSplit, queryPart, is_any_of("&"));
+
+    for(string kv : andSplit) {
+        vector<string> kvPair;
+        split(kvPair, kv, is_any_of("="));
+        //Decode the paths
+        string key, value;
+        url_decode(kvPair[0], key);
+        url_decode(kvPair[1], value);
+        ret[kvPair[0]] = kvPair[1];
+    }
+    return ret;
 }
