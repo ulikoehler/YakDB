@@ -9,6 +9,17 @@ BOOST_AUTO_TEST_SUITE(URLParser)
 BOOST_AUTO_TEST_CASE(TestHexToChar) {
     BOOST_CHECK_EQUAL(' ', hexToChar('2','0'));
     BOOST_CHECK_EQUAL('\0', hexToChar('0','0'));
+    BOOST_CHECK_EQUAL('A', hexToChar('4','1'));
+}
+
+BOOST_AUTO_TEST_CASE(TestDecodeURLEntities) {
+    string out;
+    BOOST_CHECK(decodeURLEntities("a%20b%41cDEF%67",out));
+    BOOST_CHECK_EQUAL("a bAcDEFg", out);
+    BOOST_CHECK(decodeURLEntities("",out));
+    BOOST_CHECK_EQUAL("", out);
+    BOOST_CHECK(decodeURLEntities("/",out));
+    BOOST_CHECK_EQUAL("/", out);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

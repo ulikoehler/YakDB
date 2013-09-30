@@ -15,6 +15,7 @@ bool decodeURLEntities(const std::string& in, std::string& out) {
             if (i + 3 <= in.size()) {
                 int value = 0;
                 out += hexToChar(in[i+1], in[i+2]);
+                i += 2;
             } else {
                 return false;
             }
