@@ -48,10 +48,10 @@ std::map<std::string, std::string> parseQueryPart(const char* query) {
         string key(query, (kvSeparator - query));
         if(argSeparator == nullptr) {
             //last argument
-            ret[key] = string(kvSeparator);
+            ret[key] = string(kvSeparator + 1);
             break;
         } else {
-            ret[key] = string(kvSeparator, argSeparator - kvSeparator - 1);
+            ret[key] = string(kvSeparator + 1, argSeparator - kvSeparator - 1);
         }
         query = argSeparator + 1;
     }
