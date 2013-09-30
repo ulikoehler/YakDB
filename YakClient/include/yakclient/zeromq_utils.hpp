@@ -13,6 +13,7 @@
 #ifndef ZMQ_UTILS_HPP
 #define	ZMQ_UTILS_HPP
 #include <zmq.h>
+#include <czmq.h>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -138,7 +139,7 @@ static inline int receiveSimpleResponse(void* socket, std::string& errorString) 
  */
 static inline int sendRange(void* socket, const std::string& startKey, const std::string& endKey, int flags = 0) {
     int rc = zmq_send(socket, startKey.data(), startKey.size(), ZMQ_SNDMORE);
-    if (!rc) {
+    if (rc == -1) {
         return rc;
     }
     return zmq_send(socket, endKey.data(), endKey.size(), flags);
@@ -150,7 +151,7 @@ static inline int sendRange(void* socket, const std::string& startKey, const std
  * @param key A string ref where the key will be placed
  * @param value A string ref where the value will be placed
  * @param last If this parameter is set to true, the value frame will be sent without SNDMORE flag
- * @return -1 on error (--> check errno with zmq_strerror()), 0 else
+ * @return -1 on error (--> check errno with zmq_strerror()), 0 if this is the last frame, 1 if more frames are to follow
  */
 static int receiveKeyValue(void* socket, std::string& keyTarget, std::string& valueTarget) {
     if (receiveStringFrame(socket, keyTarget) == -1) {
@@ -160,7 +161,10 @@ static int receiveKeyValue(void* socket, std::string& keyTarget, std::string& va
     if (!currentMessageHasAnotherFrame(socket)) {
         return -1;
     }
-    return receiveStringFrame(socket, valueTarget);
+    if(receiveStringFrame(socket, valueTarget) == -1) {
+        return -1;
+    }
+    return (zsocket_rcvmore(socket) ? 1 : 0);
 }
 
 #endif	/* ZMQ_UTILS_HPP */

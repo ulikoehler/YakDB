@@ -156,10 +156,15 @@ static bool startsWith(const string& corpus, const string& pattern) {
         && equal(pattern.begin(), pattern.end(), corpus.begin());
 }
 
+void escapeJSON(std::string& in) {
+    //in.replace("\\", "\\\\");
+    //in.replace("\"", "\\\"");
+}
+
 void YakHTTPServer::serveAPI(char* requestPathCstr) {
     /*
      * NOTE: All URLs are relative to /api/v1 !
-     */
+    */
     map<string, string> queryArgs;
     //Overwritable defaults
     queryArgs["table"] = "1";
@@ -197,7 +202,36 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
         if(rc == -1) {
             //TODO handle error
         }
-        
+        std::string errorMessage;
+        rc = ScanRequest::receiveResponseHeader(mainRouterSocket, errorMessage);
+        if(rc == -1) {
+            //TODO handle error
+        }
+        //No error, send HTTP header
+        sendReplyIdentity();
+        string header("HTTP/1.1 200 OK\r\nContent-type: text/json\r\n\r\n{");
+        if(zmq_send_const(httpSocket, header.data(), header.size(), 0) == -1) {
+            logger.warn("Sending HTTP header to client failed: " + string(zmq_strerror(errno)));   
+        }
+        bool firstObject = true; //Used to determine whether to write a comma separator
+        string key, value;
+        while((rc = ScanRequest::receiveResponseValue(mainRouterSocket, key, value)) == 1) {
+            escapeJSON(key);
+            escapeJSON(value);
+            string jsonObj = ",\"" + key + "\":\"" + value + "\"";
+            if(firstObject) {
+                //Remove the comma
+                jsonObj = jsonObj.substr(1);
+            }
+            firstObject = false;
+            sendReplyIdentity();
+            zmq_send(httpSocket, jsonObj.data(), jsonObj.size(), 0);
+        }
+        if(rc == -1) {
+            //TODO handle error
+        }
+        sendReplyIdentity();
+        zmq_send(httpSocket, "}", 1, 0);
     }
 }
 

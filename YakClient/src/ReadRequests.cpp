@@ -135,12 +135,6 @@ int ScanRequest::receiveResponseHeader(void* socket, std::string& errorMessage) 
     return receiveSimpleResponse(socket, errorMessage);
 }
 
-/**
- * Receive the next response value.
- * @param keyTarget A string reference to write the key to
- * @param valueTarget A string reference to write the value to
- * @return -1 on error, 0 == (success, there are more keys to retrieve), 1 == (success, no more keys to retrieve)
- */
 int ScanRequest::receiveResponseValue(void* socket, std::string& keyTarget, std::string& valueTarget) {
     return receiveKeyValue(socket, keyTarget, valueTarget);
 }

@@ -102,11 +102,11 @@ public:
             );
     static int receiveResponseHeader(void* socket, std::string& errorMessage);
     /**
-     * Receive the next response key&value.
-     * @param keyTarget A string reference to write the key to
-     * @param valueTarget A string reference to write the value to
-     * @return -1 on error, 0 on success
-     */
+    * Receive the next response value.
+    * @param keyTarget A string reference to write the key to
+    * @param valueTarget A string reference to write the value to
+    * @return -1 on error, 0 == (success, there are no more key/value pairs to retrieve), 1 == (success, there are more key/value pairs to retrieve)
+    */
     static int receiveResponseValue(void* socket, std::string& keyTarget, std::string& valueTarget);
 };
 
