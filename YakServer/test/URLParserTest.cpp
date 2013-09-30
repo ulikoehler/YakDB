@@ -30,6 +30,13 @@ BOOST_AUTO_TEST_CASE(TestParseQueryPart) {
     BOOST_CHECK_EQUAL("b", result["a"]);
     BOOST_CHECK_EQUAL("d", result["c"]);
     BOOST_CHECK_EQUAL("bar", result["Foo"]);
+    //Test with encoded components
+    result.clear();
+    parseQueryPart("?a=%20b&c%48=d&Foo=b%70ar", result);
+    BOOST_CHECK_EQUAL(3, result.size());
+    BOOST_CHECK_EQUAL(" b", result["a"]);
+    BOOST_CHECK_EQUAL("d", result["cH"]);
+    BOOST_CHECK_EQUAL("bpar", result["Foo"]);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

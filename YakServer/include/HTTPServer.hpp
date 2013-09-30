@@ -37,7 +37,7 @@ private:
      */
     void serveStaticFile(const char* filename);
     
-    void serveAPI(const char* requestPath);
+    void serveAPI(char* requestPath);
     /**
      * Close the current TCP connection, identified by
      * this->replyAddr

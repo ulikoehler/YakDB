@@ -9,11 +9,15 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <assert.h>
+#include "http/URLParser.hpp"
 #include "endpoints.hpp"
 #include "BoyerMoore.hpp"
 #include "zutil.hpp"
 
 #define controlEndpoint "inproc://http/control"
+
+using std::string;
+using std::map;
 
 static size_t getFilesize(const char* filename) {
     struct stat st;
@@ -151,7 +155,14 @@ static bool startsWith(const string& corpus, const string& pattern) {
         && equal(pattern.begin(), pattern.end(), corpus.begin());
 }
 
-void YakHTTPServer::serveAPI(const char* requestPathCstr) {
+void YakHTTPServer::serveAPI(char* requestPathCstr) {
+    map<string, string> queryPaths;
+    //Parse query arguments, if any
+    char* queryBegin = strchr(requestPathCstr, '?');
+    if(queryBegin != nullptr) {
+        //If there's a query part
+        //parseUR
+    }
     string requestPath(requestPathCstr);
     if(startsWith(requestPath, "/read")) {
         
