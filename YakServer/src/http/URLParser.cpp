@@ -30,8 +30,7 @@ bool decodeURLEntities(const std::string& in, std::string& out) {
 
 
 
-std::map<std::string, std::string> parseQueryPart(const char* query) {
-    std::map<std::string, std::string> ret;
+void parseQueryPart(const char* query, std::map<std::string, std::string> map) {
     
     //Skip '?' at the beginning, if any
     if(query[0] == '?') {
@@ -48,12 +47,11 @@ std::map<std::string, std::string> parseQueryPart(const char* query) {
         string key(query, (kvSeparator - query));
         if(argSeparator == nullptr) {
             //last argument
-            ret[key] = string(kvSeparator + 1);
+            map[key] = string(kvSeparator + 1);
             break;
         } else {
-            ret[key] = string(kvSeparator + 1, argSeparator - kvSeparator - 1);
+            map[key] = string(kvSeparator + 1, argSeparator - kvSeparator - 1);
         }
         query = argSeparator + 1;
     }
-    return ret;
 }

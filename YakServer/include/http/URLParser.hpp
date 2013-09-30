@@ -25,6 +25,6 @@ bool decodeURLEntities(const std::string& in, std::string& out);
 /**
  * Parse the query part of an URL
  */
-std::map<std::string, std::string> parseQueryPart(const char* in);
+void parseQueryPart(const char* in, std::map<std::string, std::string> map);
 
 #endif //__URLPARSER_HPP

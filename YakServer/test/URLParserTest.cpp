@@ -24,7 +24,8 @@ BOOST_AUTO_TEST_CASE(TestDecodeURLEntities) {
 
 
 BOOST_AUTO_TEST_CASE(TestParseQueryPart) {
-    map<string, string> result =  parseQueryPart("?a=b&c=d&Foo=bar");
+    map<string, string> result;
+    parseQueryPart("?a=b&c=d&Foo=bar", result);
     BOOST_CHECK_EQUAL(3, result.size());
     BOOST_CHECK_EQUAL("b", result["a"]);
     BOOST_CHECK_EQUAL("d", result["c"]);
