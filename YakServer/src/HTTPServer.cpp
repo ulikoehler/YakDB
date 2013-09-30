@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <assert.h>
+#include "yakclient/ReadRequests.hpp"
 #include "http/URLParser.hpp"
 #include "endpoints.hpp"
 #include "BoyerMoore.hpp"
@@ -156,15 +157,46 @@ static bool startsWith(const string& corpus, const string& pattern) {
 }
 
 void YakHTTPServer::serveAPI(char* requestPathCstr) {
-    map<string, string> queryPaths;
+    /*
+     * NOTE: All URLs are relative to /api/v1 !
+     */
+    map<string, string> queryArgs;
+    //Overwritable defaults
+    queryArgs["table"] = "1";
+    queryArgs["limit"] = "10";
     //Parse query arguments, if any
     char* queryBegin = strchr(requestPathCstr, '?');
     if(queryBegin != nullptr) {
-        //If there's a query part
-        //parseUR
+        //--> There's a query part
+        *queryBegin = '\x0'; //query part doesn't belong to the URL itself
+        parseQueryPart(queryBegin + 1, queryArgs);
     }
     string requestPath(requestPathCstr);
-    if(startsWith(requestPath, "/read")) {
+    if(startsWith(requestPath, "/scan")) {
+        /*
+         * Interactive key search, for autocomplete
+         * Query arguments:
+         *   startKey    -- The start key, inclusive
+         *   endKey      -- The stop key, not inclusive
+         *   limit       -- The numeric limit, default 10
+         *   table       -- The table no, default 1
+         *   keyFilter   -- Optional key substring filter
+         *   valueFilter -- Optional value substring filter
+         */
+        //Set default arguments
+        //cout << "prefix=" << queryArgs["prefix"] << endl;
+        //cout << "prefix=" << queryArgs["prefix"] << endl;
+        int rc = ScanRequest::sendRequest(mainRouterSocket,
+                                 std::stol(queryArgs["table"]),
+                                 std::stol(queryArgs["limit"]),
+                                 queryArgs["startKey"],
+                                 queryArgs["endKey"],
+                                 queryArgs["keyFilter"],
+                                 queryArgs["valueFilter"]
+                     );
+        if(rc == -1) {
+            //TODO handle error
+        }
         
     }
 }
