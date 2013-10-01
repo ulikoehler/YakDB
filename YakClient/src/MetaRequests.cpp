@@ -1,5 +1,5 @@
+#include <stdint.h>
 #include <zmq.h>
-#include <cstdint>
 #include "yakclient/MetaRequests.hpp"
 #include "yakclient/zeromq_utils.hpp"
 
@@ -48,25 +48,25 @@ int TableOpenRequest::sendRequest(void* socket, uint32_t tableNo,
     zmq_send(socket, header, 4, ZMQ_SNDMORE);
     zmq_send(socket, (char*)&tableNo, sizeof (uint32_t), ZMQ_SNDMORE);
     //LRU cache size
-    if (lruCacheSize == UINT64_MAX) {
+    if (lruCacheSize == std::numeric_limits<uint64_t>::max()) {
         sendEmptyFrame(socket, ZMQ_SNDMORE);
     } else {
         zmq_send(socket, (char*)&lruCacheSize, sizeof (uint64_t), ZMQ_SNDMORE);
     }
     //Table block size
-    if (tableBlockSize == UINT64_MAX) {
+    if (tableBlockSize == std::numeric_limits<uint64_t>::max()) {
         sendEmptyFrame(socket, ZMQ_SNDMORE);
     } else {
         zmq_send(socket, (char*)&tableBlockSize, sizeof (uint64_t), ZMQ_SNDMORE);
     }
     //Write buffer size
-    if (writeBufferSize == UINT64_MAX) {
+    if (writeBufferSize == std::numeric_limits<uint64_t>::max()) {
         sendEmptyFrame(socket, ZMQ_SNDMORE);
     } else {
         zmq_send(socket, (char*)&writeBufferSize, sizeof (uint64_t), ZMQ_SNDMORE);
     }
     //Bloom filter size
-    if (bloomFilterSize == UINT64_MAX) {
+    if (bloomFilterSize == std::numeric_limits<uint64_t>::max()) {
         sendEmptyFrame(socket, 0);
     } else {
         zmq_send(socket, (char*)&bloomFilterSize, sizeof (uint64_t), 0);

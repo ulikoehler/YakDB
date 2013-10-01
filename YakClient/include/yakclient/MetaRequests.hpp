@@ -7,6 +7,7 @@
 
 #ifndef METAREQUESTS_HPP
 #define	METAREQUESTS_HPP
+#include <cstdint>
 #include <limits>
 #include <string>
 
