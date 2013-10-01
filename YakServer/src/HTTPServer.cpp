@@ -201,12 +201,13 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
         /*
          * Interactive key search, for autocomplete
          * Query arguments:
-         *   startKey    -- The start key, inclusive
-         *   endKey      -- The stop key, not inclusive
-         *   limit       -- The numeric limit, default 10
-         *   table       -- The table no, default 1
-         *   keyFilter   -- Optional key substring filter
-         *   valueFilter -- Optional value substring filter
+         *   startKey       -- The start key, inclusive
+         *   endKey         -- The stop key, not inclusive
+         *   limit          -- The numeric limit, default 10
+         *   table          -- The table no, default 1
+         *   keyFilter      -- Optional key substring filter
+         *   valueFilter    -- Optional value substring filter
+         *   valueSizeLimit -- Option
          */
         //Set default arguments
         //cout << "prefix=" << queryArgs["prefix"] << endl;
@@ -219,6 +220,10 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
                                  queryArgs["keyFilter"],
                                  queryArgs["valueFilter"]
                      );
+        uint32_t valueSizeLimit = 0;
+        if(queryArgs.count("valueSizeLimit") > 0) {
+            valueSizeLimit = std::stol(queryArgs["valueSizeLimit"]);
+        }
         if(rc == -1) {
             //TODO handle error
         }
