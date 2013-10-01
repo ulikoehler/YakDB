@@ -48,13 +48,13 @@ void parseQueryPart(const char* query, std::map<std::string, std::string>& map) 
     }
 
     while(true) {
-        char* kvSeparator = strchr(query, '=');
+        const char* kvSeparator = strchr(query, '=');
         if(kvSeparator == nullptr) {
             //No separator -- no argument left
             //This branch won't execute for correct inputs
             break;
         }
-        char* argSeparator = strchr(kvSeparator, '&');
+        const char* argSeparator = strchr(kvSeparator, '&');
         string key = decodeURLEntities(query, (kvSeparator - query));
         if(argSeparator == nullptr) {
             //last argument
