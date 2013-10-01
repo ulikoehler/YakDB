@@ -156,7 +156,27 @@ static bool startsWith(const string& corpus, const string& pattern) {
         && equal(pattern.begin(), pattern.end(), corpus.begin());
 }
 
-void escapeJSON(std::string& in) {
+static const char *hexLUT = "0123456789ABCDEF";
+
+std::string escapeJSON(const std::string& in) {
+    string out;
+    const char* data = in.data();
+    for(size_t i = 0; i < in.size(); i++) {
+        if(data[i] < 0x20) {
+            //Ignore unicode, just serialize the hex value
+            char temp[] = "\\u0000";
+            temp[4] = hexLUT[(data[i] & 0xF0) >> 4];
+            temp[5] = hexLUT[data[i] & 0x0F];
+            out += string(temp, 6);
+        } else if(data[i] == '\\') {
+            out += "\\\\";
+        } else if(data[i] == '\"') {
+            out += "\\\"";
+        } else {
+            out += data[i];
+        }
+    }
+    return out;
     //in.replace("\\", "\\\\");
     //in.replace("\"", "\\\"");
 }
@@ -221,8 +241,9 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
                 //TODO handle error
                 break;
             }
-            escapeJSON(key);
-            escapeJSON(value);
+            //Escape (almost) everything according to RFC4627 (ignore unicode)
+            key = escapeJSON(key);
+            value = escapeJSON(value);
             string jsonObj = ",\"" + key + "\":\"" + value + "\"";
             if(firstObject) {
                 //Remove the comma
