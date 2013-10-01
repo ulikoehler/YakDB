@@ -19,19 +19,6 @@
 #include <string>
 
 /**
- * Check if the given socket has another frame available in the current message.
- * In other words, check if the ZMQ_RCVMORE flag is set for the given socket
- * @param socket
- * @return true if and only if the ZMQ_RCVMORE flag is set
- */
-static inline bool currentMessageHasAnotherFrame(void* socket) {
-    int rcvmore;
-    size_t optsize;
-    zmq_getsockopt(socket, ZMQ_RCVMORE, &rcvmore, &optsize);
-    return rcvmore != 0;
-}
-
-/**
  * Send an empty (zero-length) frame
  * @param socket The socket to send data over
  * @param flags The send flags, e.g. ZMQ_SNDMORE
@@ -44,7 +31,7 @@ static inline int sendEmptyFrame(void* socket, int flags = 0) {
 /**
  * Send a little-endian uint32_t in a size-4-frame
  * @param socket The socket to send the data over
- * @param data The value to send
+ * @param data The vahttp://en.wikipedia.org/wiki/Michio_Kakulue to send
  * @param flags The ZeroMQ zmq_send flags to use, e.g. ZMQ_SNDMORE
  * @return -1 on error (you can check errno to get more information), 0 on success
  */
@@ -72,6 +59,7 @@ static inline int sendUint64Frame(void* socket, uint64_t num, int flags = 0) {
  */
 static inline int receiveStringFrame(void* socket, std::string& str) {
     zmq_msg_t msg;
+    zmq_msg_init(&msg);
     int rc = zmq_msg_recv(&msg, socket, 0);
     if (rc == -1) {
         return -1;
@@ -91,6 +79,7 @@ static inline int receiveStringFrame(void* socket, std::string& str) {
  */
 static inline int receiveBooleanFrame(void* socket) {
     zmq_msg_t msg;
+    zmq_msg_init(&msg);
     int rc = zmq_msg_recv(&msg, socket, 0);
     if (rc == -1) {
         return -1;
@@ -113,14 +102,14 @@ static inline int receiveBooleanFrame(void* socket) {
  */
 static inline int receiveSimpleResponse(void* socket, std::string& errorString) {
     zmq_msg_t msg;
+    zmq_msg_init(&msg);
     int rc = zmq_msg_recv(&msg, socket, 0);
     if (rc == -1) {
         return zmq_errno();
     }
-    zmq_msg_close(&msg);
-    //Check if there is any error frame (there *should* be one)
+    //Check if there is any error frame (there *should* be one, if the third byte is != 0)
     if (((char*) zmq_msg_data(&msg))[3] != 0) {
-        if (!currentMessageHasAnotherFrame(socket)) {
+        if (!zsocket_rcvmore(socket)) {
             errorString = "No error message received from server -- Exact error cause is unknown";
             return -1;
         }
@@ -128,6 +117,7 @@ static inline int receiveSimpleResponse(void* socket, std::string& errorString) 
         receiveStringFrame(socket, errorString);
         return -1;
     }
+    zmq_msg_close(&msg);
     return 0;
 }
 
@@ -158,7 +148,8 @@ static int receiveKeyValue(void* socket, std::string& keyTarget, std::string& va
         return -1;
     }
     //Check if there is another frame
-    if (!currentMessageHasAnotherFrame(socket)) {
+    if (!zsocket_rcvmore(socket)) {
+        errno = EAGAIN;
         return -1;
     }
     if(receiveStringFrame(socket, valueTarget) == -1) {

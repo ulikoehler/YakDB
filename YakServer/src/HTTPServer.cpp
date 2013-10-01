@@ -215,7 +215,12 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
         }
         bool firstObject = true; //Used to determine whether to write a comma separator
         string key, value;
-        while((rc = ScanRequest::receiveResponseValue(mainRouterSocket, key, value)) == 1) {
+        while(true) {
+            rc = ScanRequest::receiveResponseValue(mainRouterSocket, key, value);
+            if(rc == -1) {
+                //TODO handle error
+                break;
+            }
             escapeJSON(key);
             escapeJSON(value);
             string jsonObj = ",\"" + key + "\":\"" + value + "\"";
@@ -224,8 +229,13 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
                 jsonObj = jsonObj.substr(1);
             }
             firstObject = false;
+            //Send the JSON data
             sendReplyIdentity();
             zmq_send(httpSocket, jsonObj.data(), jsonObj.size(), 0);
+            //Stop if there are no more frames to be processed
+            if(rc == 0) {
+                break;
+            }
         }
         if(rc == -1) {
             //TODO handle error
