@@ -2,6 +2,7 @@
 #include <czmq.h>
 #include <iostream>
 #include <sstream>
+#include <limits>
 #include <cstring>
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -220,7 +221,7 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
                                  queryArgs["keyFilter"],
                                  queryArgs["valueFilter"]
                      );
-        uint32_t valueSizeLimit = 0;
+        size_t valueSizeLimit = std::numeric_limits<size_t>::max();
         if(queryArgs.count("valueSizeLimit") > 0) {
             valueSizeLimit = std::stol(queryArgs["valueSizeLimit"]);
         }
@@ -245,6 +246,10 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
             if(rc == -1) {
                 //TODO handle error
                 break;
+            }
+            //Limit the value size
+            if(value.size() > valueSizeLimit) {
+                value = value.substr(0, valueSizeLimit);
             }
             //Escape (almost) everything according to RFC4627 (ignore unicode)
             key = escapeJSON(key);
