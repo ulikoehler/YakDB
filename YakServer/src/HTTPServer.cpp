@@ -313,6 +313,43 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
             string reply = "{\"status\":\"ok\"}";
             zmq_send(httpSocket, reply.data(), reply.size(), 0);
         }
+    } else if(startsWith(requestPath, "/put")) {
+        /*
+         * Single key put
+         * Path arguments:
+         *   /delete/<key>
+         * Query arguments:
+         *  table -- Table number to delete in, default 1
+         */
+        //Extract the key to delete
+        string key = queryArgs["key"];
+        string value = queryArgs["value"];
+        //Send the delete request
+        int rc = PutRequest::sendHeader(mainRouterSocket, std::stol(queryArgs["table"]));
+        if(rc == -1) {
+            //TODO handle error
+        }
+        //Send the one and only key
+        rc = PutRequest::sendKeyValue(mainRouterSocket, key, value, true);
+        if(rc == -1) {
+            //TODO handle error
+        }
+        //Receive the response
+        string errorMessage;
+        rc = PutRequest::receiveResponse(mainRouterSocket, errorMessage);
+        if(rc == -1) {
+            //TODO handle error
+        }
+        sendReplyIdentity();
+        if(rc == 1) {
+            //Server error, but not a communication error
+            string reply = "{\"status\":\"error\",\"error\":\"" + errorMessage + "\"}";
+            zmq_send(httpSocket, reply.data(), reply.size(), 0);
+        } else {
+            //No error
+            string reply = "{\"status\":\"ok\"}";
+            zmq_send(httpSocket, reply.data(), reply.size(), 0);
+        }
     }
 }
 
