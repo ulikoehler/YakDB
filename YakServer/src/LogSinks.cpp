@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <ctime>
+#include <sstream>
 
 static const char* const ESCAPE_BOLD = "\x1B[1m";
 static const char* const ESCAPE_NORMALFONT = "\x1B[0m";
@@ -162,4 +163,35 @@ void FileLogSink::log(LogLevel logLevel, uint64_t timestamp, const std::string& 
     printDateTime(timestamp, fout);
     //Not flushing (endl) would be faster, but log msgs before a crash might be lost
     fout << logLevelToString(logLevel) << ' ' << senderName << " - " << logMessage << std::endl;
+}
+
+BufferLogSink::LogMessage::LogMessage(LogLevel level, uint64_t timestamp, const std::string& message, const std::string& sender) : level(level), timestamp(timestamp), message(message), sender(sender) {
+}
+
+BufferLogSink::BufferLogSink(size_t maxBufferSize) : maxBufferSize(maxBufferSize), bufferMutex() {
+    
+}
+
+BufferLogSink::~BufferLogSink() {
+    
+}
+
+std::deque<BufferLogSink::LogMessage>& BufferLogSink::getLogMessages() {
+    bufferMutex.lock();
+    return buffer;
+}
+
+void BufferLogSink::unlock() {
+    bufferMutex.unlock();
+}
+
+void BufferLogSink::log(LogLevel logLevel, uint64_t timestamp, const std::string& senderName, const std::string& logMessage) {
+    //Create the entry
+    bufferMutex.lock();
+    buffer.emplace_front(logLevel, timestamp, logMessage, senderName);
+    //Expunge the first msgs if buffer is full
+    if(buffer.size() > maxBufferSize) {
+        buffer.pop_back();
+    }
+    bufferMutex.unlock();
 }

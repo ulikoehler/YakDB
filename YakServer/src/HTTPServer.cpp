@@ -4,6 +4,7 @@
 #include <sstream>
 #include <limits>
 #include <cstring>
+#include <sstream>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <fcntl.h>
@@ -64,7 +65,8 @@ private:
 
 using namespace std;
 
-YakHTTPServer::YakHTTPServer(zctx_t* ctxParam, const std::string& endpointParam, const std::string& staticFileRoot) : endpoint(endpointParam), ctx(ctxParam), thread(nullptr), logger(ctx, "HTTP Server"), staticFileRoot(staticFileRoot) {
+YakHTTPServer::YakHTTPServer(zctx_t* ctxParam, const std::string& endpointParam, const std::string& staticFileRoot) : endpoint(endpointParam), ctx(ctxParam), thread(nullptr), logger(ctx, "HTTP Server"), staticFileRoot(staticFileRoot),
+logBuffer(nullptr) {
     controlSocket = zsocket_new_bind(ctx, ZMQ_PAIR, controlEndpoint);
     //Start thread
     thread = new std::thread(std::mem_fun(&YakHTTPServer::workerMain), this);
@@ -239,7 +241,7 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
         }
         //No error, send HTTP header
         sendReplyIdentity();
-        string header("HTTP/1.1 200 OK\r\nContent-type: text/json\r\n\r\n{");
+        string header("HTTP/1.1 200 OK\r\nContent-type: application/json\r\n\r\n{");
         if(zmq_send_const(httpSocket, header.data(), header.size(), 0) == -1) {
             logger.warn("Sending HTTP header to client failed: " + string(zmq_strerror(errno)));   
         }
@@ -340,6 +342,12 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
         if(rc == -1) {
             //TODO handle error
         }
+        //Send response header
+        sendReplyIdentity();
+        string header("HTTP/1.1 200 OK\r\nContent-type: application/json\r\n\r\n");
+        if(zmq_send_const(httpSocket, header.data(), header.size(), 0) == -1) {
+            logger.warn("Sending HTTP header to client failed: " + string(zmq_strerror(errno)));   
+        }
         sendReplyIdentity();
         if(rc == 1) {
             //Server error, but not a communication error
@@ -350,6 +358,37 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
             string reply = "{\"status\":\"ok\"}";
             zmq_send(httpSocket, reply.data(), reply.size(), 0);
         }
+    } else if(startsWith(requestPath, "/log")) {
+        /*
+         * Get old log messages
+         */
+        //Build JSON response
+        ostringstream out;
+        out << '[';
+        bool first = true;
+        std::deque<BufferLogSink::LogMessage> logMsgs = logBuffer->getLogMessages();
+        for(auto msg : logMsgs) {
+            if(!first) {
+                out << ',';
+            }
+            out << '{' << "\"level\":\"" << logLevelToString(msg.level)
+                << "\",\"timestamp\":" << msg.timestamp
+                << ",\"sender\":\"" << msg.sender
+                << "\",\"message\":\"" << escapeJSON(msg.message) << "\"}";
+            first = false;
+        }
+        out << ']';
+        logBuffer->unlock();
+        //Send response header
+        sendReplyIdentity();
+        string header("HTTP/1.1 200 OK\r\nContent-type: application/json\r\n\r\n");
+        if(zmq_send_const(httpSocket, header.data(), header.size(), 0) == -1) {
+            logger.warn("Sending HTTP header to client failed: " + string(zmq_strerror(errno)));   
+        }
+        //Send response content
+        sendReplyIdentity();
+        string fullReply = out.str();
+        zmq_send(httpSocket, fullReply.data(), fullReply.size(), 0);
     }
 }
 
@@ -471,4 +510,8 @@ YakHTTPServer::~YakHTTPServer() {
     for(auto pair : mappedFiles) {
         delete pair.second;
     }
+}
+
+void YakHTTPServer::setLogBuffer(BufferLogSink* logBuffer) {
+    this->logBuffer = logBuffer;
 }

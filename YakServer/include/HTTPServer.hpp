@@ -3,6 +3,7 @@
 #include <czmq.h>
 #include <thread>
 #include <unordered_map>
+#include "LogSinks.hpp"
 #include "Logger.hpp"
 
 class MMappedStaticFile;
@@ -29,6 +30,10 @@ public:
     YakHTTPServer(zctx_t* ctx, const std::string& endpoint, const std::string& staticFileRoot);
     void terminate();
     ~YakHTTPServer();
+    /**
+     * Set the log buffer that is used to serve a log msg history
+     */
+    void setLogBuffer(BufferLogSink* logBuffer);
 private:
     void workerMain();
     /**
@@ -66,6 +71,11 @@ private:
      * Static files mmapped into memory
      */
     std::unordered_map<std::string, MMappedStaticFile*> mappedFiles;
+    /**
+     * The log ringbuffer, to be able to serve some log history.
+     * Not initialized in this class.
+     */
+    BufferLogSink* logBuffer;
 };
 
 #endif //HTTPSERVER_HPP

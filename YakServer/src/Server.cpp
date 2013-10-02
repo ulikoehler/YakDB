@@ -329,6 +329,9 @@ configParser(configParserParam)
     if(!configParser.getLogFile().empty()) {
         logServer.addLogSink(new FileLogSink(configParser.getLogFile()));
     }
+    BufferLogSink* logBuffer = new BufferLogSink(32);
+    logServer.addLogSink(logBuffer);
+    httpServer.setLogBuffer(logBuffer);
     /*
      * Initialize and bind the external sockets
      */

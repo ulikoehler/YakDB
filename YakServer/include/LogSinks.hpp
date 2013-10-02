@@ -9,6 +9,8 @@
 #include "Logger.hpp"
 #include <string>
 #include <fstream>
+#include <deque>
+#include <mutex>
 
 /**
  * A LogSink instance represents the final destination of a log message,
@@ -57,6 +59,41 @@ public:
 private:
     std::ofstream fout;
     std::string filename;
+};
+
+/**
+ * A log sink that uses a ring buffer to store a predefined amount
+ * of log messages
+ */
+class BufferLogSink : public LogSink {
+public:
+    struct LogMessage {
+        LogMessage(LogLevel level, uint64_t timestamp, const std::string& message, const std::string& sender);
+        LogLevel level;
+        uint64_t timestamp;
+        std::string message;
+        std::string sender;
+    };
+    /**
+     * Construct a new buffer log sink with a given maximum sice
+     */
+    BufferLogSink(size_t maxBufferSize);
+    ~BufferLogSink();
+    void log(LogLevel logLevel, uint64_t timestamp, const std::string& senderName, const std::string& logMessage);
+    /**
+     * Lock the instance and get the instance buffer.
+     * Remember to call unlock() as soon as possible
+     */
+    std::deque<LogMessage>& getLogMessages();
+    void unlock();
+private:
+    std::deque<LogMessage> buffer;
+    size_t maxBufferSize;
+    /**
+     * The log buffer can be accessed from multiple threads,
+     * so this is used for locking.
+     */
+    std::mutex bufferMutex;
 };
 
 #endif //LOGSINKS_HPP
