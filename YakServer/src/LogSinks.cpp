@@ -188,10 +188,10 @@ void BufferLogSink::unlock() {
 void BufferLogSink::log(LogLevel logLevel, uint64_t timestamp, const std::string& senderName, const std::string& logMessage) {
     //Create the entry
     bufferMutex.lock();
-    buffer.emplace_front(logLevel, timestamp, logMessage, senderName);
+    buffer.emplace_back(logLevel, timestamp, logMessage, senderName);
     //Expunge the first msgs if buffer is full
     if(buffer.size() > maxBufferSize) {
-        buffer.pop_back();
+        buffer.pop_front();
     }
     bufferMutex.unlock();
 }
