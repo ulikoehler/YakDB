@@ -98,14 +98,14 @@ static inline int receiveBooleanFrame(void* socket) {
  * - A header frame, with character 4 expected to be 0, else an error is assumed
  * - If the 4th header character is not 0, a second frame containing an error message shall be received
  * @param errorString Left unchanged if no error occurs, set to an error description string if any error occurs
- * @return 0 on success. -1 for errors without errno, errno else
+ * @return 0 on success. -1 for communication errors, 1 with errorMessage set in case of error-indicating response
  */
 static inline int receiveSimpleResponse(void* socket, std::string& errorString) {
     zmq_msg_t msg;
     zmq_msg_init(&msg);
     int rc = zmq_msg_recv(&msg, socket, 0);
     if (rc == -1) {
-        return zmq_errno();
+        return -1;
     }
     //Check if there is any error frame (there *should* be one, if the third byte is != 0)
     if (((char*) zmq_msg_data(&msg))[3] != 0) {
@@ -114,8 +114,10 @@ static inline int receiveSimpleResponse(void* socket, std::string& errorString) 
             return -1;
         }
         //We have an error frame from the server. Return it.
-        receiveStringFrame(socket, errorString);
-        return -1;
+        if(receiveStringFrame(socket, errorString) == -1) {
+            return -1;
+        }
+        return 1;
     }
     zmq_msg_close(&msg);
     return 0;

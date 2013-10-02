@@ -60,7 +60,7 @@ public:
      * Send the header for the current request type
      * @param socket
      * @param table The table number to write to
-     * @return 0 on success, errno else
+     * @return 0 on success, -1 with errno set else
      */
     static int sendHeader(void* socket, uint32_t table, uint8_t flags = 0x00);
     /**
@@ -85,7 +85,7 @@ public:
     /**
      * 
      * @param socket
-     * @return 
+     * @return 0 on success. -1 for communication errors, 1 with errorMessage set in case of error-indicating response
      */
     static int receiveResponse(void* socket, std::string& errorMessage);
 };

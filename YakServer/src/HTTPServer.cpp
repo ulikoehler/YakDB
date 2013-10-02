@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <assert.h>
 #include "yakclient/ReadRequests.hpp"
+#include "yakclient/WriteRequests.hpp"
 #include "http/URLParser.hpp"
 #include "endpoints.hpp"
 #include "BoyerMoore.hpp"
@@ -98,6 +99,8 @@ static const char* getMIMEType(const char* buffer) {
         return "image/png";
     } else if(strcmp(".ico", fileExtensionPtr) == 0) {
         return "image/x-icon";
+    } else if(strcmp(".woff", fileExtensionPtr) == 0) {
+        return "application/font-woff";
     } else {
         return "text/plain";
     }
@@ -127,7 +130,7 @@ void YakHTTPServer::serveStaticFile(const char* fileURL) {
         return;
     }
     //File exists, mmap if neccessary
-    if(mappedFiles.count(absoluteFilePath) == 0) {
+    if(mappedFiles.count(absoluteFilePath) == 0 || true) {
         logger.trace("mmap'ing static file " + absoluteFilePath);
         mappedFiles[absoluteFilePath] = new MMappedStaticFile(absoluteFilePath.c_str());
     }
@@ -144,6 +147,7 @@ void YakHTTPServer::serveStaticFile(const char* fileURL) {
     if(zmq_send_const(httpSocket, file->mem, file->size, 0) == -1) {
         logger.warn("Sending HTTP body to client failed: " + string(zmq_strerror(errno)));
     }
+    //DEBUG CODE: Unmap immediately, to reload files
 }
 
 void YakHTTPServer::sendReplyIdentity() {
@@ -200,7 +204,7 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
     string requestPath(requestPathCstr);
     if(startsWith(requestPath, "/scan")) {
         /*
-         * Interactive key search, for autocomplete
+         * Scan keys, with optional value size limiting
          * Query arguments:
          *   startKey       -- The start key, inclusive
          *   endKey         -- The stop key, not inclusive
@@ -273,6 +277,42 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
         }
         sendReplyIdentity();
         zmq_send(httpSocket, "}", 1, 0);
+    } else if(startsWith(requestPath, "/delete/")) {
+        /*
+         * Single key delete
+         * Path arguments:
+         *   /delete/<key>
+         * Query arguments:
+         *  table -- Table number to delete in, default 1
+         */
+        //Extract the key to delete
+        string key = decodeURLEntities(requestPath.substr(8));
+        //Send the delete request
+        int rc = DeleteRequest::sendHeader(mainRouterSocket, std::stol(queryArgs["table"]));
+        if(rc == -1) {
+            //TODO handle error
+        }
+        //Send the one and only key
+        rc = DeleteRequest::sendKey(mainRouterSocket, key, true);
+        if(rc == -1) {
+            //TODO handle error
+        }
+        //Receive the response
+        string errorMessage;
+        rc = DeleteRequest::receiveResponse(mainRouterSocket, errorMessage);
+        if(rc == -1) {
+            //TODO handle error
+        }
+        sendReplyIdentity();
+        if(rc == 1) {
+            //Server error, but not a communication error
+            string reply = "{\"status\":\"error\",\"error\":\"" + errorMessage + "\"}";
+            zmq_send(httpSocket, reply.data(), reply.size(), 0);
+        } else {
+            //No error
+            string reply = "{\"status\":\"ok\"}";
+            zmq_send(httpSocket, reply.data(), reply.size(), 0);
+        }
     }
 }
 

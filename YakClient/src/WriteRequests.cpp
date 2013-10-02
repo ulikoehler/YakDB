@@ -45,7 +45,7 @@ int PutRequest::receiveResponse(void* socket, std::string& errorString) {
 }
 
 int DeleteRequest::sendHeader(void* socket, uint32_t table, uint8_t flags) {
-    char data[] = "\x31\x01\x31\x00";
+    char data[] = "\x31\x01\x21\x00";
     data[3] = flags;
     //Can't use zero-copy here because of stack alloc
     if (zmq_send(socket, data, 4, ZMQ_SNDMORE) == -1) {
@@ -76,7 +76,7 @@ int DeleteRequest::sendKey(void* socket,
 int DeleteRangeRequest::sendRequest(void* socket, uint32_t tableNum,
         const std::string& startKey,
         const std::string& endKey) {
-    if (zmq_send_const(socket, "\x31\x01\x22", 3, ZMQ_SNDMORE) == -1) {
+    if (zmq_send_const(socket, "\x31\x01\x22\x00", 4, ZMQ_SNDMORE) == -1) {
         return -1;
     }
     if (sendUint32Frame(socket, tableNum, ZMQ_SNDMORE) == -1) {

@@ -35,7 +35,10 @@ std::string decodeURLEntities(const char* in, size_t length) {
     }
     return ret;
 }
-    
+
+std::string decodeURLEntities(const std::string& in) {
+    return decodeURLEntities(in.data(), in.size());
+}
 
 bool decodeURLEntities(const std::string& in, std::string& out) {
     return decodeURLEntities(in.data(), in.size(), out);

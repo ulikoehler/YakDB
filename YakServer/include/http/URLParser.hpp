@@ -22,6 +22,7 @@ char hexToChar(char hex1, char hex2);
  */
 bool decodeURLEntities(const std::string& in, std::string& out);
 std::string decodeURLEntities(const char* in, size_t length);
+std::string decodeURLEntities(const std::string& in);
 bool decodeURLEntities(const char* in, size_t length, std::string& out);
 
 /**
