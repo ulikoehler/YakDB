@@ -34,25 +34,25 @@ static void HOT printDateTime(uint64_t timestamp, std::ostream& stream) {
 std::string logLevelToString(LogLevel logLevel) {
     switch (logLevel) {
         case LogLevel::Critical: {
-            return "[Critical]";
+            return "Critical";
         }
         case LogLevel::Error: {
-            return "[Error]";
+            return "Error";
         }
         case LogLevel::Warn: {
-            return "[Warn]";
+            return "Warn";
         }
         case LogLevel::Info: {
-            return "[Info]";
+            return "Info";
         }
         case LogLevel::Debug: {
-            return "[Debug]";
+            return "Debug";
         }
         case LogLevel::Trace: {
-            return "[Trace]";
+            return "Trace";
         }
         default: {
-            return "[Unknown]";
+            return "Unknown";
         }
     }
 }
@@ -162,7 +162,7 @@ FileLogSink::~FileLogSink() {
 void FileLogSink::log(LogLevel logLevel, uint64_t timestamp, const std::string& senderName, const std::string& logMessage) {
     printDateTime(timestamp, fout);
     //Not flushing (endl) would be faster, but log msgs before a crash might be lost
-    fout << logLevelToString(logLevel) << ' ' << senderName << " - " << logMessage << std::endl;
+    fout << " [" << logLevelToString(logLevel) << "] " << senderName << " - " << logMessage << std::endl;
 }
 
 BufferLogSink::LogMessage::LogMessage(LogLevel level, uint64_t timestamp, const std::string& message, const std::string& sender) : level(level), timestamp(timestamp), message(message), sender(sender) {

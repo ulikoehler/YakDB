@@ -20,17 +20,17 @@
  * unless the context was terminated by a signal
  */
 static inline void checkLogSendError(int rc, const std::string& loggerName, const std::string& message) {
-	if(unlikely(rc == -1)) {
-		if(zctx_interrupted) {
-			return;
-		}
-		fprintf(stderr,
-			"\x1B[31;1m[Error] Logger '%s' failed to send log message '%s' to log server, reason: '%s'\x1B[0;30m\n",
-			loggerName.c_str(),
-			message.c_str(),
-			zmq_strerror(errno));
-		fflush(stderr);
-	}
+    if(unlikely(rc == -1)) {
+        if(zctx_interrupted) {
+                return;
+        }
+        fprintf(stderr,
+                "\x1B[31;1m[Error] Logger '%s' failed to send log message '%s' to log server, reason: '%s'\x1B[0;30m\n",
+                loggerName.c_str(),
+                message.c_str(),
+                zmq_strerror(errno));
+        fflush(stderr);
+    }
 }
 
 /**
@@ -47,16 +47,16 @@ Logger::Logger(zctx_t* ctx, const std::string& name, const std::string& endpoint
         fflush(stderr);
     }
     if (unlikely(zsocket_connect(socket, endpoint.c_str()) == -1)) {
-		/**
-		 * All logging will fail if the connect fails,
-		 * so this is really a critical error. Log it in bold red.
-		 * 
-		 * This is no error if the context was interrupted
-		 */
+                /**
+                    * All logging will fail if the connect fails,
+                    * so this is really a critical error. Log it in bold red.
+                    * 
+                    * This is no error if the context was interrupted
+                    */
         fprintf(stderr,
-				"\x1B[31;1m[Critical] Failed to connect log source to endpoint '%s' while initializing logger with sender name '%s'\x1B[0;30m\n",
-				endpoint.c_str(),
-				loggerName.c_str());
+                                "\x1B[31;1m[Critical] Failed to connect log source to endpoint '%s' while initializing logger with sender name '%s'\x1B[0;30m\n",
+                                endpoint.c_str(),
+                                loggerName.c_str());
         fflush(stderr);
     }
 }
