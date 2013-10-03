@@ -231,7 +231,7 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
             }
             //Limit the value size
             if(value.size() > valueSizeLimit) {
-                value = value.substr(0, valueSizeLimit);
+                value = value.substr(0, valueSizeLimit) + "...";
             }
             //Generate somewhat-correct JSON
             key = escapeJSON(key);
@@ -281,8 +281,15 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
         if(rc == -1) {
             //TODO handle error
         }
+        //Send reply header
         sendReplyIdentity();
-        if(rc == 1) {
+        string header("HTTP/1.1 200 OK\r\nContent-type: application/json\r\n\r\n{");
+        if(zmq_send_const(httpSocket, header.data(), header.size(), 0) == -1) {
+            logger.warn("Sending HTTP header to client failed: " + string(zmq_strerror(errno)));   
+        }
+        //Send reply content
+        sendReplyIdentity();
+        if(rc == -1) {
             //Server error, but not a communication error
             string reply = "{\"status\":\"error\",\"error\":\"" + errorMessage + "\"}";
             zmq_send(httpSocket, reply.data(), reply.size(), 0);
@@ -291,6 +298,59 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
             string reply = "{\"status\":\"ok\"}";
             zmq_send(httpSocket, reply.data(), reply.size(), 0);
         }
+    } else if(startsWith(requestPath, "/read/")) {
+        /*
+         * Single key read operation
+         * Path arguments:
+         *   /read/<key>
+         * Query arguments:
+         *   table          -- Table number to delete in, default 1
+         *   valueSizeLimit -- Optional, limit the returned to n bytes. Default: no limit
+         * Return value: The requested value, as binary octet stream
+         */
+        //Extract the key to delete
+        string key = decodeURLEntities(requestPath.substr(6));
+        size_t valueSizeLimit = std::numeric_limits<size_t>::max();
+        if(queryArgs.count("valueSizeLimit") > 0) {
+            valueSizeLimit = std::stol(queryArgs["valueSizeLimit"]);
+        }
+        //Send the delete request
+        int rc = ReadRequest::sendHeader(mainRouterSocket, std::stol(queryArgs["table"]));
+        if(rc == -1) {
+            //TODO handle error
+        }
+        //Send the one and only key
+        rc = ReadRequest::sendKey(mainRouterSocket, key, true);
+        if(rc == -1) {
+            //TODO handle error
+        }
+        //Receive the response
+        string errorMessage;
+        rc = ReadRequest::receiveResponseHeader(mainRouterSocket, errorMessage);
+        if(rc == -1) {
+            //TODO handle error
+        }
+        //Send reply header
+        sendReplyIdentity();
+        //TODO rethink content type, application/octet-stream would be correct
+        // but the browser would download it instead of showing it
+        string header("HTTP/1.1 200 OK\r\nContent-type: text/plain\r\n\r\n");
+        if(zmq_send_const(httpSocket, header.data(), header.size(), 0) == -1) {
+            logger.warn("Sending HTTP header to client failed: " + string(zmq_strerror(errno)));
+        }
+        //Send reply content
+        sendReplyIdentity();
+        //We just assume there is EXACTLY one value, because we requested
+        // EXACTLY one key.
+        std::string value;
+        rc = ReadRequest::receiveResponseValue(mainRouterSocket, value);
+        if(rc == -1) {
+            //TODO handle error
+        }
+        if(value.size() > valueSizeLimit) {
+            value = value.substr(0, valueSizeLimit) + "...";
+        }
+        zmq_send(httpSocket, value.data(), value.size(), 0);
     } else if(startsWith(requestPath, "/put")) {
         /*
          * Single key put
@@ -300,8 +360,8 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
          *  table -- Table number to delete in, default 1
          */
         //Extract the key to delete
-        string key = queryArgs["key"];
-        string value = queryArgs["value"];
+        string key = decodeURLEntities(queryArgs["key"]);
+        string value = decodeURLEntities(queryArgs["value"]);
         //Send the delete request
         int rc = PutRequest::sendHeader(mainRouterSocket, std::stol(queryArgs["table"]));
         if(rc == -1) {
