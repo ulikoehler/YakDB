@@ -69,3 +69,30 @@ void parseQueryPart(const char* query, std::map<std::string, std::string>& map) 
         query = argSeparator + 1;
     }
 }
+
+
+static const char* hexLUT = "0123456789ABCDEF";
+
+std::string escapeJSON(const std::string& in) {
+    return escapeJSON(in.data(), in.size());
+}
+
+std::string escapeJSON(const char* data, size_t inSize) {
+    string out;
+    for(size_t i = 0; i < inSize; i++) {
+        if(data[i] < 0x20) {
+            //Ignore unicode characters, just serialize the hex byte value
+            char temp[] = "\\u0000";
+            temp[4] = hexLUT[(data[i] & 0xF0) >> 4];
+            temp[5] = hexLUT[data[i] & 0x0F];
+            out += string(temp, 6);
+        } else if(data[i] == '\\') {
+            out += "\\\\";
+        } else if(data[i] == '\"') {
+            out += "\\\"";
+        } else {
+            out += data[i];
+        }
+    }
+    return out;
+}

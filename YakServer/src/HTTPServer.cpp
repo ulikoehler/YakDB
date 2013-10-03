@@ -76,7 +76,6 @@ logBuffer(nullptr) {
 static const char securityErrorMessage[] = "HTTP/1.1 403 Forbidden\r\nContent-type: text/plain\r\n\r\nSecurity error: Path must not contain ..";
 static const char notFoundError[] = "HTTP/1.1 404 Not Found\r\nContent-type: text/plain\r\n\r\nFile not found";
 
-
 /**
  * @return A constant string representing the MIME type, e.g. "text/plain")
  */
@@ -165,31 +164,6 @@ static bool startsWith(const string& corpus, const string& pattern) {
         && equal(pattern.begin(), pattern.end(), corpus.begin());
 }
 
-static const char *hexLUT = "0123456789ABCDEF";
-
-std::string escapeJSON(const std::string& in) {
-    string out;
-    const char* data = in.data();
-    for(size_t i = 0; i < in.size(); i++) {
-        if(data[i] < 0x20) {
-            //Ignore unicode, just serialize the hex value
-            char temp[] = "\\u0000";
-            temp[4] = hexLUT[(data[i] & 0xF0) >> 4];
-            temp[5] = hexLUT[data[i] & 0x0F];
-            out += string(temp, 6);
-        } else if(data[i] == '\\') {
-            out += "\\\\";
-        } else if(data[i] == '\"') {
-            out += "\\\"";
-        } else {
-            out += data[i];
-        }
-    }
-    return out;
-    //in.replace("\\", "\\\\");
-    //in.replace("\"", "\\\"");
-}
-
 void YakHTTPServer::serveAPI(char* requestPathCstr) {
     /*
      * NOTE: All URLs are relative to /api/v1 !
@@ -259,7 +233,7 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
             if(value.size() > valueSizeLimit) {
                 value = value.substr(0, valueSizeLimit);
             }
-            //Escape (almost) everything according to RFC4627 (ignore unicode)
+            //Generate somewhat-correct JSON
             key = escapeJSON(key);
             value = escapeJSON(value);
             string jsonObj = ",\"" + key + "\":\"" + value + "\"";

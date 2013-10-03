@@ -39,4 +39,13 @@ BOOST_AUTO_TEST_CASE(TestParseQueryPart) {
     BOOST_CHECK_EQUAL("bpar", result["Foo"]);
 }
 
+
+BOOST_AUTO_TEST_CASE(TestEscapeJSON) {
+    BOOST_CHECK_EQUAL("abcdefghi", escapeJSON("abcdefghi"));
+    BOOST_CHECK_EQUAL("abc\\\"def", escapeJSON("abc\"def"));
+    BOOST_CHECK_EQUAL("abc\\\\def", escapeJSON("abc\\def"));
+    BOOST_CHECK_EQUAL("abc\\u0001def", escapeJSON("abc""\x01""def"));
+}
+
+
 BOOST_AUTO_TEST_SUITE_END()
