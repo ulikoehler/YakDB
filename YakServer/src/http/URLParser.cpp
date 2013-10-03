@@ -13,7 +13,6 @@ bool decodeURLEntities(const char* in, size_t length, std::string& out) {
     for (size_t i = 0; i < length; i++) {
         if (in[i] == '%') {
             if (i + 3 <= length) {
-                int value = 0;
                 out += hexToChar(in[i+1], in[i+2]);
                 i += 2;
             } else {
