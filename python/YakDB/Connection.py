@@ -229,6 +229,8 @@ class Connection:
     def delete(self, tableNo, keys, partsync=False, fullsync=False):
         """
         Delete one or multiples values, identified by their keys, from a table.
+        
+        This request may be used in REQ/REP and PUSH/PULL mode.
 
         @param tableNo The table number to delete in
         @param keys A list, tuple or single value.
@@ -239,7 +241,6 @@ class Connection:
         """
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
-        self._checkRequestReply()
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = []
@@ -269,8 +270,9 @@ class Connection:
         #Send last key, without SNDMORE flag
         self.socket.send(nextToSend)
         #Wait for reply
-        msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x21')
+        if self.mode is zmq.REQ:
+            msgParts = self.socket.recv_multipart(copy=True)
+            self._checkHeaderFrame(msgParts,  '\x21')
     def read(self, tableNo, keys, mapKeys=False):
         """
         Read one or multiples values, identified by their keys, from a table.

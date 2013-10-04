@@ -1,0 +1,4 @@
+- For table open requests larger than the tablespace default backing collection size (now 128), the table opener thread might try to open the table more than once.
+  Reproduce by executing test/YakServer/testTableOpenStorm.py (which tests the first 100 tables), with Tablespace default size set to 16 (other values might work)
+  Possible fix: Instead of using a std::vector<>, use an array-like backend. It must NOT reallocate ANY of the ptr chunks (default chunk size of 128 seems reasonable)
+        (because of synchronization issues otherwise) but it must use a linked-chunked-list like approach --> singly-linked list of 128-sized chunks
