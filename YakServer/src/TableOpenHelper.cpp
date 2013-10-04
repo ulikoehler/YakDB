@@ -157,10 +157,10 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
             TableOpenParameters* parameters = (TableOpenParameters*) zframe_data(parametersFrame);
             //Resize if neccessary
             if (databases.size() <= tableIndex) {
-                databases.reserve(tableIndex + 16); //Avoid large vectors
+                databases.reserve(tableIndex + 16); //Avoid too large vectors
             }
             //Create the table only if it hasn't been created yet, else just ignore the request
-                if (databases[tableIndex] == NULL) {
+            if (databases[tableIndex] == nullptr) {
                 std::string tableDir = "tables/" + std::to_string(tableIndex);
                 //Override default values with the last values from the table config file, if any
                 readTableConfigFile(tableDir, *parameters);

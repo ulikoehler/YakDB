@@ -7,3 +7,6 @@ sources = [
 ]
 
 env.Program(target="yaktest", source=sources, LIBS=["boost_unit_test_framework"])
+
+
+env.Program(target="it_table_open_storm", source=sources, LIBS=["boost_unit_test_framework"])
