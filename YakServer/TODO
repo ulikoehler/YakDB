@@ -1,12 +1,8 @@
-Logging:
-	- Logging to file
-Request receiving over PULL sockets (client code + testing)
 Request receiving over SUB sockets:
 	- Protocol definition (we need a prefixed message to be able to define server groups via multicast)
 Benchmark for python and C++ client
 Extend C++ client to support all requests
 Add API classes (REQ/REP only or PUSH/PUB too?) to external protocol doc
-Expand clients to be able to generate all protocol messages
 Advanced options for table opening, especially n-bits-per-key bloom filters
 Dynamic spawning of update/read threads
 Post-office-style read-and-update queues, but check performance beforehand
@@ -35,23 +31,6 @@ Map-Reduce Kernel:
 	- Functionality to scan over a KV table (snapshot!) and pipe that into:
 		* Any ZMQ PULL socket (especially multiple ones)
 		* Directly to LLVM (probably over inproc:// PUSH/PULL)
-Graph Kernel:
-	- Re-use adjacency list code from LevelOSM
-	- Model: Directed graph with arbitrary node IDs
-	- Probably it is better not to use binary node IDs, because escaping tends to cause reallocations
-	- 
-	- Hypergraph shall not be modeled directly in the database
-	- Table format, multiple KV tables shall save:
-		- 1 table adjacency list <node id><direction identifier><other node> --> edge attributes
-		- 1 table node --> node attributes, nodes also need to be saved if they don't have attributes!
-	- Define how attributes are saved:
-		* Protobuf: Extra parsing step, probably too memory-intensive (multiple data copies) blah blah
-		* ZMQ encoded message: --> zmsg_encode --> it needs some extra memory, but message decoding should be really fast,
-			so this seems like the best option
-		* For some applications attributes won't fit into memory or that would be too slow.
-			--> provide "external attributes" that are saved somewhere else		
-	- External protocol definition (should be similar to the KV protocol)
-	- Graph mapreduce: Probably best if this is implemented as a wrapper for the normal mapreduce
-	- Centralized graph controller that does keyspace division
-		* Everything belonging to one node needs to be saved in one key-value db instance
-		* (Difficult) Develop metric for efficient partitioning
+Documentation
+	- Tutorials
+	- HOWTOs
