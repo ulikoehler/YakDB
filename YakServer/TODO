@@ -13,6 +13,7 @@ Post-office-style read-and-update queues, but check performance beforehand
 EASY: Use raw ZMQ API (not CZMQ zmsg_t*) in the Logger server.
 Check for memleaks carefully, automate valgrind memcheck
 Add automated unit test of all major features. Shall use variable table numbers
+BMH data filter (like in scan requests) also for CSP AP Jobs (fairly simple, if you know what you're doing)
 The docs shall really make clear that the HTTP API is SLOW. REALLY SLOW (not really, it's f*cking fast actually, but it's slow compared to ZMQ). It's not even intended to be fast. ZMQ API ist intended to be fast.
 Copying from one table to another (important for PULL-based write load balancing)
 Moving table from one ID to another:
