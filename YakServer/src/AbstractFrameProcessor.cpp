@@ -363,3 +363,35 @@ bool AbstractFrameProcessor::sendMessage(zmq_msg_t* msg, const char* frameDesc, 
     }
     return true;
 }
+
+bool AbstractFrameProcessor::sendResponseHeader(zmq_msg_t* headerFrame,
+                                                const char* responseHeader,
+                                                size_t responseSize = 4,
+                                                size_t requestExpectedSize = 4,
+                                                int flags = ZMQ_SNDMORE
+                                               ) {
+    /*
+     * Essentially this code handles request IDs which are arbitrary binary
+     * strings appended to a request, for identification of async responses.
+     * This code ensures that the response header contains the request ID
+     * from the request, if any.
+     */
+    size_t headerFrameSize = zmq_msg_size(headerFrame)
+    if(headerFrameSize <= requestExpectedSize) {
+        //No request ID
+        sendConstFrame(ackResponse, 4, processorOutputSocket,
+            logger, "Response header", flags);
+    } else {
+        //There is a request ID
+        //Copy both the response and the reu
+        zmq_msg_t msg;
+        zmq_msg_init_size(&msg, requestExpectedSize + headerFrameSize - requestExpectedSize);
+        void* data = zmq_msg_data(&msg);
+        //Assemble: response header frame = response header + request ID
+        memcpy(data, response, responseSize);
+        memcpy(data + responseSize,
+               zmq_msg_data(headerFrame) + requestExpectedSize,
+               headerFrameSize - requestExpectedSize);
+        //TODO send frame
+    }
+}
