@@ -1,4 +1,4 @@
-# ZCDB Graph Model
+# YakDB Graph Model
 
 This document describes the ZCDB graph storage model, version 1.0.
 The purpose of this specification is to allow seamless interaction

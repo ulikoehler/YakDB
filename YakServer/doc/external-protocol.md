@@ -1,4 +1,4 @@
-# ZeroDB external protocol specification
+# YakDB external protocol specification
 
 ## Low-Level protocol
 

@@ -1,4 +1,4 @@
-# ZeroDB MapReduce protocol specification
+# YakDB MapReduce protocol specification
 
 This document describes the communications
 
