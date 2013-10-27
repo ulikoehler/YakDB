@@ -5,6 +5,8 @@
 import argparse
 import sys
 import code
+import os
+import os.path
 import YakDB
 import YakDB.Dump
 
@@ -97,7 +99,21 @@ def dump(db, args):
     toKey = args.toKey
     limit = args.scanLimit
     outputFile = args.outputFile
-    YakDB.Dump.dump(db, outputFile, tableNo, fromKey, toKey, limit)
+    YakDB.Dump.dumpYDF(db, outputFile, tableNo, fromKey, toKey, limit)
+    
+def importDump(db, args):
+    tableNo = args.tableNo
+    #Override -t with positional argument, if any
+    if args.table is not None:
+        tableNo = args.table
+    inputFile = args.inputFile
+    if not os.path.exists(inputFile):
+        print >>sys.stderr,"Error: Input file '%s' does not exist!" % inputFile
+        sys.exit(1)
+    if not os.path.isfile(inputFile):
+        print >>sys.stderr,"Error: Input file '%s' is not a file!" % inputFile
+        sys.exit(1)
+    YakDB.Dump.importYDFDump(db, inputFile, tableNo)
     
 def count(db, args):
     tableNo = args.tableNo
@@ -398,7 +414,7 @@ def yakCLI():
             default=False,
             help="Skip the 'Do you really want to truncate?' question")
     parserTruncateTable.set_defaults(func=truncateTable)
-    #Scan
+    #Dump
     parserDump = subparsers.add_parser("dump", description="Dump a specified range of a table (default: entire table) into a YDF format. Automatically creates a table snapshot for the dump.")
     parserDump.add_argument('-o','--output',
             action="store",
@@ -424,8 +440,20 @@ def yakCLI():
             type=int,
             nargs='?',
             action="store",
-            help="The tables to scan. Overrides -t option.")
+            help="The table to dump. Overrides -t option.")
     parserDump.set_defaults(func=dump)
+    #Import 
+    parserImport = subparsers.add_parser("import", description="Import a YDF dump")
+    parserImport.add_argument('-i','--input',
+            action="store",
+            dest="inputFile",
+            help="The file to read the YDF dump from. Append .gz to use transparent decompression.")
+    parserImport.add_argument('table',
+            type=int,
+            nargs='?',
+            action="store",
+            help="The table to import to. Overrides -t option.")
+    parserImport.set_defaults(func=importDump)
     #REPL
     parserREPL = subparsers.add_parser("repl", description="Start a Read-eval-print loop (REPL) for interactive DB usage")
     parserREPL.set_defaults(func=repl)

@@ -25,6 +25,8 @@ def __verifyYDFFileHeader(f):
     verify it and throw an exception if it doesn't match
     """
     hdr = f.read(4)
+    if len(hdr) != 4:
+        raise ValueError("Tried to read 4-byte YDF header, but only got %d bytes. Assuming invalid header" % len(hdr))
     magicByte, version = struct.unpack("<HH", hdr)
     if magicByte != __headerMagicByte:
         raise ValueError("YDF file header magic word mismatches, expected %d but was %d" % (__headerMagicByte, magicByte))
@@ -63,7 +65,7 @@ def __readYDFKeyValue(f):
     return (key, value)
     
 
-def dump(conn, outputFilename, tableNo, startKey=None, endKey=None, limit=None, chunkSize=1000):
+def dumpYDF(conn, outputFilename, tableNo, startKey=None, endKey=None, limit=None, chunkSize=1000):
     """
     Dump a table to YDF by using a snapshotted table version.
     """
@@ -75,7 +77,7 @@ def dump(conn, outputFilename, tableNo, startKey=None, endKey=None, limit=None, 
         for key, value in job.iteritems():
             __writeYDFKeyValue(outfile, key, value)
 
-def importDump(conn, inputFilename, tableNo):
+def importYDFDump(conn, inputFilename, tableNo):
     """
     Import a database dump in YDF format
     """
