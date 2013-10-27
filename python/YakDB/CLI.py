@@ -6,6 +6,7 @@ import argparse
 import sys
 import code
 import YakDB
+import YakDB.Dump
 
 def info(db, args):
     print(db.serverInfo())
@@ -71,9 +72,6 @@ def deleteRange(db, args):
     fromKey = args.fromKey
     toKey = args.toKey
     limit = args.scanLimit
-    if args.toKey is not None and args.scanLimit is not None:
-        sys.stderr.write("Error: can't use --to together with --limit")
-        sys.exit(1)
     #Data is remapped into dictionary-form in connection class
     db.deleteRange(tableNo, fromKey, toKey, limit)
 
@@ -87,11 +85,19 @@ def scan(db, args):
     limit = args.scanLimit
     keyFilter = args.keyFilter
     valueFilter = args.valueFilter
-    if args.toKey is not None and args.scanLimit is not None:
-        sys.stderr.write("Error: can't use --to together with --limit")
-        sys.exit(1)
     #Data is remapped into dictionary-form in connection class
     print(db.scan(tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter))
+
+def dump(db, args):
+    tableNo = args.tableNo
+    #Override -t with positional argument, if any
+    if args.table is not None:
+        tableNo = args.table
+    fromKey = args.fromKey
+    toKey = args.toKey
+    limit = args.scanLimit
+    outputFile = args.outputFile
+    YakDB.Dump.dump(db, outputFile, tableNo, fromKey, toKey, limit)
     
 def count(db, args):
     tableNo = args.tableNo
@@ -256,13 +262,13 @@ def yakCLI():
             action="store",
             dest="toKey",
             default=None,
-            help="The key to stop deleting at (exclusive, must not be used together with --limit), default: end of table")
+            help="The key to stop deleting at (exclusive), default: end of table")
     parserDeleteRange.add_argument('-l","--limit',
             action="store",
             dest="scanLimit",
             type=int,
             default=None,
-            help="The maximum number of keys to delete (must not be used together with --to)")
+            help="The maximum number of keys to delete")
     parserDeleteRange.set_defaults(func=deleteRange)
     #Scan
     parserScan = subparsers.add_parser("scan", description="Scan over a specified range in the table and return all key-value-pairs in that range")
@@ -275,7 +281,7 @@ def yakCLI():
             action="store",
             dest="toKey",
             default=None,
-            help="The key to stop scanning at (exclusive, must not be used together with --limit), default: end of table")
+            help="The key to stop scanning at (exclusive), default: end of table")
     parserScan.add_argument('-k','--key-filter',
             action="store",
             dest="keyFilter",
@@ -291,9 +297,10 @@ def yakCLI():
             dest="scanLimit",
             type=int,
             default=None,
-            help="The maximum number of keys to scan (must not be used together with --to)")
+            help="The maximum number of keys to scan")
     parserScan.add_argument('table',
             type=int,
+            nargs='?',
             action="store",
             help="The tables to scan. Overrides -t option.")
     parserScan.set_defaults(func=scan)
@@ -308,9 +315,10 @@ def yakCLI():
             action="store",
             dest="toKey",
             default=None,
-            help="The key to stop scanning at (exclusive, must not be used together with --limit)")
+            help="The key to stop scanning at (exclusive)")
     parserCount.add_argument('table',
             type=int,
+            nargs='?',
             action="store",
             help="The tables to count in. Overrides -t option.")
     parserCount.set_defaults(func=count)
@@ -330,7 +338,7 @@ def yakCLI():
             action="store",
             dest="toKey",
             default=None,
-            help="The key to stop compacting at (exclusive, must not be used together with --limit), default: end of table")
+            help="The key to stop compacting at (exclusive), default: end of table")
     parserCompact.set_defaults(func=compact)
     #Open table
     parserOpenTable = subparsers.add_parser("open", description="Open a table.\nThis is only neccessary if you intend to use nonstandard open options.")
@@ -390,6 +398,34 @@ def yakCLI():
             default=False,
             help="Skip the 'Do you really want to truncate?' question")
     parserTruncateTable.set_defaults(func=truncateTable)
+    #Scan
+    parserDump = subparsers.add_parser("dump", description="Dump a specified range of a table (default: entire table) into a YDF format. Automatically creates a table snapshot for the dump.")
+    parserDump.add_argument('-o','--output',
+            action="store",
+            dest="outputFile",
+            help="The file to write the YDF dump to. Append .gz to use gzipped output (recommended)")
+    parserDump.add_argument('--from',
+            action="store",
+            dest="fromKey",
+            default=None,
+            help="The key to start dumping at (inclusive), default: Start of table")
+    parserDump.add_argument('--to',
+            action="store",
+            dest="toKey",
+            default=None,
+            help="The key to stop dumping at (exclusive), default: end of table")
+    parserDump.add_argument('-l','--limit',
+            action="store",
+            dest="scanLimit",
+            type=int,
+            default=None,
+            help="The maximum number of keys to scan")
+    parserDump.add_argument('table',
+            type=int,
+            nargs='?',
+            action="store",
+            help="The tables to scan. Overrides -t option.")
+    parserDump.set_defaults(func=dump)
     #REPL
     parserREPL = subparsers.add_parser("repl", description="Start a Read-eval-print loop (REPL) for interactive DB usage")
     parserREPL.set_defaults(func=repl)

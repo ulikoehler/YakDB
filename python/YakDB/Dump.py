@@ -63,11 +63,11 @@ def __readYDFKeyValue(f):
     return (key, value)
     
 
-def dump(conn, outputFilename, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, chunkSize=1000):
+def dump(conn, outputFilename, tableNo, startKey=None, endKey=None, limit=None, chunkSize=1000):
     """
     Dump a table to YDF by using a snapshotted table version.
     """
-    job = initializePassiveDataJob(conn, startKey, endKey, limit, keyFilter, valueFilter, chunkSize)
+    job = conn.initializePassiveDataJob(tableNo, startKey, endKey, limit, chunkSize)
     #Transparent compression
     openFunction = gzip.open if outputFilename.endswith(".gz") else open
     with openFunction(outputFilename, "wb") as outfile:
