@@ -33,6 +33,38 @@ Map-Reduce Kernel:
 	- Functionality to scan over a KV table (snapshot!) and pipe that into:
 		* Any ZMQ PULL socket (especially multiple ones)
 		* Directly to LLVM (probably over inproc:// PUSH/PULL)
+Implement watch notify
+	- For each table a list of ZMQ endpoints to distribute updates to
+		- Server connects to watchers ---> load distribution possible
+		- PUB/SUB has connect delay ---> not suitable for some usecases
+	- Alternative idea: A single PUB endpoint the server binds to
+		- Advantages:
+			- Throw away msgs if not needed in ZMQ kernel
+			- Less YakDB mgmt overhead, moves important parts to ZMQ kernel
+			- Automatically handles unreachable clients
+			- Might even work without
+			- Leverages prefix filters
+			- Supports multicast
+		- Disadvantages:
+			- Difficult to tell for the client when he has successfully be connected
+			  --> Add API endpoint to send a TEST msg with client-generated UUID over SUB socket
+			  --> Needs to match prefix
+			  --> Client repeatedly requests TEST msgs until he sees them on the SUB socket
+			- Does not provide scalability but not 100% reliable msg delivery 
+			  --> Implement a proxy that shifts
+	- Should be usable for transparent mirroring
+	- These endpoints are informed of table changes for a specific table
+	- Flags per endpoint per table:
+		- Whether to watch for write and/or delete events
+		- Whether to inform of changed key-only or (default) also the new value
+			- Also transferring values means large overhead for
+	- Implementation notes:
+		- PutRequest and DeleteRequest needs this
+		- To keep high write speed, need a separate thread ("Watch distributor")
+			- All update workers have a PUSH socket connected to a PULL socket on the watch distributor
+		- Watch distributor manages PUSH sockets to connect to watching actors
+	- Work out what happens if an endpoint is not reachable.
+	- Draw architectural diagram
 Documentation
 	- Tutorials
 	- HOWTOs
