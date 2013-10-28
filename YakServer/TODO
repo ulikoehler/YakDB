@@ -65,6 +65,7 @@ Implement watch notify
 		- Watch distributor manages PUSH sockets to connect to watching actors
 	- Work out what happens if an endpoint is not reachable.
 	- Draw architectural diagram
+Use ZMQ 4.x encryption for authentication and encryption (must be optional)
 Documentation
 	- Tutorials
 	- HOWTOs
