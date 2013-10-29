@@ -28,6 +28,8 @@ void initializeDirectoryStructure() {
  * Port 
  */
 int main(int argc, char** argv) {
+    //Avoid hard shutdown
+    initializeSIGINTHandler();
     //Ensure the tables directory exists
     initializeDirectoryStructure();
     //Process command line and config options

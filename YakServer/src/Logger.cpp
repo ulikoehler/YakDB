@@ -21,8 +21,8 @@
  */
 static inline void checkLogSendError(int rc, const std::string& loggerName, const std::string& message) {
     if(unlikely(rc == -1)) {
-        if(zctx_interrupted) {
-                return;
+        if(yak_interrupted) {
+            return; //TODO CRITICAL Fix that. Won' return the right function.
         }
         fprintf(stderr,
                 "\x1B[31;1m[Error] Logger '%s' failed to send log message '%s' to log server, reason: '%s'\x1B[0;30m\n",

@@ -13,6 +13,14 @@
 #include "Logger.hpp"
 #include "macros.hpp"
 
+extern volatile bool yak_interrupted;
+
+/**
+ * Initialize the SIGINT handler that sets yak_interrupted
+ * and avoids hard server shutdown.
+ */
+void initializeSIGINTHandler();
+
 /**
  * Log an error during a ZMQ operation, evaluating errno
  * @param operation A description of the operation the error occured at

@@ -162,7 +162,7 @@ ClientSidePassiveJob::~ClientSidePassiveJob() {
     tti->setWantToTerminate();
     logger.trace("Reached AP end of life");
     //Skip the grace period if the server was SIGINTED
-    if(!zctx_interrupted) {
+    if(!yak_interrupted) {
         //Note that settings the RCVTIMEOUT sockopt only affects subsequent connects,
         // so we have pollers here
         zmq_pollitem_t items[1];

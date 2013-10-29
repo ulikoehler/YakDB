@@ -291,7 +291,7 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
             zmsg_destroy(&msg);
         }
     }
-    if(!zctx_interrupted) {
+    if(!yak_interrupted) {
         logger.debug("Stopping table open server");
     }
     //We received an exit msg, cleanup

@@ -1,6 +1,24 @@
 #include <cstdlib>
 #include "zutil.hpp"
 
+volatile bool yak_interrupted = 0;
+//Default handlers, currently unused, can later to be used to properly react to multiple SIGINTs
+static struct sigaction sigint_default;
+static struct sigaction sigterm_default;
+
+static void sigintHandler (int signal_value) {
+    yak_interrupted = 1;
+}
+
+void initializeSIGINTHandler() {
+    struct sigaction action;
+    action.sa_handler = sigintHandler;
+    action.sa_flags = 0;
+    sigemptyset (&action.sa_mask);
+    sigaction (SIGINT, &action, &sigint_default);
+    sigaction (SIGTERM, &action, &sigterm_default);
+}
+
 void doNothingFree(void *data, void *arg) {
 }
 
