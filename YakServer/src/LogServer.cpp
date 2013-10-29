@@ -70,6 +70,11 @@ LogServer::~LogServer() {
     }
 }
 
+static COLD void handleLogServerZMQError() {
+    fprintf(stderr, "\x1B[31;1m[Error] Error while receiving log message in log server: %s \x1B[0;30m\n", zmq_strerror(errno));
+    fflush(stderr);
+}
+
 void HOT LogServer::start() {
     //Create a socket to receive log requests
     while (true) {
@@ -83,8 +88,7 @@ void HOT LogServer::start() {
                 //Context was terminated (ctrl+c or other signal source), exit gracefully
                 break;
             } else {
-                fprintf(stderr, "\x1B[31;1m[Error] Error while receiving log message in log server: %s \x1B[0;30m\n", zmq_strerror(errno));
-                fflush(stderr);
+                handleLogServerZMQError
                 continue;
             }
         }

@@ -27,24 +27,6 @@ void standardFree(void *data, void *hint) {
     free(data);
 }
 
-zframe_t* createEmptyFrame() {
-    return zframe_new(NULL, 0);
-}
-
-zframe_t* createConstFrame(const char* data, size_t size) {
-    return zframe_new(const_cast<char*> (data), size);
-}
-
-zframe_t* createConstFrame(const char* data) {
-    return createConstFrame(data, strlen(data));
-}
-
-zmsg_t* createEmptyFrameMessage() {
-    zmsg_t* msg = zmsg_new();
-    zmsg_add(msg, createEmptyFrame());
-    return msg;
-}
-
 void sendEmptyFrameMessage(void* socket) {
     assert(socket);
     zmq_send(socket, nullptr, 0, 0);

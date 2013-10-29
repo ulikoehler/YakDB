@@ -253,19 +253,6 @@ static inline int proxyMultipartMessage(void* srcSocket, void* dstSocket, const 
     return 0;
 }
 
-/**
- * Utility function to convert frame data to a struct-like type
- * by casting (no explicit deserialization)s
- * @param frame
- * @return 
- */
-template<typename T>
-inline static T extractBinary(zframe_t* frame) {
-    assert(frame);
-    assert(zframe_size(frame) == sizeof (T));
-    return *((T*) zframe_data(frame));
-}
-
 template<typename T>
 inline static void sendBinary(T value, void* socket, Logger& logger, const char* frameDesc = "", int flags = 0) {
     assert(socket);
