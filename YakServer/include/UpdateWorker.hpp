@@ -14,7 +14,7 @@
 
 class UpdateWorkerController {
 public:
-    UpdateWorkerController(zctx_t* context, Tablespace& tablespace, ConfigParser& configParser);
+    UpdateWorkerController(void* context, Tablespace& tablespace, ConfigParser& configParser);
     ~UpdateWorkerController();
     /**
      * Send a message to one of the update workers (load-balanced).
@@ -39,13 +39,13 @@ private:
     std::thread** threads;
     Tablespace& tablespace;
     size_t numThreads; //size of this->threads
-    zctx_t* context;
+    void* context;
     ConfigParser& configParser;
 };
 
 class UpdateWorker : private AbstractFrameProcessor {
 public:
-    UpdateWorker(zctx_t* ctx, Tablespace& tablespace, ConfigParser& configParser);
+    UpdateWorker(void* ctx, Tablespace& tablespace, ConfigParser& configParser);
     ~UpdateWorker();
     /**
      * The main function for the update worker thread.

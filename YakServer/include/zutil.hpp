@@ -339,12 +339,39 @@ void* zsocket_new_bind(zctx_t* context, int type, const char* endpoint);
 void* zsocket_new_connect(zctx_t* context, int type, const char* endpoint);
 
 /**
+ * Create and bind a ZeroMQ socket in a single step
+ * @return 
+ */
+void* zmq_socket_new_connect(void* context, int type, const char* endpoint);
+
+/**
+ * Create and connect a ZeroMQ socket in a single step
+ * @return 
+ */
+void* zmq_socket_new_bind(void* context, int type, const char* endpoint);
+
+/**
+ * Create and connect a ZeroMQ socket in a single step
+ * @return 
+ */
+void* zmq_socket_new_bind_hwm(void* context, int type, const char* endpoint, int hwm);
+
+/**
+ * Create and bind a ZeroMQ socket in a single step
+ * @return 
+ */
+void* zmq_socket_new_connect_hwm(void* context, int type, const char* endpoint, int hwm);
+
+/**
  * Convert a ZMQ frame to a string.
  * Can be inefficient, avoid using in IML if possible
  * @param frame
  * @return 
  */
 std::string frameToString(zframe_t* frame);
+
+void zmq_set_hwm(void* socket, int hwm);
+void zmq_set_ipv4only(void* socket, bool isIPv4Only);
 
 #endif	/* ZUTIL_HPP */
 

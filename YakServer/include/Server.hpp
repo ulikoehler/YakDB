@@ -24,7 +24,7 @@ public:
      * The ZeroMQ context.
      * 
      */
-    zctx_t* ctx;
+    void* ctx;
     LogServer logServer;
     Tablespace tables;
     //External sockets

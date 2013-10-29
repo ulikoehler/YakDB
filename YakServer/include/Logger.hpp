@@ -72,7 +72,14 @@ enum class LogLevel : uint8_t {
  */
 class Logger {
 public:
-    Logger(zctx_t* ctx, const std::string& name, const std::string& endpoint = std::string(DEFAULT_LOG_ENDPOINT));
+    /**
+     * Initialize a new Logger instance that connects to a log server
+     * @param ctx The ZMQ ctx to use
+     * @param name The name of the logger to initialize. This is used when logging using this logger
+     * @param endpoint The endpoint the log server is connected to.
+     *                 You only need to use this if you've set a custom endpoint on the log server
+     */
+    Logger(void* ctx, const std::string& name, const char* endpoint = DEFAULT_LOG_ENDPOINT);
     ~Logger();
     void log(const std::string& message, LogLevel level = LogLevel::Info);
     void critical(const std::string& message);
@@ -86,6 +93,9 @@ public:
      * This is automatically called in the destructor,
      * but the context must be active to cleanup properly.
      * 
+     * No log()-like function must be called after termination(),
+     * or assertions will fail.
+     * 
      * If the current instance has already been cleaned up,
      * the call is ignored.
      * 
@@ -94,8 +104,7 @@ public:
      */
     void terminate();
 private:
-    zctx_t* ctx;
-    void* socket; //Connected to the log server
+    void* socket; //PUSH socket Connected to the log server
     std::string loggerName;
 };
 

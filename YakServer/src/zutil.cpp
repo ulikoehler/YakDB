@@ -40,14 +40,99 @@ void zmsg_remove_destroy(zmsg_t* msg, zframe_t** frame) {
 }
 
 void* zsocket_new_bind(zctx_t* context, int type, const char* endpoint) {
+    assert(context);
+    assert(endpoint);
     void* sock = zsocket_new(context, type);
-    zsocket_bind(sock, endpoint);
+    if(unlikely(!sock)) {
+        return NULL;
+    }
+    if(unlikely(zsocket_bind(sock, endpoint) == -1)) {
+        zsocket_destroy(context, sock);
+        return NULL;
+    }
     return sock;
 }
 
 void* zsocket_new_connect(zctx_t* context, int type, const char* endpoint) {
+    assert(context);
+    assert(endpoint);
     void* sock = zsocket_new(context, type);
-    zsocket_connect(sock, endpoint);
+    if(unlikely(!sock)) {
+        return NULL;
+    }
+    if(unlikely(zsocket_bind(sock, endpoint) == -1)) {
+        zsocket_destroy(context, sock);
+        return NULL;
+    }
+    return sock;
+}
+
+void* zmq_socket_new_connect(void* context, int type, const char* endpoint) {
+    assert(context);
+    assert(endpoint);
+    void* sock = zmq_socket(context, type);
+    if(unlikely(!sock)) {
+        return NULL;
+    }
+    if(unlikely(zmq_connect(sock, endpoint) == -1)) {
+        zmq_close(sock);
+        return NULL;
+    }
+    return sock;
+}
+
+void* zmq_socket_new_bind(void* context, int type, const char* endpoint) {
+    assert(context);
+    assert(endpoint);
+    void* sock = zmq_socket(context, type);
+    if(unlikely(!sock)) {
+        return NULL;
+    }
+    if(unlikely(zmq_bind(sock, endpoint) == -1)) {
+        zmq_close(sock);
+        return NULL;
+    }
+    return sock;
+}
+
+void zmq_set_hwm(void* socket, int hwm) {
+    int rc = zmq_setsockopt (socket, ZMQ_SNDHWM, &hwm, sizeof (int));
+    assert(rc != -1);
+}
+
+void zmq_set_ipv4only(void* socket, bool isIPv4Only) {
+    int ipv4Only = isIPv4Only ? 1 : 0;
+    int rc = zmq_setsockopt (socket, ZMQ_IPV4ONLY, &ipv4Only, sizeof (int));
+    assert(rc != -1);
+}
+
+void* zmq_socket_new_bind_hwm(void* context, int type, const char* endpoint, int hwm) {
+    assert(context);
+    assert(endpoint);
+    void* sock = zmq_socket(context, type);
+    if(unlikely(!sock)) {
+        return NULL;
+    }
+    zmq_set_hwm(sock, hwm);
+    if(unlikely(zmq_bind(sock, endpoint) == -1)) {
+        zmq_close(sock);
+        return NULL;
+    }
+    return sock;
+}
+
+void* zmq_socket_new_connect_hwm(void* context, int type, const char* endpoint, int hwm) {
+    assert(context);
+    assert(endpoint);
+    void* sock = zmq_socket(context, type);
+    if(unlikely(!sock)) {
+        return NULL;
+    }
+    zmq_set_hwm(sock, hwm);
+    if(unlikely(zmq_connect(sock, endpoint) == -1)) {
+        zmq_close(sock);
+        return NULL;
+    }
     return sock;
 }
 

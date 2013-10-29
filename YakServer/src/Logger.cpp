@@ -40,30 +40,23 @@ static inline uint64_t HOT getCurrentLogTime() {
     return zclock_time();
 }
 
-Logger::Logger(zctx_t* ctx, const std::string& name, const std::string& endpoint) : ctx(ctx), loggerName(name) {
-    socket = zsocket_new(ctx, ZMQ_PUSH);
+Logger::Logger(void* ctx, const std::string& name, const char* endpoint) : loggerName(name) {
+    assert(ctx);
+    assert(endpoint);
+    socket = zmq_socket_new_connect(ctx, ZMQ_PUSH, endpoint);
+    //TODO The error loggers don't check isatty!
     if (unlikely(socket == nullptr)) {
-        fprintf(stderr, "\x1B[31;1m[Critical] Failed to create log socket while initializing logger with sender name '%s'\x1B[0;30m\n", loggerName.c_str());
-        fflush(stderr);
-    }
-    if (unlikely(zsocket_connect(socket, endpoint.c_str()) == -1)) {
-                /**
-                    * All logging will fail if the connect fails,
-                    * so this is really a critical error. Log it in bold red.
-                    * 
-                    * This is no error if the context was interrupted
-                    */
-        fprintf(stderr,
-                                "\x1B[31;1m[Critical] Failed to connect log source to endpoint '%s' while initializing logger with sender name '%s'\x1B[0;30m\n",
-                                endpoint.c_str(),
-                                loggerName.c_str());
+        fprintf(stderr, "\x1B[31;1m[Critical] Failed to create log socket while initializing logger with sender name '%s': '%s'\x1B[0;30m\n",
+                loggerName.c_str(),
+                zmq_strerror(errno)
+               );
         fflush(stderr);
     }
 }
 
 void Logger::terminate() {
     if(socket != nullptr) {
-        zsocket_destroy(ctx, socket);
+        zmq_close(socket);
         socket = nullptr;
     }
 }
@@ -74,9 +67,10 @@ Logger::~Logger() {
 }
 
 void Logger::log(const std::string& message, LogLevel level) {
+    assert(socket);
     uint64_t currentLogTime = getCurrentLogTime();
     //Header frame
-    checkLogSendError(zmq_send(socket, "\x55\x01\x00", 3, ZMQ_SNDMORE), loggerName, message);
+    checkLogSendError(zmq_send_const(socket, "\x55\x01\x00", 3, ZMQ_SNDMORE), loggerName, message);
     //Log level frame
     checkLogSendError(zmq_send(socket, &level, sizeof (LogLevel), ZMQ_SNDMORE), loggerName, message);
     //Log time

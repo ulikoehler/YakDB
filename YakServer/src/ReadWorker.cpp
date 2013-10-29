@@ -21,7 +21,7 @@
 /**
  * The main function for the read worker thread.
  */
-static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
+static void readWorkerThreadFunction(void* ctx, Tablespace& tablespace) {
     setCurrentThreadName("Yak read worker");
     ReadWorker readWorker(ctx, tablespace);
     //Process requests until stop msg is encountered
@@ -31,9 +31,9 @@ static void readWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace) {
 
 using namespace std;
 
-ReadWorkerController::ReadWorkerController(zctx_t* context, Tablespace& tablespace) :  tablespace(tablespace), numThreads(3), context(context) {
+ReadWorkerController::ReadWorkerController(void* context, Tablespace& tablespace) :  tablespace(tablespace), numThreads(3), context(context) {
     //Initialize the push socket
-    workerPushSocket = zsocket_new_bind(context, ZMQ_PUSH, readWorkerThreadAddr);
+    workerPushSocket = zmq_socket_new_bind(context, ZMQ_PUSH, readWorkerThreadAddr);
 }
 
 void ReadWorkerController::start() {
@@ -57,7 +57,7 @@ void COLD ReadWorkerController::terminateAll() {
     numThreads = 0;
     //Destroy the sockets, if any
     if(workerPushSocket) {
-        zsocket_destroy(context, workerPushSocket);
+        zmq_close(workerPushSocket);
         workerPushSocket = nullptr;
     }
 }
@@ -73,14 +73,14 @@ void ReadWorkerController::send(zmsg_t** msg) {
     zmsg_send(msg, workerPushSocket);
 }
 
-ReadWorker::ReadWorker(zctx_t* ctx, Tablespace& tablespace) :
+ReadWorker::ReadWorker(void* ctx, Tablespace& tablespace) :
 AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Read worker"),
 tablespace(tablespace),
 tableOpenHelper(ctx) {
     //Connect the socket that is used to proxy requests to the external req/rep socket
-    zsocket_connect(processorOutputSocket, externalRequestProxyEndpoint);
+    zmq_connect(processorOutputSocket, externalRequestProxyEndpoint);
     //Connect the socket that is used by the send() member function
-    zsocket_connect(processorInputSocket, readWorkerThreadAddr);
+    zmq_connect(processorInputSocket, readWorkerThreadAddr);
     logger.debug("Read worker thread starting");
 }
 

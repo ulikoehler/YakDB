@@ -29,7 +29,7 @@
  */
 class TableOpenServer {
 public:
-    TableOpenServer(zctx_t* ctx,
+    TableOpenServer(void* ctx,
                     ConfigParser& configParser, 
                     std::vector<leveldb::DB*>& databases);
     ~TableOpenServer();
@@ -40,7 +40,7 @@ public:
     void terminate();
     void tableOpenWorkerThread();
 private:
-    zctx_t* context;
+    void* context;
     std::thread* workerThread;
     Logger logger;
     ConfigParser& configParser;
@@ -66,7 +66,7 @@ class TableOpenHelper {
 public:
     typedef uint32_t IndexType;
     //Constructor
-    TableOpenHelper(zctx_t* context);
+    TableOpenHelper(void* context);
     ~TableOpenHelper();
     /**
      * Any parameter that is set to the numeric_limits<T>::max() limit,
@@ -87,7 +87,7 @@ public:
     void truncateTable(IndexType index);
     void* reqSocket; //This ZMQ socket is used to send requests
 private:
-    zctx_t* context;
+    void* context;
     Logger logger;
 };
 

@@ -58,7 +58,7 @@ public:
      * @param openHelper
      * @return 
      */
-    TableType getTable(IndexType index, zctx_t* ctx);
+    TableType getTable(IndexType index, void* ctx);
 
     /**
      * Close a table immediately.

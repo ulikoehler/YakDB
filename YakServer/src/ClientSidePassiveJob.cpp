@@ -7,7 +7,7 @@ static const char* responseOK = "\x31\x01\x50\x00";
 static const char* responseNoData = "\x31\x01\x50\x01";
 static const char* responsePartial = "\x31\x01\x50\x02";
 
-ClientSidePassiveJob::ClientSidePassiveJob(zctx_t* ctxParam,
+ClientSidePassiveJob::ClientSidePassiveJob(void* ctxParam,
              uint64_t apid,
              uint32_t tableId,
              uint32_t chunksizeParam,
@@ -17,8 +17,8 @@ ClientSidePassiveJob::ClientSidePassiveJob(zctx_t* ctxParam,
              Tablespace& tablespace,
              ThreadTerminationInfo* tti,
              ThreadStatisticsInfo* statisticsInfo) :
-                    inSocket(zsocket_new(ctxParam, ZMQ_PAIR)),
-                    outSocket(zsocket_new_connect(ctxParam, ZMQ_PUSH, externalRequestProxyEndpoint)),
+                    inSocket(zmq_socket(ctxParam, ZMQ_PAIR)),
+                    outSocket(zmq_socket_new_connect(ctxParam, ZMQ_PUSH, externalRequestProxyEndpoint)),
                     keyMsgBuffer(new zmq_msg_t[chunksizeParam]),
                     valueMsgBuffer(new zmq_msg_t[chunksizeParam]),
                     rangeEnd(rangeEndParam),
@@ -30,7 +30,8 @@ ClientSidePassiveJob::ClientSidePassiveJob(zctx_t* ctxParam,
                     logger(ctxParam, "AP worker " + std::to_string(apid)),
                     ctx(ctxParam) {
         //Create the socket to receive requests from
-        zsocket_connect(inSocket, "inproc://apid/%ld", apid);
+        std::string endpoint = "inproc://apid/" + std::to_string(apid);
+        zmq_connect(inSocket, endpoint.c_str());
         //Setup the snapshot and iterator
         leveldb::ReadOptions options;
         this->snapshot = (leveldb::Snapshot*) db->GetSnapshot();
@@ -189,8 +190,8 @@ ClientSidePassiveJob::~ClientSidePassiveJob() {
         }
     }
     //Cleanup sockets
-    zsocket_destroy(ctx, inSocket);
-    zsocket_destroy(ctx, outSocket);
+    zmq_close(inSocket);
+    zmq_close(outSocket);
     //Set exit flag and request scrub job
     tti->setExited();
     tti->requestScrubJob();

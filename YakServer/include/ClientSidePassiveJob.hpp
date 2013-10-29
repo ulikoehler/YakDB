@@ -13,7 +13,7 @@
  */
 class ClientSidePassiveJob {
 public:
-    ClientSidePassiveJob(zctx_t* ctxParam,
+    ClientSidePassiveJob(void* ctxParam,
              uint64_t apid,
              uint32_t tableId,
              uint32_t chunksize,
@@ -45,7 +45,7 @@ private:
     ThreadTerminationInfo* tti;
     ThreadStatisticsInfo* threadStatisticsInfo;
     Logger logger;
-    zctx_t* ctx;
+    void* ctx;
 };
 
 #endif //CLIENTSIDEPASSIVEJOB_HPP

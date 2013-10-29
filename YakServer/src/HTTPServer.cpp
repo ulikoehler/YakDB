@@ -65,9 +65,15 @@ private:
 
 using namespace std;
 
-YakHTTPServer::YakHTTPServer(zctx_t* ctxParam, const std::string& endpointParam, const std::string& staticFileRoot) : endpoint(endpointParam), ctx(ctxParam), thread(nullptr), logger(ctx, "HTTP Server"), staticFileRoot(staticFileRoot),
-logBuffer(nullptr) {
-    controlSocket = zsocket_new_bind(ctx, ZMQ_PAIR, controlEndpoint);
+YakHTTPServer::YakHTTPServer(void* ctxParam, const std::string& endpointParam, const std::string& staticFileRoot) :
+    endpoint(endpointParam),
+    ctx(ctxParam),
+    thread(nullptr),
+    logger(ctx, "HTTP Server"),
+    staticFileRoot(staticFileRoot),
+    logBuffer(nullptr) {
+    controlSocket = zmq_socket_new_bind(ctx, ZMQ_PAIR, controlEndpoint);
+    assert(controlSocket);
     //Start thread
     thread = new std::thread(std::mem_fun(&YakHTTPServer::workerMain), this);
 }
@@ -432,10 +438,11 @@ void YakHTTPServer::workerMain() {
     //TODO proper error handling
     logger.trace("HTTP Server starting on " + endpoint);
     //Initialize HTTP socket
-    httpSocket = zsocket_new(ctx, ZMQ_STREAM);
-    assert(zsocket_bind(httpSocket, endpoint.c_str()) != -1);
+    httpSocket = zmq_socket_new_bind(ctx, ZMQ_STREAM, endpoint.c_str());
+    assert(httpSocket);
     //Connect to main Yak router
-    mainRouterSocket = zsocket_new_connect(ctx, ZMQ_REQ, mainRouterAddr);
+    mainRouterSocket = zmq_socket_new_connect(ctx, ZMQ_REQ, mainRouterAddr);
+    assert(mainRouterSocket);
     //Initialize other stuff
     zmq_msg_t replyAddrFrame;
     zmq_msg_init(&replyAddrFrame);
@@ -444,7 +451,8 @@ void YakHTTPServer::workerMain() {
     zmq_msg_t response; 
     zmq_msg_init(&response);
     //Initialize control socket (receives STOP cmd etc.)
-    void* controlRecvSocket = zsocket_new_connect(ctx, ZMQ_PAIR, controlEndpoint);
+    void* controlRecvSocket = zmq_socket_new_connect(ctx, ZMQ_PAIR, controlEndpoint);
+    assert(controlRecvSocket);
     zmq_pollitem_t items[2];
     items[0].socket = httpSocket;
     items[0].events = ZMQ_POLLIN;
@@ -516,9 +524,9 @@ void YakHTTPServer::workerMain() {
         zmq_msg_close(&replyAddrFrame);
     }
     logger.debug("HTTP Server terminating...");
-    zsocket_destroy(ctx, controlRecvSocket);
-    zsocket_destroy(ctx, httpSocket);
-    zsocket_destroy(ctx, mainRouterSocket);
+    zmq_close(controlRecvSocket);
+    zmq_close(httpSocket);
+    zmq_close(mainRouterSocket);
     httpSocket = nullptr;
 }
 
@@ -531,7 +539,7 @@ void YakHTTPServer::terminate() {
     if(thread != nullptr) {
         //Send control msg
         zstr_send(controlSocket, "STOP");
-        zsocket_destroy(ctx, controlSocket);
+        zmq_close(controlSocket);
         //Wait until the thread exists
         thread->join();
         delete thread;

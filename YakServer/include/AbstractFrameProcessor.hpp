@@ -19,13 +19,13 @@
  */
 class AbstractFrameProcessor {
 public:
-    AbstractFrameProcessor(zctx_t* ctx,
+    AbstractFrameProcessor(void* ctx,
             int inputSocketType,
             int outputSocketType,
             const std::string& loggerName);
     ~AbstractFrameProcessor();
 protected:
-    zctx_t* context;
+    void* context;
     void* processorInputSocket;
     void* processorOutputSocket;
     Logger logger;

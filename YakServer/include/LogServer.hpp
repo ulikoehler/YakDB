@@ -43,7 +43,7 @@ public:
      *                 Must be the same endpoint as the endpoint the loggers connect to.
      *                 By using different endpoints you can run different log servers in parallel.
      */
-    LogServer(zctx_t* ctx,
+    LogServer(void* ctx,
             LogLevel logLevel = LogLevel::Debug,
             bool autoStart = false,
             const std::string& endpoint = std::string(DEFAULT_LOG_ENDPOINT));
@@ -75,7 +75,7 @@ public:
 private:
     void* logRequestInputSocket;
     LogLevel logLevel;
-    zctx_t* ctx;
+    void* ctx;
     std::thread* thread;
     std::vector<LogSink*> logSinks;
     Logger logger;

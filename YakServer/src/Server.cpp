@@ -307,7 +307,7 @@ static int HOT handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
 }
 
 KeyValueServer::KeyValueServer(ConfigParser& configParserParam) :
-ctx(zctx_new()),
+ctx(zmq_ctx_new()),
 logServer(ctx, LogLevel::Trace, true), //Autostart log server
 tables(),
 externalRepSocket(nullptr),
@@ -322,8 +322,6 @@ httpServer(ctx, configParserParam.getHTTPEndpoint(), configParserParam.getStatic
 logger(ctx, "Request router"),
 configParser(configParserParam)
  {
-    //Set a 10-sec default linger period
-    zctx_set_linger(ctx, 10000);
     //Start the log server and configure logsinks
     logServer.addLogSink(new StderrLogSink());
     if(!configParser.getLogFile().empty()) {
@@ -342,32 +340,34 @@ configParser(configParserParam)
     if(configParser.getInternalHWM() != 250) {
         logger.trace("Using internal HWM of " + std::to_string(configParser.getInternalHWM()));
     }
-    //REP
-    externalRepSocket = zsocket_new(ctx, ZMQ_ROUTER);
-    zsocket_set_hwm(externalRepSocket, configParser.getExternalHWM());
+    /**
+     * REP / ROUTER
+     */
+    externalRepSocket = zmq_socket(ctx, ZMQ_ROUTER);
+    zmq_set_hwm(externalRepSocket, configParser.getExternalHWM());
     if(!configParser.isIPv4Only()) {
         logger.trace("Using IPv6-capable sockets");
-        zsocket_set_ipv4only(externalRepSocket, 0);
+        zmq_set_ipv4only(externalRepSocket, false);
     }
     for(const std::string& endpoint : configParser.getREPEndpoints()) {
         logger.debug("Binding REP socket to " + endpoint);
-        zsocket_bind(externalRepSocket, endpoint.c_str());
+        zmq_bind(externalRepSocket, endpoint.c_str());
     }
-    zsocket_bind(externalRepSocket, mainRouterAddr); //Bind to inproc router
-    //PULL
-    externalPullSocket = zsocket_new(ctx, ZMQ_PULL);
-    zsocket_set_hwm(externalPullSocket, configParser.getExternalHWM());
+    zmq_bind(externalRepSocket, mainRouterAddr); //Bind to inproc router
+    /*
+     * PULL
+     */
+    externalPullSocket = zmq_socket(ctx, ZMQ_PULL);
+    zmq_set_hwm(externalPullSocket, configParser.getExternalHWM());
     if(!configParser.isIPv4Only()) {
-        zsocket_set_ipv4only(externalPullSocket, 0);
+        zmq_set_ipv4only(externalPullSocket, false);
     }
     for(const std::string& endpoint : configParser.getPULLEndpoints()) {
         logger.debug("Binding PULL socket to " + endpoint);
-        zsocket_bind(externalPullSocket, endpoint.c_str());
+        zmq_bind(externalPullSocket, endpoint.c_str());
     }
     //Response proxy socket to route asynchronous responses
-    responseProxySocket = zsocket_new(ctx, ZMQ_PULL);
-    zsocket_set_hwm(responseProxySocket, configParser.getExternalHWM());
-    zsocket_bind(responseProxySocket, externalRequestProxyEndpoint);
+    responseProxySocket = zmq_socket_new_bind_hwm(ctx, ZMQ_PULL, externalRequestProxyEndpoint, configParser.getExternalHWM());
     //Now start the update and read workers
     //(before starting the worker threads the response sockets need to be bound)
     updateWorkerController.start();
@@ -381,21 +381,21 @@ configParser(configParserParam)
 KeyValueServer::~KeyValueServer() {
     //Destroy the sockets
     if (externalRepSocket != nullptr) {
-        zsocket_destroy(ctx, externalRepSocket);
+        zmq_close(externalRepSocket);
     }
     if (externalSubSocket != nullptr) {
-        zsocket_destroy(ctx, externalSubSocket);
+        zmq_close(externalSubSocket);
     }
     if (externalPullSocket != nullptr) {
-        zsocket_destroy(ctx, externalPullSocket);
+        zmq_close(externalPullSocket);
     }
-    zsocket_destroy(ctx, responseProxySocket);
+    zmq_close(responseProxySocket);
     //The log server has terminated, but we can still log directly
     logServer.log("Server", LogLevel::Info, "YakDB Server exiting...");
     //The context will be terminated before the member constructors are called
     logger.terminate();
     //Final cleanup
-    zctx_destroy(&ctx);
+    zmq_ctx_destroy(&ctx);
 }
 
 void KeyValueServer::start() {

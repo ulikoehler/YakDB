@@ -5,23 +5,24 @@
  * Created on 11. Juli 2013, 03:16
  */
 
+#include <czmq.h>
 #include "AbstractFrameProcessor.hpp"
 #include "macros.hpp"
 #include "zutil.hpp"
 
-AbstractFrameProcessor::AbstractFrameProcessor(zctx_t* ctx,
+AbstractFrameProcessor::AbstractFrameProcessor(void* ctx,
         int inputSocketType,
         int outputSocketType,
         const std::string& loggerName) :
 context(ctx),
-processorInputSocket(zsocket_new(ctx, inputSocketType)),
-processorOutputSocket(zsocket_new(ctx, outputSocketType)),
+processorInputSocket(zmq_socket(ctx, inputSocketType)),
+processorOutputSocket(zmq_socket(ctx, outputSocketType)),
 logger(context, loggerName) {
 }
 
 AbstractFrameProcessor::~AbstractFrameProcessor() {
-    zsocket_destroy(context, processorInputSocket);
-    zsocket_destroy(context, processorOutputSocket);
+    zmq_close(processorInputSocket);
+    zmq_close(processorOutputSocket);
 }
 
 bool AbstractFrameProcessor::parseUint32Frame(uint32_t& dst,

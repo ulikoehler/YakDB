@@ -295,16 +295,16 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
         logger.debug("Stopping table open server");
     }
     //We received an exit msg, cleanup
-    zsocket_destroy(context, repSocket);
+    zmq_close(repSocket);
 }
 
-COLD TableOpenServer::TableOpenServer(zctx_t* context, 
+COLD TableOpenServer::TableOpenServer(void* context, 
                     ConfigParser& configParserParam,
                     std::vector<leveldb::DB*>& databasesParam)
 : context(context),
 logger(context, "Table open server"),
 configParser(configParserParam),
-repSocket(zsocket_new_bind(context, ZMQ_REP, tableOpenEndpoint)),
+repSocket(zmq_socket_new_bind(context, ZMQ_REP, tableOpenEndpoint)),
 databases(databasesParam),
 cacheMap() {
     //We need to bind the inproc transport synchronously in the main thread because zmq_connect required that the endpoint has already been bound
@@ -331,7 +331,8 @@ COLD TableOpenServer::~TableOpenServer() {
 void COLD TableOpenServer::terminate() {
     if(workerThread) {
         //Create a temporary socket
-        void* tempSocket = zsocket_new_connect(context, ZMQ_REQ, tableOpenEndpoint);
+        void* tempSocket = zmq_socket_new_connect(context, ZMQ_REQ, tableOpenEndpoint);
+        //TODO handle error properly
         assert(tempSocket);
         //Send an empty msg (signals the table open thread to stop)
         sendEmptyFrameMessage(tempSocket);
@@ -343,20 +344,17 @@ void COLD TableOpenServer::terminate() {
         delete workerThread;
         workerThread = nullptr;
         //Cleanup
-        zsocket_destroy(context, tempSocket);
+        zmq_close(tempSocket);
         //Cleanup EVERYTHING zmq-related immediately
     }
     logger.terminate();
 }
 
-COLD TableOpenHelper::TableOpenHelper(zctx_t* context) : context(context), logger(context, "Table open client") {
+COLD TableOpenHelper::TableOpenHelper(void* context) : context(context), logger(context, "Table open client") {
     this->context = context;
-    reqSocket = zsocket_new(context, ZMQ_REQ);
+    reqSocket = zmq_socket_new_connect(context, ZMQ_REQ, tableOpenEndpoint);
     if (unlikely(!reqSocket)) {
         logger.critical("Table open client REQ socket initialization failed: " + std::string(zmq_strerror(errno)));
-    }
-    if (unlikely(zmq_connect(reqSocket, tableOpenEndpoint))) {
-        logger.critical("Table open client REQ socket connect failed: " + std::string(zmq_strerror(errno)));
     }
 }
 
@@ -377,10 +375,7 @@ void COLD TableOpenHelper::openTable(uint32_t tableId,
     sendBinary(tableId, reqSocket, logger, "Table ID", ZMQ_SNDMORE);
     sendFrame(&parameters, sizeof (TableOpenParameters), reqSocket, logger, "Table open parameters");
     //Wait for the reply (reply content is ignored)
-    zmsg_t* msg = zmsg_recv(reqSocket); //Blocks until reply received
-    if (msg != nullptr) {
-        zmsg_destroy(&msg);
-    }
+    zmq_recv(reqSocket, nullptr, 0, 0); //Blocks until reply received
 }
 
 void COLD TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {
@@ -420,5 +415,5 @@ void COLD TableOpenHelper::truncateTable(TableOpenHelper::IndexType index) {
 }
 
 COLD TableOpenHelper::~TableOpenHelper() {
-    zsocket_destroy(context, reqSocket);
+    zmq_close(reqSocket);
 }

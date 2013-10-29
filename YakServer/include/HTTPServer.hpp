@@ -27,7 +27,7 @@ public:
     /**
      * Create a new HTTP server instance and start the worker thread
      */
-    YakHTTPServer(zctx_t* ctx, const std::string& endpoint, const std::string& staticFileRoot);
+    YakHTTPServer(void* ctx, const std::string& endpoint, const std::string& staticFileRoot);
     void terminate();
     ~YakHTTPServer();
     /**
@@ -61,7 +61,7 @@ private:
     void* controlSocket;
     void* httpSocket; //Socket to the outer world, used by the worker thread
     void* mainRouterSocket; //Socket to the main router (inproc)
-    zctx_t* ctx;
+    void* ctx;
     std::thread* thread;
     Logger logger;
     const char* replyAddr;

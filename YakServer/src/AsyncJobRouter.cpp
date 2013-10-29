@@ -13,7 +13,7 @@
  * This function contains the main loop for the thread
  * that serves passive client-side data request for a specific range
  */
-static void clientSidePassiveWorkerThreadFn(zctx_t* ctxParam,
+static void clientSidePassiveWorkerThreadFn(void* ctxParam,
              uint64_t apid,
              uint32_t tableId,
              uint32_t chunksize,
@@ -29,18 +29,17 @@ static void clientSidePassiveWorkerThreadFn(zctx_t* ctxParam,
     job.mainLoop();
 }
 
-COLD AsyncJobRouterController::AsyncJobRouterController(zctx_t* ctxArg, Tablespace& tablespace)
-    : routerSocket(zsocket_new(ctxArg, ZMQ_PUSH)), 
+COLD AsyncJobRouterController::AsyncJobRouterController(void* ctxArg, Tablespace& tablespace)
+    : routerSocket(zmq_socket_new_bind(ctxArg, ZMQ_PUSH, asyncJobRouterAddr)), 
         childThread(nullptr),
         tablespace(tablespace),
         ctx(ctxArg) {
-    //Create the PAIR socket to the job router
-    zsocket_bind(routerSocket, asyncJobRouterAddr);
+    assert(routerSocket);
 }
 
 void COLD AsyncJobRouterController::start() {
     //Lambdas rock
-    childThread = new std::thread([](zctx_t* ctx, Tablespace& tablespace) {
+    childThread = new std::thread([](void* ctx, Tablespace& tablespace) {
         AsyncJobRouter worker(ctx, tablespace);
         while(worker.processNextRequest()) {
             //Loop until stop msg is received (--> processNextRequest() returns false)
@@ -49,14 +48,14 @@ void COLD AsyncJobRouterController::start() {
 }
 
 void COLD AsyncJobRouterController::terminate() {
-    if(routerSocket) { //Ignore call if already cleaned up
+    if(routerSocket != nullptr) { //Ignore call if already cleaned up
         //Send stop message
         sendEmptyFrameMessage(routerSocket);
         //Wait for thread to finish and cleanup
         childThread->join();
         delete childThread;
         //Cleanup EVERYTHING zmq-related immediately
-        zsocket_destroy(ctx, routerSocket);
+        zmq_close(routerSocket);
         routerSocket = nullptr;
     }
 }
@@ -66,7 +65,7 @@ COLD AsyncJobRouterController::~AsyncJobRouterController() {
     terminate();
 }
 
-COLD AsyncJobRouter::AsyncJobRouter(zctx_t* ctxArg, Tablespace& tablespaceArg) :
+COLD AsyncJobRouter::AsyncJobRouter(void* ctxArg, Tablespace& tablespaceArg) :
 AbstractFrameProcessor(ctxArg, ZMQ_PULL, ZMQ_PUSH, "Async job router"),
 processSocketMap(),
 processThreadMap(),
@@ -89,11 +88,11 @@ tablespace(tablespaceArg) {
         logger.warn("atomic<uint64_t> is not lockfree, some operations might be slower than expected");
     }
     //Connect the socket that is used by the send() member function
-    if(zsocket_connect(processorInputSocket, asyncJobRouterAddr) == -1) {
+    if(unlikely(zmq_connect(processorInputSocket, asyncJobRouterAddr) == -1)) {
         logger.critical("Failed to bind processor input socket: " + std::string(zmq_strerror(errno)));
     }
     //Connect the socket that is used to proxy requests to the external req/rep socket
-    if(zsocket_connect(processorOutputSocket, externalRequestProxyEndpoint) == -1) {
+    if(unlikely(zmq_connect(processorOutputSocket, externalRequestProxyEndpoint) == -1)) {
         logger.critical("Failed to bind processor output socket: " + std::string(zmq_strerror(errno)));
     }
     logger.debug("Asynchronous job router starting up");
@@ -238,8 +237,9 @@ bool AsyncJobRouter::processNextRequest() {
 
 uint64_t AsyncJobRouter::initializeJob() {
     uint64_t apid = apidGenerator.getNewId();
-    void* sock = zsocket_new(ctx, ZMQ_PAIR);
-    zsocket_bind(sock, "inproc://apid/%ld", apid);
+    //Endpoint must unique for the APID
+    std::string endpoint = "inproc://apid/" + std::to_string(apid);
+    void* sock = zmq_socket_new_bind(ctx, ZMQ_PAIR, endpoint.c_str());
     processSocketMap[apid] = sock;
     //Create the thread termination info object
     apTerminationInfo[apid] = new ThreadTerminationInfo(&scrubJobsRequested);
@@ -283,8 +283,7 @@ void AsyncJobRouter::cleanupJob(uint64_t apid) {
     processThreadMap[apid]->join();
     delete processThreadMap[apid];
     //Destroy the sockets that were used to communicate with the thread
-    zsocket_set_linger(socket, 0);
-    zsocket_destroy(ctx, socket);
+    zmq_close(socket);
     //Remove the map entries
     processSocketMap.erase(apid);
     processThreadMap.erase(apid);

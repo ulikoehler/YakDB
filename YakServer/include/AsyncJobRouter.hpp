@@ -21,7 +21,7 @@ public:
      * Creates a new async job router controller.
      * Does not automatically start the thread
      */
-    AsyncJobRouterController(zctx_t* ctx, Tablespace& tablespace);
+    AsyncJobRouterController(void* ctx, Tablespace& tablespace);
     ~AsyncJobRouterController();
     void start();
     /**
@@ -36,7 +36,7 @@ public:
 private:
     std::thread* childThread;
     Tablespace& tablespace;
-    zctx_t* ctx;
+    void* ctx;
 };
 
 
@@ -54,7 +54,7 @@ private:
 class AsyncJobRouter : private AbstractFrameProcessor
 {
 public:
-    AsyncJobRouter(zctx_t* ctx, Tablespace& tablespace);
+    AsyncJobRouter(void* ctx, Tablespace& tablespace);
     ~AsyncJobRouter();
     /**
      * Process the next request message that is received from the input socket.
@@ -135,7 +135,7 @@ private:
      */
     std::atomic<unsigned int> scrubJobsRequested;
     SequentialIDGenerator apidGenerator;
-    zctx_t* ctx;
+    void* ctx;
     Tablespace& tablespace;
     /**
      * This is set to zclock_time() when a scrub job is excecuted.

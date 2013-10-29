@@ -15,7 +15,7 @@
 
 class ReadWorkerController {
 public:
-    ReadWorkerController(zctx_t* context, Tablespace& tablespace);
+    ReadWorkerController(void* context, Tablespace& tablespace);
     ~ReadWorkerController();
     /**
      * Send a message to one of the read workers (load-balanced).
@@ -37,7 +37,7 @@ private:
     std::thread** threads;
     Tablespace& tablespace;
     size_t numThreads; //size of this->threads
-    zctx_t* context;
+    void* context;
 };
 
 /**
@@ -48,7 +48,7 @@ private:
  */
 class ReadWorker : private AbstractFrameProcessor {
 public:
-    ReadWorker(zctx_t* ctx, Tablespace& tablespace);
+    ReadWorker(void* ctx, Tablespace& tablespace);
     ~ReadWorker();
     bool processNextRequest();
 private:

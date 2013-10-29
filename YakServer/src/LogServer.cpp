@@ -22,8 +22,8 @@ inline static bool isStopServerMessage(zframe_t* headerFrame) {
     return ((char*)zframe_data(headerFrame))[2] == '\xFF';
 }
 
-LogServer::LogServer(zctx_t* ctxParam, LogLevel logLevel, bool autoStart, const std::string& endpointParam)
-: logRequestInputSocket(zsocket_new_bind(ctxParam, ZMQ_PULL, endpointParam.c_str())),
+LogServer::LogServer(void* ctxParam, LogLevel logLevel, bool autoStart, const std::string& endpointParam)
+: logRequestInputSocket(zmq_socket_new_bind(ctxParam, ZMQ_PULL, endpointParam.c_str())),
 logLevel(logLevel),
 ctx(ctxParam),
 thread(nullptr),
@@ -41,14 +41,14 @@ void COLD LogServer::terminate() {
         //Final log message
         logger.info("Log server shutting down");
         //We need to create a temporary client socket
-        void* tempSocket = zsocket_new_connect(ctx, ZMQ_PUSH, endpoint.c_str());
+        void* tempSocket = zmq_socket_new_connect(ctx, ZMQ_PUSH, endpoint.c_str());
         //Send the STOP message to the worker thread
         if(zmq_send(tempSocket, "\x55\x01\xFF", 3, 0) == -1) {
             logMessageSendError("Log server thread stop message", logger);
         }
         thread->join(); //Wait until it exits
         //Cleanup
-        zsocket_destroy(ctx, tempSocket);
+        zmq_close(tempSocket);
         delete thread;
         thread = nullptr;
     }
@@ -73,10 +73,12 @@ LogServer::~LogServer() {
 void HOT LogServer::start() {
     //Create a socket to receive log requests
     while (true) {
+        zmq_msg_t frame;
+        zmq_msg_init(&frame);
         zmsg_t* msg = zmsg_recv(logRequestInputSocket);
         if (unlikely(!msg)) {
             //Interrupted (e.g. by SIGINT), but loggers might still want to log something
-            // so we can't exit yet.
+            // so we won't exit yet.
             if(zctx_interrupted) {
                 //Context was terminated (ctrl+c or other signal source), exit gracefully
                 break;
@@ -132,7 +134,7 @@ void HOT LogServer::start() {
         zmsg_destroy(&msg);
     }
     //Cleanup
-    zsocket_destroy(ctx, logRequestInputSocket);
+    zmq_close(logRequestInputSocket);
 }
 
 void LogServer::log(const std::string& loggerName, LogLevel msgLogLevel, const std::string& message) {

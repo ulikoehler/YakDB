@@ -23,7 +23,7 @@
 
 using namespace std;
 
-UpdateWorker::UpdateWorker(zctx_t* ctx, Tablespace& tablespace, ConfigParser& configParser) :
+UpdateWorker::UpdateWorker(void* ctx, Tablespace& tablespace, ConfigParser& configParser) :
 AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Update worker"),
 tableOpenHelper(ctx),
 tablespace(tablespace) {
@@ -555,7 +555,7 @@ void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool gener
  * Pretty stubby update thread loop.
  * This is what should contain the scheduler client code in the future.
  */
-static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace, ConfigParser& configParser) {
+static void updateWorkerThreadFunction(void* ctx, Tablespace& tablespace, ConfigParser& configParser) {
     setCurrentThreadName("Yak update worker");
     UpdateWorker updateWorker(ctx, tablespace, configParser);
     while (true) {
@@ -566,16 +566,14 @@ static void updateWorkerThreadFunction(zctx_t* ctx, Tablespace& tablespace, Conf
 }
 
 
-UpdateWorkerController::UpdateWorkerController(zctx_t* context, Tablespace& tablespace, ConfigParser& configParserArg)
+UpdateWorkerController::UpdateWorkerController(void* context, Tablespace& tablespace, ConfigParser& configParserArg)
 : tablespace(tablespace),
 numThreads(3),
 context(context),
 configParser(configParserArg)
  {
     //Initialize the push socket
-    workerPushSocket = zsocket_new(context, ZMQ_PUSH);
-    zsocket_set_hwm(workerPushSocket, configParser.getInternalHWM());
-    zsocket_bind(workerPushSocket, updateWorkerThreadAddr);
+    workerPushSocket = zmq_socket_new_bind_hwm(context, ZMQ_PUSH, updateWorkerThreadAddr, configParser.getInternalHWM());
 }
 
 void UpdateWorkerController::start() {
@@ -603,7 +601,7 @@ void COLD UpdateWorkerController::terminateAll() {
         }
         numThreads = 0;
         //Destroy the sockets, if any
-        zsocket_destroy(context, workerPushSocket);
+        zmq_close(workerPushSocket);
         workerPushSocket = nullptr;
     }
 }
