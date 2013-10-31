@@ -25,6 +25,41 @@
 #include "protocol.hpp"
 #include "FileUtils.hpp"
 
+/*
+ * Utility macros for error handling code dedup and
+ * to make the code shorter.
+ * These shall only be used inside a LogServer msg loop.
+ */
+#define CHECK_MORE_FRAMES(msg, description)\
+    if(unlikely(!zmq_msg_more(&msg))) {\
+        logger.critical("Only received " + std::string(description) + ", missing further frames");\
+        continue;\
+    }
+#define CHECK_NO_MORE_FRAMES(msg, description)\
+    if(unlikely(!zmq_msg_more(&msg))) {\
+        logger.critical("Expected no more frames after " + std::string(description) + ", but MORE flag is set");\
+        continue;\
+    }
+#define RECEIVE_CHECK_ERROR(msg, socket, description)\
+    if(unlikely(zmq_msg_recv(&msg, socket, 0) == -1)) {\
+        if(yak_interrupted) {\
+            break;\
+        } else {\
+            logger.critical("Error while receiving "\
+                + std::string(description)+ ": " + std::string(zmq_strerror(errno)));\
+            continue;\
+        }\
+    }
+//Check binary size of a frame.
+#define CHECK_SIZE(frame, expectedSize)\
+    if(unlikely(expectedSize != zmq_msg_size(&frame))) {\
+        logger.critical(\
+            "Received log level message of invalid size: expected size "\
+            + std::to_string(expectedSize) + ", got size "\
+            + std::to_string(zmq_msg_size(&frame)));\
+        continue;\
+    }
+
 using namespace std;
 
 struct PACKED TableOpenParameters  {
@@ -33,6 +68,51 @@ struct PACKED TableOpenParameters  {
     uint64_t writeBufferSize;
     uint64_t bloomFilterBitsPerKey;
     bool compressionEnabled;
+    
+    /**
+     * Convert this instance to a LevelDB table open parameter set
+     */
+    leveldb::Options getOptions(ConfigParser& configParser) {
+        leveldb::Options options;
+        if (lruCacheSize != std::numeric_limits<uint64_t>::max()) {
+            if(lruCacheSize > 0) { //0 --> disable
+                options.block_cache = leveldb::NewLRUCache(lruCacheSize);
+            }
+        } else {
+            //Use a small LRU cache per default, because OS cache doesn't cache uncompressed data
+            // , so it's really slow in random-access-mode for uncompressed data
+            options.block_cache = leveldb::NewLRUCache(configParser.getDefaultTableBlockSize());
+        }
+        if (tableBlockSize != std::numeric_limits<uint64_t>::max()) {
+            options.block_size = tableBlockSize;
+        } else { //Default table block size (= more than LevelDB default)
+            //256k, LevelDB default = 4k
+            options.block_size = configParser.getDefaultTableBlockSize(); 
+        }
+        if (writeBufferSize != std::numeric_limits<uint64_t>::max()) {
+            options.write_buffer_size = writeBufferSize;
+        } else {
+            //To counteract slow writes on slow HDDs, we now use a WB per default
+            //The default is tuned not to use too much buffer memory at once
+            options.write_buffer_size = configParser.getDefaultWriteBufferSize(); //64 Mibibytes
+        }
+        if (bloomFilterBitsPerKey != std::numeric_limits<uint64_t>::max()) {
+            //0 --> disable
+            if(lruCacheSize > 0) {
+                options.filter_policy
+                        = leveldb::NewBloomFilterPolicy(bloomFilterBitsPerKey);
+            }
+        } else {
+            if(configParser.getDefaultBloomFilterBitsPerKey() > 0) {
+                options.filter_policy
+                        = leveldb::NewBloomFilterPolicy(
+                            configParser.getDefaultBloomFilterBitsPerKey());
+            }
+        }
+        options.create_if_missing = true;
+        options.compression = (compressionEnabled ? leveldb::kSnappyCompression : leveldb::kNoCompression);
+        return options;
+    }
 };
 
 
@@ -110,52 +190,62 @@ static void writeTableConfigFile(const std::string& tableDirName, const TableOpe
     fout.close();
 }
 
+static enum class TableOperationRequestType : uint8_t {
+    StopServer = 0,
+    OpenTable = 1,
+    CloseTable = 2,
+    TruncateTable = 3
+};
+
 /**
  * Main function for table open worker thread.
  * 
- * Msg format:c
- *      - STOP THREAD msg: One empty frame
- *      - OPEN/CLOSE/TRUNCATE TABLE msg:
- *          - A 1-byte frame with content:
- *              \x00 for open table,
- *              \x01 for close table
- *              \x02 for close & truncate (--> rm -r) table
- *          - A 4-byte frame containing the binary ID
+ * Msg format: 
+ *      - Frame 1: Single byte: a TableOperationRequestType instance
+ *      - A 4-byte frame containing the binary ID
+ *      - Optional: More frames 
+ * 
+ * A single-byte single-frame-message
+ * is sent back after the request has been processed:
+ *   Code \x00: Success, no error
+ *   Code \x01: Success, no action neccessary
+ *   Code \x10: Error, additional bytes contain error message
+ *   Code \x11: Error, unknown request type
  */
-void HOT TableOpenServer::tableOpenWorkerThread() {
+void TableOpenServer::tableOpenWorkerThread() {
     logger.trace("Table open thread starting...");
+    //Initialize frames to be received
+    zmq_msg_t frame;
+    zmq_msg_init(&frame);
+    //Msg recv loop
+    
     while (true) {
-        zmsg_t* msg = zmsg_recv(repSocket);
-        if (unlikely(!msg)) {
-            if (errno == ETERM || errno == EINTR) {
-                break;
-            }
-            debugZMQError("Receive TableOpenServer message", errno);
-        }
-        //Parse msg parts
-        zframe_t* msgTypeFrame = zmsg_first(msg);
-        assert(msgTypeFrame);
-        //Check for a STOP msg
-        if (zframe_size(msgTypeFrame) == 0) {
-            //Send back the message and exit the loop
-            zmsg_send(&msg, repSocket);
+        //Receive the header frame == request type
+        RECEIVE_CHECK_ERROR(frame, repSocket, "message type frame");
+        CHECK_SIZE(frame, sizeof(TableOperationRequestType));
+        TableOperationRequestType requestType
+            = extractBinary<TableOperationRequestType>(&frame);
+        if(unlikely(requestType == TableOperationRequestType::StopServer)) {
+            //The STOP sender waits for a reply. Send an empty one.
+            zmq_send_const(repSocket, nullptr, 0, 0);
             break;
         }
-        //It's definitely no STOP frame, so there must be some data
-        assert(zframe_size(msgTypeFrame) == 1);
-        uint8_t msgType = (uint8_t) zframe_data(msgTypeFrame)[0];
-        //Table ID
-        zframe_t* tableIdFrame = zmsg_next(msg);
-        assert(tableIdFrame);
-        size_t frameSize = zframe_size(tableIdFrame);
-        assert(frameSize == sizeof (TableOpenHelper::IndexType));
-        uint32_t tableIndex = extractBinary<uint32_t>(tableIdFrame);
-        if (msgType == 0x00) { //Open table
-            //Extract parameters (this is NOT the parameter structure from 
-            zframe_t* parametersFrame = zmsg_next(msg);
-            assert(parametersFrame);
-            TableOpenParameters* parameters = (TableOpenParameters*) zframe_data(parametersFrame);
-            //Resize if neccessary
+        CHECK_MORE_FRAMES(frame, "message type frame");
+        //Receive table number frame
+        RECEIVE_CHECK_ERROR(frame, repSocket, "table id frame");
+        CHECK_SIZE(frame, sizeof(uint32_t));
+        uint32_t tableIndex = extractBinary<uint32_t>(&frame);
+        //Do the operation, depending on the request type
+        if (requestType == TableOperationRequestType::OpenTable) { //Open table
+            bool ok = true; //Set to false if error occurs
+            CHECK_MORE_FRAMES(frame, "table id frame");
+            RECEIVE_CHECK_ERROR(frame, repSocket, "table open parameters frame");
+            CHECK_SIZE(frame, sizeof(TableOpenParameters));
+            CHECK_NO_MORE_FRAMES(frame, "table id frame");
+            //Extract parameters
+            TableOpenParameters parameters;
+            memcpy(&parameters, zmq_msg_data(&frame), sizeof(TableOpenParameters));
+            //Resize tablespace if neccessary
             if (databases.size() <= tableIndex) {
                 databases.reserve(tableIndex + 16); //Avoid too large vectors
             }
@@ -163,84 +253,62 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
             if (databases[tableIndex] == nullptr) {
                 std::string tableDir = "tables/" + std::to_string(tableIndex);
                 //Override default values with the last values from the table config file, if any
-                readTableConfigFile(tableDir, *parameters);
+                readTableConfigFile(tableDir, parameters);
                 //Process the config options
                 logger.info("Creating/opening table #" + std::to_string(tableIndex));
-                leveldb::Options options;
-                options.create_if_missing = true;
-                options.compression = (parameters->compressionEnabled ? leveldb::kSnappyCompression : leveldb::kNoCompression);
-                leveldb::Cache* cache = nullptr;
-                //Set optional parameters
-                if (parameters->lruCacheSize != UINT64_MAX) {
-                    //0 --> disable
-                    if(parameters->lruCacheSize > 0) {
-                        options.block_cache = leveldb::NewLRUCache(parameters->lruCacheSize);
-                        cache = options.block_cache;
-                    }
-                } else {
-                    //Use a small LRU cache per default, because OS cache doesn't cache uncompressed data
-                    // , so it's really slow in random-access-mode for uncompressed data
-                    options.block_cache = leveldb::NewLRUCache(configParser.getDefaultTableBlockSize());
-                    cache = options.block_cache;
-                }
-                if (parameters->tableBlockSize != UINT64_MAX) {
-                    options.block_size = parameters->tableBlockSize;
-                } else { //Default table block size (= more than LevelDB default)
-                    //256k, LevelDB default = 4k
-                    options.block_size = configParser.getDefaultTableBlockSize(); 
-                }
-                if (parameters->writeBufferSize != UINT64_MAX) {
-                    options.write_buffer_size = parameters->writeBufferSize;
-                } else {
-                    //To counteract slow writes on slow HDDs, we now use a WB per default
-                    //The default is tuned not to use too much buffer memory at once
-                    options.write_buffer_size = configParser.getDefaultWriteBufferSize(); //64 Mibibytes
-                }
-                if (parameters->bloomFilterBitsPerKey != UINT64_MAX) {
-                    //0 --> disable
-                    if(parameters->lruCacheSize > 0) {
-                        options.filter_policy
-                                = leveldb::NewBloomFilterPolicy(parameters->bloomFilterBitsPerKey);
-                    }
-                } else {
-                    if(configParser.getDefaultBloomFilterBitsPerKey() > 0) {
-                        options.filter_policy
-                                = leveldb::NewBloomFilterPolicy(
-                                    configParser.getDefaultBloomFilterBitsPerKey());
-                    }
-                }
+                leveldb::Options options = parameters.getOptions(configParser);
                 //Open the table
                 leveldb::Status status = leveldb::DB::Open(options, tableDir.c_str(), &databases[tableIndex]);
                 if (unlikely(!status.ok())) {
-                    logger.error("Error while trying to open table #" + std::to_string(tableIndex) + " in directory " + tableDir + ": " + status.ToString());
+                    std::string errorDescription = "Error while trying to open table #"
+                        + std::to_string(tableIndex) + " in directory " + tableDir
+                        + ": " + status.ToString();
+                    logger.error(errorDescription);
+                    //Send error reply
+                    std::string errorReplyString = "\x10" + errorDescription;
+                    if (unlikely(zmq_send(repSocket, errorReplyString.data(), errorReplyString.size(), 0) == -1)) {
+                        logger.error("Communication error while trying to send table open error reply: "
+                                     + std::string(zmq_strerror(errno)));
+                    }
                 }
                 //Add the cache to the map
-                cacheMap[databases[tableIndex]] = cache;
+                cacheMap[databases[tableIndex]] = options.block_cache;
                 //Write the persistent config data
-                writeTableConfigFile(tableDir, *parameters);
+                writeTableConfigFile(tableDir, parameters);
+                //Send ACK reply
+                if(ok) {
+                    if (unlikely(zmq_send_const(repSocket, "\x00", 1, 0) == -1)) {
+                        logger.error("Communication error while trying to send table open reply: "
+                                    + std::string(zmq_strerror(errno)));
+                    }
+                }
+            } else {
+                //Send "no action needed" reply
+                if (unlikely(zmq_send_const(repSocket, "\x01", 1, 0) == -1)) {
+                    logger.error("Communication error while trying to send table open - no action needed - reply: "
+                                + std::string(zmq_strerror(errno)));
+                }
             }
-            //In order to improve performance, we reuse the existing frame, we only modify the first byte (additional bytes shall be ignored)
-            zframe_data(tableIdFrame)[0] = 0x00; //0x00 == acknowledge, no error
-            if (unlikely(zmsg_send(&msg, repSocket) == -1)) {
-                logger.error("Communication error while trying to send table open reply: " + std::string(zmq_strerror(errno)));
-            }
-        } else if (msgType == 0x01) { //Close table
-            if (databases.size() <= tableIndex || databases[tableIndex] == NULL) {
-                zframe_data(tableIdFrame)[0] = 0x01; //0x01 == Table already closed
+        } else if (requestType == TableOperationRequestType::CloseTable) { //Close table
+            if (databases.size() <= tableIndex || databases[tableIndex] == nullptr) {
+                if (unlikely(zmq_send_const(repSocket, "\x01", 1, 0) == -1)) {
+                    logger.error("Communication error while trying to send table close reply: "
+                                 + std::string(zmq_strerror(errno)));
+                }
             } else {
                 leveldb::DB* db = databases[tableIndex];
-                databases[tableIndex] = NULL; //Erase map entry as early as possi
+                databases[tableIndex] = nullptr; //Erase map entry as early as possible
                 delete db;
                 //Delete the cache, if any
                 leveldb::Cache* cache = cacheMap[db];
                 cacheMap.erase(db);
                 delete cache;
-                zframe_data(tableIdFrame)[0] = 0x00; //0x00 == acknowledge, no error
+                if (unlikely(zmq_send_const(repSocket, "\x00", 1, 0) == -1)) {
+                    logger.error("Communication error while trying to send table close reply: " + std::string(zmq_strerror(errno)));
+                }
             }
-            if (unlikely(zmsg_send(&msg, repSocket) == -1)) {
-                logger.error("Communication error while trying to send table open reply: " + std::string(zmq_strerror(errno)));
-            }
-        } else if (msgType == 0x02) { //Close & truncate
+            
+        } else if (requestType == TableOperationRequestType::TruncateTable) { //Close & truncate
             uint8_t responseCode = 0x00;
             //Close if not already closed
             if (!(databases.size() <= tableIndex || databases[tableIndex] == nullptr)) {
@@ -250,17 +318,18 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
             }
             /**
              * Truncate, based on the assumption LevelDB only creates files,
-             * but no subdirectories
+             * but no subdirectories.
+             * 
+             * We don't want to introduce a boost::filesystem dependency here,
+             * so essentially rmr has been implemented by ourselves.
              */
             DIR *dir;
             string dirname = "tables/" + std::to_string(tableIndex);
             struct dirent *ent;
-            std::string dotDir = ".";
-            std::string dotdotDir = "..";
-            if ((dir = opendir(dirname.c_str())) != NULL) {
-                while ((ent = readdir(dir)) != NULL) {
+            if ((dir = opendir(dirname.c_str())) != nullptr) {
+                while ((ent = readdir(dir)) != nullptr) {
                     //Skip . and ..
-                    if (dotDir == ent->d_name || dotdotDir == ent->d_name) {
+                    if (strcmp(".", ent->d_name) == 0 || strcmp("..", ent->d_name) == 0) {
                         continue;
                     }
                     string fullFileName = dirname + "/" + std::string(ent->d_name);
@@ -268,32 +337,33 @@ void HOT TableOpenServer::tableOpenWorkerThread() {
                     unlink(fullFileName.c_str());
                 }
                 closedir(dir);
-                responseCode = 0x00; //0x00 == acknowledge, no error
+                responseCode = 0x00; //Success, no error
             } else {
                 //For now we just assume, error means it does not exist
                 logger.trace("Tried to truncate " + dirname + " but it does not exist");
-                responseCode = 0x01; //ACK, deletion not neccesary
+                responseCode = 0x01; //Sucess, deletion not neccesary
             }
-            //Now remove the table directory itself
+            
+            //Now remove the table directory itself (it should be empty now)
             //Errors (e.g. for nonexistent dirs) do not exist
             rmdir(dirname.c_str());
             logger.debug("Truncated table in " + dirname);
-            sendConstFrame(&responseCode, 1, repSocket, logger, "Truncate response");
+            if (unlikely(zmq_send_const(repSocket, "\x00", 1, 0) == -1)) {
+                logger.error("Communication error while trying to send truncate reply: " + std::string(zmq_strerror(errno)));
+            }
         } else {
-            logger.error("Internal protocol error: Table open server received unkown request type " + std::to_string(msgType));
+            logger.error("Internal protocol error: Table open server received unkown request type: " + std::to_string((uint8_t)requestType));
             //Reply anyway
-            if (unlikely(zmsg_send(&msg, repSocket) == -1)) {
-                logger.error("Communication error while trying to send table opener protocol error reply: " + std::string(zmq_strerror(errno)));
+            if (unlikely(zmq_send_const(repSocket, "\x11", 1, 0) == -1)) {
+                logger.error("Communication error while trying to send 'request unknown' reply: " + std::string(zmq_strerror(errno)));
             }
         }
-        //Destroy the message if it hasn't been sent or destroyed before
-        if (msg != nullptr) {
-            zmsg_destroy(&msg);
-        }
     }
-    if(!yak_interrupted) {
-        logger.debug("Stopping table open server");
-    }
+    //Cleanup
+    zmq_msg_close(&frame);
+    //if(!yak_interrupted) {
+    logger.debug("Stopping table open server");
+    //}
     //We received an exit msg, cleanup
     zmq_close(repSocket);
 }

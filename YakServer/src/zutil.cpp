@@ -100,9 +100,9 @@ void zmq_set_hwm(void* socket, int hwm) {
     assert(rc != -1);
 }
 
-void zmq_set_ipv4only(void* socket, bool isIPv4Only) {
-    int ipv4Only = isIPv4Only ? 1 : 0;
-    int rc = zmq_setsockopt (socket, ZMQ_IPV4ONLY, &ipv4Only, sizeof (int));
+void zmq_set_ipv6(void* socket, bool isIPv6Enabled) {
+    int ipv6 = isIPv6Enabled ? 1 : 0;
+    int rc = zmq_setsockopt (socket, ZMQ_IPV6, &ipv6, sizeof (int));
     assert(rc != -1);
 }
 

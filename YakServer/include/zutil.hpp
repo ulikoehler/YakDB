@@ -273,6 +273,26 @@ inline static T extractBinary(zmq_msg_t* frame) {
 }
 
 /**
+ * Utility function to receive frame data to a binary buffer.
+ * An additional bytes
+ * @param frame
+ * @return 0 on success, -1 on ZMQ error, num received bytes when too few bytes were received
+ */
+template<typename T>
+inline static int receiveBinary(void* socket, T* dest) {
+    assert(socket);
+    assert(dest);
+    int rc = zmq_recv(socket, (void*)dest, sizeof(T), 0);
+    if(unlikely(rc == -1)) {
+        return -1;
+    } else if(rc < sizeof(T)) {
+        return rc; //== number of bytes received
+    }
+    return 0;
+}
+
+
+/**
  * ZMQ zero-copy free function that uses standard C free
  */
 void standardFree(void *data, void *hint);
@@ -366,7 +386,7 @@ void* zmq_socket_new_connect_hwm(void* context, int type, const char* endpoint, 
 std::string frameToString(zframe_t* frame);
 
 void zmq_set_hwm(void* socket, int hwm);
-void zmq_set_ipv4only(void* socket, bool isIPv4Only);
+void zmq_set_ipv6(void* socket, bool enableIPv6);
 
 #endif	/* ZUTIL_HPP */
 

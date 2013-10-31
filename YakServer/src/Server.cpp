@@ -347,7 +347,7 @@ configParser(configParserParam)
     zmq_set_hwm(externalRepSocket, configParser.getExternalHWM());
     if(!configParser.isIPv4Only()) {
         logger.trace("Using IPv6-capable sockets");
-        zmq_set_ipv4only(externalRepSocket, false);
+        zmq_set_ipv6(externalRepSocket, true);
     }
     for(const std::string& endpoint : configParser.getREPEndpoints()) {
         logger.debug("Binding REP socket to " + endpoint);
@@ -360,7 +360,7 @@ configParser(configParserParam)
     externalPullSocket = zmq_socket(ctx, ZMQ_PULL);
     zmq_set_hwm(externalPullSocket, configParser.getExternalHWM());
     if(!configParser.isIPv4Only()) {
-        zmq_set_ipv4only(externalPullSocket, false);
+        zmq_set_ipv6(externalPullSocket, true);
     }
     for(const std::string& endpoint : configParser.getPULLEndpoints()) {
         logger.debug("Binding PULL socket to " + endpoint);
