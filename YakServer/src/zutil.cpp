@@ -10,6 +10,38 @@ static void sigintHandler (int signal_value) {
     yak_interrupted = 1;
 }
 
+int zmqRecvString(void* socket, std::string& result) {
+    zmq_msg_t frame;
+    zmq_msg_init(&frame);
+    int rc = zmq_msg_recv(&frame, socket, 0);
+    if(rc == -1) {
+        zmq_msg_close(&frame);
+        return -1;
+    }
+    //Convert to string
+    result = std::move(std::string((char*)zmq_msg_data(&frame), zmq_msg_size(&frame)));
+    return 0;
+}
+
+int zmq_proxy_single(void* srcSocket, void* dstSocket) {
+    zmq_msg_t msg;
+    if(unlikely(zmq_msg_init(&msg) == -1)) {
+        return -1;
+    }
+    int rcvmore;
+    do {
+        if(unlikely(zmq_msg_recv(&msg, srcSocket, 0) == -1)) {
+            return -1;
+        }
+        rcvmore = zmq_msg_more(&msg);
+        if(unlikely(zmq_msg_send(&msg, dstSocket, (rcvmore ? ZMQ_SNDMORE : 0)) == -1)) {
+            zmq_msg_close(&msg);
+            return -1;
+        }
+    } while(rcvmore);
+    return 0;
+}
+
 void initializeSIGINTHandler() {
     struct sigaction action;
     action.sa_handler = sigintHandler;
@@ -31,34 +63,6 @@ void sendEmptyFrameMessage(void* socket) {
     assert(socket);
     int rc = zmq_send_const(socket, nullptr, 0, 0);
     assert(rc != -1);
-}
-
-void* zsocket_new_bind(zctx_t* context, int type, const char* endpoint) {
-    assert(context);
-    assert(endpoint);
-    void* sock = zsocket_new(context, type);
-    if(unlikely(!sock)) {
-        return NULL;
-    }
-    if(unlikely(zsocket_bind(sock, endpoint) == -1)) {
-        zsocket_destroy(context, sock);
-        return NULL;
-    }
-    return sock;
-}
-
-void* zsocket_new_connect(zctx_t* context, int type, const char* endpoint) {
-    assert(context);
-    assert(endpoint);
-    void* sock = zsocket_new(context, type);
-    if(unlikely(!sock)) {
-        return NULL;
-    }
-    if(unlikely(zsocket_bind(sock, endpoint) == -1)) {
-        zsocket_destroy(context, sock);
-        return NULL;
-    }
-    return sock;
 }
 
 void* zmq_socket_new_connect(void* context, int type, const char* endpoint) {

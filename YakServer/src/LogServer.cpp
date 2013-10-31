@@ -194,7 +194,7 @@ void HOT LogServer::start() {
 
 void LogServer::log(const std::string& loggerName, LogLevel msgLogLevel, const std::string& message) {
     if(msgLogLevel <= logLevel) {
-        uint64_t timestamp = zclock_time();
+        uint64_t timestamp = Logger::getCurrentLogTime();
         for (LogSink* sink : logSinks) {
             sink->log(logLevel, timestamp, loggerName, message);
         }

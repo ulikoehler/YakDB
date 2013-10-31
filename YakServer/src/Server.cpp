@@ -28,7 +28,7 @@ using namespace std;
  * 
  * By proxying the responses (non-PARTSYNC responses are sent directly by the main
  * thread before the request has been processed by the worker thread) the main ROUTER
- * socket is only be used by the main thread,
+ * socket is only be used by the main thread.
  * @param loop
  * @param poller
  * @param arg A pointer to the current KVServer instance
@@ -36,18 +36,11 @@ using namespace std;
  */
 int proxyWorkerThreadResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
     KeyValueServer* server = (KeyValueServer*) arg;
-    zmsg_t* msg = zmsg_recv(server->responseProxySocket);
-    if (unlikely(!msg)) {
-        return -1;
+    int rc = zmq_proxy_single(server->responseProxySocket, server->externalRepSocket);
+    if(unlikely(rc == -1)) {
+        server->logger.error("Error while proxying response from worker thread: "
+                             + std::string(zmq_strerror(errno)));
     }
-    //We assume the message contains a valid envelope.
-    //Just proxy it. Nothing special here.
-    //zmq_proxy is a loop and therefore can't be used here
-    int rc = zmsg_send(&msg, server->externalRepSocket);
-    if (unlikely(rc == -1)) {
-        debugZMQError("Proxy worker thread response", errno);
-    }
-
     return 0;
 }
 

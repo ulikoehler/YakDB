@@ -103,6 +103,11 @@ public:
      *     happen after context termination.
      */
     void terminate();
+    /**
+     * Get the current millisecond-Unix timestamp, in a format
+     * suitable for usage as logger timestamp
+     */
+    static uint64_t getCurrentLogTime();
 private:
     void* socket; //PUSH socket Connected to the log server
     std::string loggerName;

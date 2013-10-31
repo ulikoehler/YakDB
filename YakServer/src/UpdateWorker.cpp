@@ -28,13 +28,13 @@ AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Update worker"),
 tableOpenHelper(ctx),
 tablespace(tablespace) {
     //Set HWM
-    zsocket_set_hwm(processorInputSocket, configParser.getInternalHWM());
+    zmq_set_hwm(processorInputSocket, configParser.getInternalHWM());
     //Connect the socket that is used to proxy requests to the external req/rep socket
-    if(zsocket_connect(processorOutputSocket, externalRequestProxyEndpoint) == -1) {
+    if(zmq_connect(processorOutputSocket, externalRequestProxyEndpoint) == -1) {
         logOperationError("Connect Update worker processor output socket", logger);
     }
     //Connect the socket that is used by the send() member functions
-    if(zsocket_connect(processorInputSocket, updateWorkerThreadAddr)) {
+    if(zmq_connect(processorInputSocket, updateWorkerThreadAddr)) {
         logOperationError("Connect Update worker processor input socket", logger);
     }
     logger.debug("Update worker thread starting");

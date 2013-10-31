@@ -462,22 +462,26 @@ void YakHTTPServer::workerMain() {
          //  Get HTTP request
         assert(zmq_poll(items, 2, -1) != -1);
         //Check if we received a control msg
-        if(items[1].revents) {
+        if(unlikely(items[1].revents)) {
             //Valid control msgs: STOP, HUP
-            char* controlMsg = zstr_recv(controlRecvSocket);
-            if(strcmp(controlMsg, "HUP") == 0) {
+            zmq_msg_t frame;
+            zmq_msg_init(&frame);
+            if(unlikely(zmq_msg_recv(&frame, controlRecvSocket, 0) == -1)) {
+                logMessageOperationError("HTTP control frame", "receive", logger);
+            }
+            std::string controlMsg((char*)zmq_msg_data(&frame), zmq_msg_size(&frame));
+            zmq_msg_close(&frame);
+            if(controlMsg == "HUP") {
                 //HUP: munmap all static files --> 'reload' static files
                 logger.trace("HUP received, reloading all mmap'ed files");
                 for(auto pair : mappedFiles) {
                     delete pair.second;
                 }
-                free(controlMsg);
                 continue;
-            } else if(strcmp(controlMsg, "STOP") == 0) {
-                free(controlMsg);
+            } else if(controlMsg == "STOP") {
                 break;
             } else {
-                logger.warn("Received unknown control message: '" + string(controlMsg) + "'");
+                logger.warn("Received unknown control message: '" + controlMsg + "'");
                 continue;
             }
         }

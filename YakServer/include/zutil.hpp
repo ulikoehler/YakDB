@@ -76,6 +76,13 @@ static inline void logZMQError(int error, const char* action, Logger& logger) {
 }
 
 /**
+ * Receive a single frame and store it in a string.
+ * Similar to zstr_recv() from CZMQ, but uses std::strings.
+ * @return -1 on error if receiving failed
+ */
+int zmqRecvString(void* socket, std::string& result);
+
+/**
  * Receive a single frame, and store it in msg.
  * If any error occurs, return != 0 and log a warning message on the logger.
  * 
@@ -198,7 +205,10 @@ static inline int sendFrame(const std::string& msgStr, void* socket, Logger& log
  * message parts in the current message.
  */
 inline static bool socketHasMoreFrames(void* socket) {
-    return zsocket_rcvmore(socket);
+    int rcvmore;
+    size_t optlen = sizeof(int);
+    zmq_getsockopt(socket, ZMQ_RCVMORE, &rcvmore, &optlen);
+    return rcvmore;
 }
 
 /**
@@ -247,17 +257,26 @@ static inline int proxyMultipartMessage(void* srcSocket, void* dstSocket, const 
     bool rcvmore = socketHasMoreFrames(srcSocket);
     int frameCounter = 0;
     while (rcvmore) {
-        if(zmq_msg_recv(&msg, srcSocket, 0) == -1) {
+        if(unlikely(zmq_msg_recv(&msg, srcSocket, 0) == -1)) {
             return -1;
         }
         rcvmore = zmq_msg_more(&msg);
-        if(zmq_msg_send(&msg, dstSocket, (rcvmore ? ZMQ_SNDMORE : 0)) == -1) {
+        if(unlikely(zmq_msg_send(&msg, dstSocket, (rcvmore ? ZMQ_SNDMORE : 0)) == -1)) {
             return -1;
         }
         frameCounter++;
     }
     return 0;
 }
+
+
+/**
+ * Reads a single multi-part message from the frontend and
+ * sends it to the backend.
+ * 
+ * Returns -1 on error (with errno set)
+ */
+int zmq_proxy_single(void* srcSocket, void* dstSocket);
 
 template<typename T>
 inline static void sendBinary(T value, void* socket, Logger& logger, const char* frameDesc = "", int flags = 0) {
