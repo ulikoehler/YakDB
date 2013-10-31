@@ -39,6 +39,7 @@ static void COLD sendProtocolError(zmq_msg_t* addrFrame,
 }
 
 void KeyValueServer::handleRequestResponse() {
+    logger.trace("HanRR");
     //In the REQ/REP handler we only use one socket
     void* sock = externalRepSocket;
     //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
@@ -373,8 +374,8 @@ void KeyValueServer::start() {
     items[0].events = ZMQ_POLLIN;
     items[1].socket = externalPullSocket;
     items[1].events = ZMQ_POLLIN;
-    items[1].socket = responseProxySocket;
-    items[1].events = ZMQ_POLLIN;
+    items[2].socket = responseProxySocket;
+    items[2].events = ZMQ_POLLIN;
     //Main server event loop. Returns after being interrupted
     //The stop server request simulates the interrupt
     while(true) {

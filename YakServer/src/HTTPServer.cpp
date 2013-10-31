@@ -117,7 +117,9 @@ void YakHTTPServer::serveStaticFile(const char* fileURL) {
     sendReplyIdentity();
     //Security: Check if the file contains relative paths
     if(strstr(fileURL, "..") != nullptr) {
-        if(zmq_send_const(httpSocket, securityErrorMessage, sizeof(securityErrorMessage), 0) == -1) {
+        if(unlikely(zmq_send_const(httpSocket,
+                                   securityErrorMessage,
+                                   sizeof(securityErrorMessage), 0) == -1)) {
             logger.warn("Sending security violation error to HTTP client failed: " + string(zmq_strerror(errno)));
         }
         return;

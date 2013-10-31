@@ -198,6 +198,13 @@ static enum class TableOperationRequestType : uint8_t {
 };
 
 /**
+ * Send a table operation request
+ */
+static int sendTableOperationRequest(void* socket, TableOperationRequestType requestType) {
+    return zmq_send(socket, &requestType, sizeof(TableOperationRequestType), 0);
+}
+
+/**
  * Main function for table open worker thread.
  * 
  * Msg format: 
@@ -408,6 +415,9 @@ void COLD TableOpenServer::terminate() {
             return;
         }
         //Send a stop server msg (signals the table open thread to stop)
+        if(sendTableOperationRequest(tempSocket, TableOperationRequestType::StopServer) == -1) {
+            logMessageSendError("table server stop message", logger);
+        }
         sendConstFrame("\x00", 1, tempSocket, logger, "Table open server STOP msg");
         //Receive the reply, ignore the data (--> thread has received msg and is terminating)
         receiveAndIgnoreFrame(tempSocket, logger, "Table open server STOP msg reply");
