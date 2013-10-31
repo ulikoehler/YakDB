@@ -310,54 +310,10 @@ void standardFree(void *data, void *hint);
 void doNothingFree(void *data, void *arg);
 
 /**
- * Create a new empty (zero-length) frame
- * @return 
- */
-zframe_t* createEmptyFrame();
-
-/**
- * Create a new message that contains exactly one zero-length frame
- * @return 
- */
-zmsg_t* createEmptyFrameMessage();
-
-/**
  * Creates a new empty-frame message using createEmptyFrameMessage()
  * and sends it over the given socket
  */
 void sendEmptyFrameMessage(void* socket);
-
-/**
- * Create a new frame of constant data.
- * The data will not be deallocated after usage.
- * @param data
- * @param size
- * @return 
- */
-zframe_t* createConstFrame(const char* data, size_t size);
-/**
- * Create a new frame of constant data.
- * The data will not be deallocated after usage.
- * strlen(data) is used as size.
- * @param data
- * @return 
- */
-zframe_t* createConstFrame(const char* data);
-
-
-void zmsg_remove_destroy(zmsg_t* msg, zframe_t** frame);
-
-/**
- * Create and bind a ZeroMQ socket in a single step
- * @return 
- */
-void* zsocket_new_bind(zctx_t* context, int type, const char* endpoint);
-
-/**
- * Create and connect a ZeroMQ socket in a single step
- * @return 
- */
-void* zsocket_new_connect(zctx_t* context, int type, const char* endpoint);
 
 /**
  * Create and bind a ZeroMQ socket in a single step
@@ -382,14 +338,6 @@ void* zmq_socket_new_bind_hwm(void* context, int type, const char* endpoint, int
  * @return 
  */
 void* zmq_socket_new_connect_hwm(void* context, int type, const char* endpoint, int hwm);
-
-/**
- * Convert a ZMQ frame to a string.
- * Can be inefficient, avoid using in IML if possible
- * @param frame
- * @return 
- */
-std::string frameToString(zframe_t* frame);
 
 void zmq_set_hwm(void* socket, int hwm);
 void zmq_set_ipv6(void* socket, bool enableIPv6);

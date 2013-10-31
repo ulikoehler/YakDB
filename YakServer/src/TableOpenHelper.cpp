@@ -405,9 +405,10 @@ void COLD TableOpenServer::terminate() {
         if(unlikely(tempSocket == nullptr)) {
             logger.error("Can't send STOP msg to table open server, because connection attempt failed: "
                          + std::string(zmq_strerror(errno)));
+            return;
         }
-        //Send an empty msg (signals the table open thread to stop)
-        sendEmptyFrameMessage(tempSocket);
+        //Send a stop server msg (signals the table open thread to stop)
+        sendConstFrame("\x00", 1, tempSocket, logger, "Table open server STOP msg");
         //Receive the reply, ignore the data (--> thread has received msg and is terminating)
         receiveAndIgnoreFrame(tempSocket, logger, "Table open server STOP msg reply");
         //Wait for the thread to finish

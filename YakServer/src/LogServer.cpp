@@ -42,10 +42,8 @@
  * For a given log protocol header message, checks & returns if
  * the header frame contains a stop message
  */
-inline static bool isStopServerMessage(zmq_msg_t* headerFrame) {
-    assert(headerFrame);
-    assert(zmq_msg_size(headerFrame) == 3);
-    return ((char*)zmq_msg_data(headerFrame))[2] == '\xFF';
+inline static bool isStopServerMessage(char* headerData) {
+    return headerData[2] == '\xFF';
 }
 
 LogServer::LogServer(void* ctxParam, LogLevel logLevel, bool autoStart, const std::string& endpointParam)
@@ -69,7 +67,7 @@ void COLD LogServer::terminate() {
         //We need to create a temporary client socket
         void* tempSocket = zmq_socket_new_connect(ctx, ZMQ_PUSH, endpoint.c_str());
         //Send the STOP message to the worker thread
-        if(zmq_send(tempSocket, "\x55\x01\xFF", 3, 0) == -1) {
+        if(zmq_send_const(tempSocket, "\x55\x01\xFF", 3, 0) == -1) {
             logMessageSendError("Log server thread stop message", logger);
         }
         thread->join(); //Wait until it exits
@@ -81,9 +79,9 @@ void COLD LogServer::terminate() {
     /*
      * The log server is destructed in the late exit phase,
      * so we need to assume the context will be destroyed before
-     * the logger in the current LogServer instance
+     * the logger member in the current LogServer instance
      * has a chance to destroy its socket.
-     * Therefore we terminate it manually to be sure.
+     * Therefore we terminate it manually to be safe.
      */
     logger.terminate();
 }
@@ -106,11 +104,11 @@ void HOT LogServer::start() {
     zmq_msg_t frame;
     zmq_msg_init(&frame);
     while (true) {
+        //TODO Dedup the size checking code!
         /*
          * Receive and parse header frame
          */
         RECEIVE_CHECK_ERROR(frame, logRequestInputSocket, "header frame");
-        CHECK_MORE_FRAMES(frame, "header frame");
         if(unlikely(zmq_msg_size(&frame) != 3)) {
             log("Log server",
                 LogLevel::Warn,
@@ -134,12 +132,14 @@ void HOT LogServer::start() {
             continue;
         }
         //Check if we received a stop message (same effect as SIGINT --> log server is 
-        if (unlikely(isStopServerMessage(&frame))) {
+        if (unlikely(isStopServerMessage(headerData))) {
             log("Log server",
                 LogLevel::Debug,
                 "Received stop message, exiting...");
             break;
         }
+        //The STOP msg only has a single frame, so we can't check before checking for a STOP msg
+        CHECK_MORE_FRAMES(frame, "header frame");
         /*
          * Receive log level frame
          */
@@ -193,7 +193,7 @@ void HOT LogServer::start() {
 }
 
 void LogServer::log(const std::string& loggerName, LogLevel msgLogLevel, const std::string& message) {
-    if(msgLogLevel <= logLevel || true) {
+    if(msgLogLevel <= logLevel) {
         uint64_t timestamp = zclock_time();
         for (LogSink* sink : logSinks) {
             sink->log(logLevel, timestamp, loggerName, message);

@@ -37,7 +37,10 @@ static inline void checkLogSendError(int rc, const std::string& loggerName, cons
  * Get the 64-bit log time: epoch (secs) * 1000 + epoch-millisecs
  */
 static inline uint64_t HOT getCurrentLogTime() {
-    return zclock_time();
+    //This is equivalent to zclock_gettime(), but we don't need the dependency.
+    struct timeval tv;
+    gettimeofday (&tv, NULL);
+    return (int64_t) ((int64_t) tv.tv_sec * 1000 + (int64_t) tv.tv_usec / 1000);
 }
 
 Logger::Logger(void* ctx, const std::string& name, const char* endpoint) : loggerName(name) {

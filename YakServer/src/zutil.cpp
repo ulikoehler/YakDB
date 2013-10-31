@@ -33,13 +33,6 @@ void sendEmptyFrameMessage(void* socket) {
     assert(rc != -1);
 }
 
-void zmsg_remove_destroy(zmsg_t* msg, zframe_t** frame) {
-    assert(msg);
-    assert(frame);
-    zmsg_remove(msg, *frame);
-    zframe_destroy(frame);
-}
-
 void* zsocket_new_bind(zctx_t* context, int type, const char* endpoint) {
     assert(context);
     assert(endpoint);
@@ -135,10 +128,6 @@ void* zmq_socket_new_connect_hwm(void* context, int type, const char* endpoint, 
         return NULL;
     }
     return sock;
-}
-
-std::string frameToString(zframe_t* frame) {
-    return std::string((char*) zframe_data(frame), zframe_size(frame));
 }
 
 void COLD logOperationError(const char* operation, Logger& logger) {
