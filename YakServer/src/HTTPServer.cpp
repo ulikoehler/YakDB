@@ -544,7 +544,7 @@ void YakHTTPServer::closeTCPConnection() {
 void YakHTTPServer::terminate() {
     if(thread != nullptr) {
         //Send control msg
-        zstr_send(controlSocket, "STOP");
+        zmq_send_const(controlSocket, "STOP", 4, 0);
         zmq_close(controlSocket);
         //Wait until the thread exists
         thread->join();

@@ -18,6 +18,13 @@
 #include <cstring>
 #include <string>
 
+static int zmq_sockopt_get_rcvmore(void* socket) {
+    int rcvmore;
+    size_t optlen = sizeof(int);
+    zmq_getsockopt(socket, ZMQ_RCVMORE, &rcvmore, &optlen);
+    return rcvmore;
+}
+
 /**
  * Send an empty (zero-length) frame
  * @param socket The socket to send data over
@@ -109,7 +116,7 @@ static inline int receiveSimpleResponse(void* socket, std::string& errorString) 
     }
     //Check if there is any error frame (there *should* be one, if the third byte is != 0)
     if (((char*) zmq_msg_data(&msg))[3] != 0) {
-        if (!zsocket_rcvmore(socket)) {
+        if (!zmq_sockopt_get_rcvmore(socket)) {
             errorString = "No error message received from server -- Exact error cause is unknown";
             return -1;
         }
@@ -150,14 +157,14 @@ static int receiveKeyValue(void* socket, std::string& keyTarget, std::string& va
         return -1;
     }
     //Check if there is another frame
-    if (!zsocket_rcvmore(socket)) {
+    if (!zmq_sockopt_get_rcvmore(socket)) {
         errno = EAGAIN;
         return -1;
     }
     if(receiveStringFrame(socket, valueTarget) == -1) {
         return -1;
     }
-    return (zsocket_rcvmore(socket) ? 1 : 0);
+    return (zmq_sockopt_get_rcvmore(socket) ? 1 : 0);
 }
 
 #endif	/* ZMQ_UTILS_HPP */
