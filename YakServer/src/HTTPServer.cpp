@@ -459,8 +459,10 @@ void YakHTTPServer::workerMain() {
     items[1].socket = controlRecvSocket;
     items[1].events = ZMQ_POLLIN;
     while(true) {
-         //  Get HTTP request
-        assert(zmq_poll(items, 2, -1) != -1);
+        //Fetch next message
+        if(unlikely(zmq_poll(items, 2, -1) == -1)) {
+            logOperationError("Polling HTTP server event loop", logger);
+        }
         //Check if we received a control msg
         if(unlikely(items[1].revents)) {
             //Valid control msgs: STOP, HUP

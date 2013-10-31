@@ -20,29 +20,6 @@
 
 using namespace std;
 
-/**
- * This function is called by the reactor loop to process responses being sent from the worker threads.
- * 
- * The worker threads can't directly use the main ROUTER socket because sockets may
- * only be used by one thread.
- * 
- * By proxying the responses (non-PARTSYNC responses are sent directly by the main
- * thread before the request has been processed by the worker thread) the main ROUTER
- * socket is only be used by the main thread.
- * @param loop
- * @param poller
- * @param arg A pointer to the current KVServer instance
- * @return 
- */
-int proxyWorkerThreadResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
-    KeyValueServer* server = (KeyValueServer*) arg;
-    int rc = zmq_proxy_single(server->responseProxySocket, server->externalRepSocket);
-    if(unlikely(rc == -1)) {
-        server->logger.error("Error while proxying response from worker thread: "
-                             + std::string(zmq_strerror(errno)));
-    }
-    return 0;
-}
 
 /**
  * Sends a protocol error message over the given socket.
@@ -61,52 +38,46 @@ static void COLD sendProtocolError(zmq_msg_t* addrFrame,
     sendFrame(errmsg, sock, logger, "Protocol error message frame");
 }
 
-/**
- * Poll handler for the main request/response socket
- */
-static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
-    KeyValueServer* server = (KeyValueServer*) arg;
+void KeyValueServer::handleRequestResponse() {
     //In the REQ/REP handler we only use one socket
-    void* sock = server->externalRepSocket;
+    void* sock = externalRepSocket;
     //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
     //Receive the routing info and the ZeroDB header frame
     zmq_msg_t addrFrame, delimiterFrame, headerFrame;
     zmq_msg_init(&addrFrame);
-    if (unlikely(receiveExpectMore(&addrFrame, sock, server->logger, "Routing addr") == -1)) {
-        server->logger.error("Frame envelope could not be received correctly");
+    if (unlikely(receiveExpectMore(&addrFrame, sock, logger, "Routing addr") == -1)) {
+        logger.error("Frame envelope could not be received correctly");
         //There might be more frames of the current msg that clog up the queue
         // and could lead to nasty bugs. Clear them, if any.
         recvAndIgnore(sock);
         //We can't even send back an error message, because the address can't be correct,
         // considering the envelope is missing
         zmq_msg_close(&addrFrame);
-        return 0;
+        return;
     }
     zmq_msg_init(&delimiterFrame);
-    if (receiveExpectMore(&delimiterFrame, sock, server->logger, "Delimiter frame") == -1) {
+    if (receiveExpectMore(&delimiterFrame, sock, logger, "Delimiter frame") == -1) {
         sendProtocolError(&addrFrame,
-                &delimiterFrame,
-                sock,
-                "Received empty message (no ZeroDB header frame)",
-                server->logger);
-        server->logger.warn("Client sent empty message (no header frame)");
-        return 0;
+                &delimiterFrame, sock,
+                "Received empty message (no ZeroDB header frame)", logger);
+        logger.warn("Client sent empty message (no header frame)");
+        return;
     }
     zmq_msg_init(&headerFrame);
-    if(receiveLogError(&headerFrame, sock, server->logger, "Header frame")) {
+    if(receiveLogError(&headerFrame, sock, logger, "Header frame")) {
         zmq_msg_close(&addrFrame);
         zmq_msg_close(&delimiterFrame);
-        return 0;
+        return;
     }
     //Check the header -- send error message if invalid
     if (unlikely(!isHeaderFrame(&headerFrame))) {
         sendProtocolError(&addrFrame, &delimiterFrame, sock,
                 "Received malformed message, header format is not correct: " +
                 describeMalformedHeaderFrame(&headerFrame),
-                server->logger);
-        server->logger.warn("Client sent invalid header frame: " + describeMalformedHeaderFrame(&headerFrame));
+                logger);
+        logger.warn("Client sent invalid header frame: " + describeMalformedHeaderFrame(&headerFrame));
         zmq_msg_close(&headerFrame);
-        return 0;
+        return;
     }
     //Extract the request type from the header
     char* headerData = (char*) zmq_msg_data(&headerFrame);
@@ -117,7 +88,7 @@ static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void
             || requestType == RequestType::ExistsRequest
             || requestType == RequestType::ScanRequest) {
         //Forward the message to the read worker controller, the response is sent asynchronously
-        void* dstSocket = server->readWorkerController.workerPushSocket;
+        void* dstSocket = readWorkerController.workerPushSocket;
         zmq_msg_send(&addrFrame, dstSocket, ZMQ_SNDMORE);
         zmq_msg_send(&delimiterFrame, dstSocket, ZMQ_SNDMORE);
         zmq_msg_send(&headerFrame, dstSocket, ZMQ_SNDMORE);
@@ -142,9 +113,9 @@ static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void
          * In the future, this might be avoided by different worker scheduling
          * algorithms (post office style)
          */
-        void* dstSocket = server->updateWorkerController.workerPushSocket;
+        void* dstSocket = updateWorkerController.workerPushSocket;
         //Send the info frame (--> we have addr info)
-        sendConstFrame("\x01", 1, dstSocket, server->logger,
+        sendConstFrame("\x01", 1, dstSocket, logger,
             "(Frame to update worker) Response envelope to follow", ZMQ_SNDMORE);
         //Send the routing information
         zmq_msg_send(&addrFrame, dstSocket, ZMQ_SNDMORE);
@@ -152,12 +123,12 @@ static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void
         //Send header and data
         zmq_msg_send(&headerFrame, dstSocket, ZMQ_SNDMORE);
         if(unlikely(proxyMultipartMessage(sock, dstSocket) == -1)) {
-            logMessageSendError("Some frame while proxying meta request", server->logger);
+            logMessageSendError("Some frame while proxying meta request", logger);
         }
     } else if (requestType == RequestType::PutRequest
             || requestType == RequestType::DeleteRequest
             || requestType == RequestType::DeleteRangeRequest) {
-        void* workerSocket = server->updateWorkerController.workerPushSocket;
+        void* workerSocket = updateWorkerController.workerPushSocket;
         /**
          * Only for partsync messages the routing info (addr + delim frame)
          * is forwarded downstream.
@@ -167,13 +138,13 @@ static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void
         uint8_t writeFlags = getWriteFlags(&headerFrame);
         if (isPartsync(writeFlags)) {
             //Send the info frame (--> we have addr info)
-            sendConstFrame("\x01", 1, workerSocket, server->logger,
+            sendConstFrame("\x01", 1, workerSocket, logger,
                 "(Frame to update worker) Response envelope to follow", ZMQ_SNDMORE);
             zmq_msg_send(&addrFrame, workerSocket, ZMQ_SNDMORE);
             zmq_msg_send(&delimiterFrame, workerSocket, ZMQ_SNDMORE);
         } else {
             //Send the info frame (--> we don't have addr info)
-            sendConstFrame("\x00", 1, workerSocket, server->logger,
+            sendConstFrame("\x00", 1, workerSocket, logger,
                 "(Frame to update worker) No response envelope", ZMQ_SNDMORE);
         }
         //Send the message to the update worker (--> processed async)
@@ -187,7 +158,7 @@ static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void
             //Response type shall be the same as request type
             char data[] = "\x31\x01\x20\x00";
             data[2] = requestType;
-            sendFrame(data, 4, sock, server->logger, "Update request async response header");
+            sendFrame(data, 4, sock, logger, "Update request async response header");
         }
     } else if (requestType == RequestType::ServerInfoRequest) {
         //Server info requests are answered in the main thread
@@ -202,68 +173,73 @@ static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void
         zmq_msg_send(&addrFrame, sock, ZMQ_SNDMORE);
         zmq_msg_send(&delimiterFrame, sock, ZMQ_SNDMORE);
         //Send response header
-        sendFrame(serverInfoData, responseSize, sock, server->logger,
+        sendFrame(serverInfoData, responseSize, sock, logger,
             "Server info response header", ZMQ_SNDMORE);
         //Send the server version info frame (declared in autoconfig.h)
         sendConstFrame(SERVER_VERSION, strlen(SERVER_VERSION), sock,
-            server->logger, "Server info response version info");
+            logger, "Server info response version info");
         //Dispose non-reused messages
         zmq_msg_close(&headerFrame);
     } else if(requestType & 0x40) { //Any data processing request
-        void* workerSocket = server->asyncJobRouterController.routerSocket;
+        void* workerSocket = asyncJobRouterController.routerSocket;
         if(zmq_msg_send(&addrFrame, workerSocket, ZMQ_SNDMORE) == -1) {
-            logMessageSendError("Data processing request address frame", server->logger);
+            logMessageSendError("Data processing request address frame", logger);
         }
         if(zmq_msg_send(&delimiterFrame, workerSocket, ZMQ_SNDMORE) == -1) {
-            logMessageSendError("Data processing request delimiter frame", server->logger);
+            logMessageSendError("Data processing request delimiter frame", logger);
         }
         if(zmq_msg_send(&headerFrame, workerSocket, ZMQ_SNDMORE) == -1) {
-            logMessageSendError("Data processing request header frame", server->logger);
+            logMessageSendError("Data processing request header frame", logger);
         }
         if(proxyMultipartMessage(sock, workerSocket) == -1) {
-            logMessageSendError("Some frame while proxying data processing request", server->logger);
+            logMessageSendError("Some frame while proxying data processing request", logger);
         }
     } else if(requestType == RequestType::StopServerRequest) {
-        server->logger.debug("Received server stop request from client");
+        logger.debug("Received server stop request from client");
         //Send response envelope
         zmq_msg_send(&addrFrame, sock, ZMQ_SNDMORE);
         zmq_msg_send(&delimiterFrame, sock, ZMQ_SNDMORE);
         //Send header (ACK)
         zmq_msg_close(&headerFrame);
         zmq_send(sock, "\x31\x01\x05\x00", 4, 0);
-        //Stop the reactor
-        return -1;
+        //Stop the poll loop by simulating sigint
+        yak_interrupted = true;
     } else {
-        server->logger.warn("Unknown message type " + std::to_string(requestType) + " from client");
+        logger.warn("Unknown message type " + std::to_string(requestType) + " from client");
         //Send a protocol error back to the client
         //TODO detailed error message frame (see protocol specs)
-        sendProtocolError(&addrFrame, &delimiterFrame, sock, "Unknown message type", server->logger);
+        sendProtocolError(&addrFrame, &delimiterFrame, sock, "Unknown message type", logger);
         //Dispose non-reused frames
         zmq_msg_close(&headerFrame);
         //There might be more frames of the current msg that clog up the queue
         // and could lead to nasty bugs. Clear them, if any.
         recvAndIgnore(sock);
     }
-    return 0;
 }
 
-static int HOT handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
-    KeyValueServer* server = (KeyValueServer*) arg;
-    void* sock = server->externalPullSocket;
+/**
+ * Poll handler for the main request/response socket
+ */
+static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
+    
+}
+
+void KeyValueServer::handlePushPull() {
+    void* sock = externalPullSocket;
     //Receive the header frame
     zmq_msg_t headerFrame;
     zmq_msg_init(&headerFrame);
-    if(receiveLogError(&headerFrame, sock, server->logger, "Header frame")) {
-        return 0;
+    if(receiveLogError(&headerFrame, sock, logger, "Header frame")) {
+        return;
     }
     //Check the header -- send error message if invalid
     if (unlikely(!isHeaderFrame(&headerFrame))) {
-        server->logger.warn("Client sent invalid header frame: " + describeMalformedHeaderFrame(&headerFrame));
+        logger.warn("Client sent invalid header frame: " + describeMalformedHeaderFrame(&headerFrame));
         //There might be more frames of the current msg that clog up the queue
         // and could lead to nasty bugs. Clear them, if any.
         recvAndIgnore(sock);
         zmq_msg_close(&headerFrame);
-        return 0;
+        return;
     }
     //Extract the request type from the header
     char* headerData = (char*) zmq_msg_data(&headerFrame);
@@ -275,9 +251,9 @@ static int HOT handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         //Send the message to the update worker (--> processed async)
         //This is simpler than the req/rep controller because no 
         // response flags need to be checked
-        void* workerSocket = server->updateWorkerController.workerPushSocket;
+        void* workerSocket = updateWorkerController.workerPushSocket;
         //We don't have reply addr info --> \x00
-        sendConstFrame("\x00", 1, workerSocket, server->logger,
+        sendConstFrame("\x00", 1, workerSocket, logger,
                 "(Frame to update worker) No response envelope", ZMQ_SNDMORE);
         //Send header + rest of msg
         zmq_msg_send(&headerFrame, workerSocket, ZMQ_SNDMORE);
@@ -288,7 +264,7 @@ static int HOT handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
                 || requestType == RequestType::ScanRequest)) {
         //These request types demand an response and don't make sense over PUB/SUB sockets
         //TODO Use the logger
-        server->logger.error("Error: Received read-type request over PULL/SUB socket (you need to use REQ/REP sockets for read/count requests)");
+        logger.error("Error: Received read-type request over PULL/SUB socket (you need to use REQ/REP sockets for read/count requests)");
     } else {
         //Dispose non-reused frames
         zmq_msg_close(&headerFrame);
@@ -296,7 +272,6 @@ static int HOT handlePull(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
         // and could lead to nasty bugs. Clear them, if any.
         recvAndIgnore(sock);
     }
-    return 0;
 }
 
 KeyValueServer::KeyValueServer(ConfigParser& configParserParam) :
@@ -392,23 +367,51 @@ KeyValueServer::~KeyValueServer() {
 }
 
 void KeyValueServer::start() {
-    zloop_t *reactor = zloop_new();
-    //The main thread listens to the external sockets and proxies responses from the worker thread
-    zmq_pollitem_t reqRepPoller = {externalRepSocket, 0, ZMQ_POLLIN};
-    if (zloop_poller(reactor, &reqRepPoller, handleRequestResponse, this)) {
-        logger.critical("Error while adding REQ/REP poller to reactor" + std::string(zmq_strerror(errno)));
+    //TODO sub poller
+    zmq_pollitem_t items[3];
+    items[0].socket = externalRepSocket;
+    items[0].events = ZMQ_POLLIN;
+    items[1].socket = externalPullSocket;
+    items[1].events = ZMQ_POLLIN;
+    items[1].socket = responseProxySocket;
+    items[1].events = ZMQ_POLLIN;
+    //Main server event loop. Returns after being interrupted
+    //The stop server request simulates the interrupt
+    while(true) {
+        if(unlikely(zmq_poll(items, 3, -1) == -1)) {
+            if(yak_interrupted) {
+                break;
+            }
+            logOperationError("Polling HTTP server event loop", logger);
+        }
+        //Handle the event
+        //NOTE: Multiple event flags can be set at once
+        if(items[0].revents) {
+            handleRequestResponse();
+        }
+        if(items[1].revents) {
+            handlePushPull();
+        }
+        if(items[2].revents) { //Response proxy
+            /**
+            * This block is called by the
+            * poll loop to process responses
+            * being sent from the worker threads.
+            * 
+            * The worker threads can't directly use the main ROUTER socket because sockets may
+            * only be used by one thread.
+            * 
+            * By proxying the responses (non-PARTSYNC responses are sent directly by the main
+            * thread before the request has been processed by the worker thread) the main ROUTER
+            * socket is only be used by the main thread.
+            */
+            int rc = zmq_proxy_single(responseProxySocket, externalRepSocket);
+            if(unlikely(rc == -1)) {
+                logger.error("Error while proxying response from worker thread: "
+                             + std::string(zmq_strerror(errno)));
+            }
+        }
     }
-    zmq_pollitem_t pushPullPoller = {externalPullSocket, 0, ZMQ_POLLIN};
-    if (zloop_poller(reactor, &pushPullPoller, handlePull, this)) {
-        logger.critical("Error while adding PULL poller to reactor" + std::string(zmq_strerror(errno)));
-    }
-    //TODO SUB Poller
-    zmq_pollitem_t responsePoller = {responseProxySocket, 0, ZMQ_POLLIN};
-    if (zloop_poller(reactor, &responsePoller, proxyWorkerThreadResponse, this)) {
-        logger.critical("Error while adding PUB/SUB poller to reactor" + std::string(zmq_strerror(errno)));
-    }
-    //Start the reactor loop. Returns when interrupted.
-    zloop_start(reactor);
     logger.trace("Main event loop interrupted, cleaning up...");
     /**
      * Cleanup procedure.
@@ -424,6 +427,4 @@ void KeyValueServer::start() {
     httpServer.terminate();
     tables.cleanup(); //Close & flush tables. This is NOT the table open server!
     logServer.terminate();
-    //Cleanup main thread
-    zloop_destroy(&reactor);
 }

@@ -39,6 +39,9 @@ public:
     YakHTTPServer httpServer;
     Logger logger; //The log source of the server itself, only to be used from the main thread
     ConfigParser& configParser;
+private:
+    void handleRequestResponse();
+    void handlePushPull();
 };
 
 
