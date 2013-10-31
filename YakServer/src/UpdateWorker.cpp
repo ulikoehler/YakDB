@@ -6,7 +6,7 @@
  */
 
 #include "UpdateWorker.hpp"
-#include <czmq.h>
+#include <zmq.h>
 #include <iostream>
 #include <cassert>
 #include <string>

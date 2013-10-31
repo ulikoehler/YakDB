@@ -6,7 +6,7 @@
  */
 
 
-#include <czmq.h>
+#include <zmq.h>
 #include <string>
 #include <iostream>
 #include "LogSinks.hpp"

@@ -5,7 +5,7 @@
  * Created on 11. Juli 2013, 03:16
  */
 
-#include <czmq.h>
+#include <zmq.h>
 #include "AbstractFrameProcessor.hpp"
 #include "macros.hpp"
 #include "zutil.hpp"

@@ -7,7 +7,7 @@
 
 #ifndef ZUTIL_HPP
 #define	ZUTIL_HPP
-#include <czmq.h>
+#include <zmq.h>
 #include <cstdio>
 #include <string>
 #include "Logger.hpp"
