@@ -402,13 +402,14 @@ void COLD TableOpenServer::terminate() {
     if(workerThread) {
         //Create a temporary socket
         void* tempSocket = zmq_socket_new_connect(context, ZMQ_REQ, tableOpenEndpoint);
-        //TODO handle error properly
-        assert(tempSocket);
+        if(unlikely(tempSocket == nullptr)) {
+            logger.error("Can't send STOP msg to table open server, because connection attempt failed: "
+                         + std::string(zmq_strerror(errno)));
+        }
         //Send an empty msg (signals the table open thread to stop)
         sendEmptyFrameMessage(tempSocket);
-        //Receive the reply, ignore the data (--> thread has received msg and is cleaning up)
-        zmsg_t* msg = zmsg_recv(tempSocket);
-        zmsg_destroy(&msg);
+        //Receive the reply, ignore the data (--> thread has received msg and is terminating)
+        receiveAndIgnoreFrame(tempSocket, logger, "Table open server STOP msg reply");
         //Wait for the thread to finish
         workerThread->join();
         delete workerThread;
@@ -450,38 +451,27 @@ void COLD TableOpenHelper::openTable(uint32_t tableId,
 
 void COLD TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {
     //Just send a message containing the table index to the opener thread
-    zmsg_t* msg = zmsg_new();
-    zmsg_addmem(msg, "\x01", 1);
-    zmsg_addmem(msg, &index, sizeof (TableOpenHelper::IndexType));
-    if (unlikely(zmsg_send(&msg, reqSocket) == -1)) {
-        logger.critical("Close table message send failed: " + std::string(zmq_strerror(errno)));
-    }
+    sendConstFrame("\x01", 1, reqSocket, logger, "Close table header frame", ZMQ_SNDMORE);
+    sendFrame(&index, sizeof (TableOpenHelper::IndexType), reqSocket, logger, "Close table request table index frame", ZMQ_SNDMORE);
     //Wait for the reply (it's empty but that does not matter)
-    msg = zmsg_recv(reqSocket); //Blocks until reply received
-    if (unlikely(!msg)) {
-        debugZMQError("Receive reply from table opener", errno);
+    zmq_msg_t reply;
+    zmq_msg_init(&reply);
+    //Blocks until reply received == until request processed
+    if (unlikely(zmq_msg_recv(&reply, reqSocket, 0) == -1)) {
+        logger.error("Close table receive failed: " + std::string(zmq_strerror(errno)));
     }
-    zmsg_destroy(&msg);
+    zmq_msg_close(&reply);
 }
 
 void COLD TableOpenHelper::truncateTable(TableOpenHelper::IndexType index) {
-    //Just send a message containing the table index to the opener thread
     /**
      * Note: The reason this doesn't use CZMQ even if efficiency does not matter
      * is that repeated calls using CZMQ API cause SIGSEGV somewhere inside calloc.
      */
     sendConstFrame("\x02", 1, reqSocket, logger, "Truncate header", ZMQ_SNDMORE);
     sendFrame(&index, sizeof (IndexType), reqSocket, logger, "Table index");
-    /*if (unlikely(zmsg_send(&msg, reqSocket) == -1)) {
-        logger.critical("Truncate table message send failed: " + std::string(zmq_strerror(errno)));
-    }*/
     //Wait for the reply (it's empty but that does not matter)
     recvAndIgnore(reqSocket);
-    /*zmsg_t* msg = zmsg_recv(reqSocket); //Blocks until reply received
-    if (unlikely(!msg)) {
-        debugZMQError("Receive reply from table opener", errno);
-    }
-    zmsg_destroy(&msg);*/
 }
 
 COLD TableOpenHelper::~TableOpenHelper() {

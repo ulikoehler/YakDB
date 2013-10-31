@@ -206,7 +206,7 @@ inline static bool socketHasMoreFrames(void* socket) {
  * Releases any received frame immediately.
  */
 static inline void recvAndIgnore(void* socket) {
-    //TODO check errs
+    //TODO check err
     zmq_msg_t msg;
     if (!socketHasMoreFrames(socket)) {
         return;
@@ -220,6 +220,12 @@ static inline void recvAndIgnore(void* socket) {
         }
     }
 }
+
+/**
+ * Receives and ignores a single frame one the given socket.
+ * Logs any errors to the logger
+ */
+void receiveAndIgnoreFrame(void* socket, Logger& logger, const char* frameDesc = "<Undefined>");
 
 /**
  * Receives message parts from srcSocket until RCVMORE is not set anymore

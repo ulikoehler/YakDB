@@ -18,12 +18,12 @@
  * These shall only be used inside a LogServer msg loop.
  */
 #define CHECK_MORE_FRAMES(msg, description)\
-        if(unlikely(!zmq_msg_more(&msg))) {\
+        if(unlikely(zmq_msg_more(&msg) != 1)) {\
             log("Log server", LogLevel::Warn, "Only received " + std::string(description) + ", missing further frames");\
             continue;\
         }
 #define CHECK_NO_MORE_FRAMES(msg, description)\
-        if(unlikely(!zmq_msg_more(&msg))) {\
+        if(unlikely(zmq_msg_more(&msg))) {\
             log("Log server", LogLevel::Warn, "Expected no more frames after " + std::string(description) + ", but MORE flag is set");\
             continue;\
         }
@@ -193,7 +193,7 @@ void HOT LogServer::start() {
 }
 
 void LogServer::log(const std::string& loggerName, LogLevel msgLogLevel, const std::string& message) {
-    if(msgLogLevel >= logLevel) {
+    if(msgLogLevel <= logLevel || true) {
         uint64_t timestamp = zclock_time();
         for (LogSink* sink : logSinks) {
             sink->log(logLevel, timestamp, loggerName, message);

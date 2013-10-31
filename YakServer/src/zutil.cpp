@@ -29,7 +29,8 @@ void standardFree(void *data, void *hint) {
 
 void sendEmptyFrameMessage(void* socket) {
     assert(socket);
-    zmq_send(socket, nullptr, 0, 0);
+    int rc = zmq_send_const(socket, nullptr, 0, 0);
+    assert(rc != -1);
 }
 
 void zmsg_remove_destroy(zmsg_t* msg, zframe_t** frame) {
@@ -165,4 +166,10 @@ void COLD logMessageSendError(const char* frameDesc, Logger& logger) {
 
 void COLD logMessageRecvError(const char* frameDesc, Logger& logger) {
     logMessageOperationError(frameDesc, "receive", logger);
+}
+
+void receiveAndIgnoreFrame(void* socket, Logger& logger, const char* frameDesc) {
+    if(unlikely(zmq_recv(socket, nullptr, 0, 0) == -1)) {
+        logMessageOperationError(frameDesc, "receive", logger);
+    }
 }

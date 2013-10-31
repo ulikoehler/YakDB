@@ -390,7 +390,7 @@ KeyValueServer::~KeyValueServer() {
         zmq_close(externalPullSocket);
     }
     zmq_close(responseProxySocket);
-    //The log server has terminated, but we can still log directly
+    //The log server has terminated, but we can still log directly to the backends
     logServer.log("Server", LogLevel::Info, "YakDB Server exiting...");
     //The context will be terminated before the member constructors are called
     logger.terminate();
