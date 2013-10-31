@@ -10,16 +10,42 @@
 #include "protocol.hpp"
 #include "zutil.hpp"
 #include <iostream>
-#include <czmq.h>
+#include <zmq.h>
+
+/*
+ * Utility macros for error handling code dedup and
+ * to make the code shorter.
+ * These shall only be used inside a LogServer msg loop.
+ */
+#define CHECK_MORE_FRAMES(msg, description)\
+        if(unlikely(!zmq_msg_more(&msg))) {\
+            log("Log server", LogLevel::Warn, "Only received " + std::string(description) + ", missing further frames");\
+            continue;\
+        }
+#define CHECK_NO_MORE_FRAMES(msg, description)\
+        if(unlikely(!zmq_msg_more(&msg))) {\
+            log("Log server", LogLevel::Warn, "Expected no more frames after " + std::string(description) + ", but MORE flag is set");\
+            continue;\
+        }
+#define RECEIVE_CHECK_ERROR(msg, socket, description)\
+    if(unlikely(zmq_msg_recv(&msg, socket, 0) == -1)) {\
+            if(yak_interrupted) {\
+                break;\
+            } else {\
+                log("Log server", LogLevel::Warn, "Error while receiving "\
+                    + std::string(description)+ ": " + std::string(zmq_strerror(errno)));\
+                continue;\
+            }\
+    }\
 
 /**
  * For a given log protocol header message, checks & returns if
  * the header frame contains a stop message
  */
-inline static bool isStopServerMessage(zframe_t* headerFrame) {
+inline static bool isStopServerMessage(zmq_msg_t* headerFrame) {
     assert(headerFrame);
-    assert(zframe_size(headerFrame) == 3);
-    return ((char*)zframe_data(headerFrame))[2] == '\xFF';
+    assert(zmq_msg_size(headerFrame) == 3);
+    return ((char*)zmq_msg_data(headerFrame))[2] == '\xFF';
 }
 
 LogServer::LogServer(void* ctxParam, LogLevel logLevel, bool autoStart, const std::string& endpointParam)
@@ -77,66 +103,91 @@ static COLD void handleLogServerZMQError() {
 
 void HOT LogServer::start() {
     //Create a socket to receive log requests
+    zmq_msg_t frame;
+    zmq_msg_init(&frame);
     while (true) {
-        zmq_msg_t frame;
-        zmq_msg_init(&frame);
-        zmsg_t* msg = zmsg_recv(logRequestInputSocket);
-        if (unlikely(!msg)) {
-            //Interrupted (e.g. by SIGINT), but loggers might still want to log something
-            // so we won't exit yet.
-            if(yak_interrupted) {
-                //Context was terminated (ctrl+c or other signal source), exit gracefully
-                break;
-            } else {
-                handleLogServerZMQError
-                continue;
-            }
-        }
-        size_t msgSize = zmsg_size(msg);
-        if (unlikely(msgSize != 1 && msgSize != 5)) {
-            logger.warn("Received log message of illegal size: " + std::to_string(msgSize));
-            zmsg_destroy(&msg);
+        /*
+         * Receive and parse header frame
+         */
+        RECEIVE_CHECK_ERROR(frame, logRequestInputSocket, "header frame");
+        CHECK_MORE_FRAMES(frame, "header frame");
+        if(unlikely(zmq_msg_size(&frame) != 3)) {
+            log("Log server",
+                LogLevel::Warn,
+                "Received log header frame of invalid size: expected size 3, got size "
+                + std::to_string(zmq_msg_size(&frame)));
             continue;
         }
-        zframe_t* headerFrame = zmsg_first(msg);
         //Check the magic byte & protocol version in the header frame,
         // log a warning if an illegal message has been received
-        byte* headerData = zframe_data(headerFrame);
+        char* headerData = (char*) zmq_msg_data(&frame);
         if (unlikely(headerData[0] != '\x55')) {
-            logger.warn("Received log message with illegal magic byte: " + std::to_string((uint8_t) headerData[0]));
-            zmsg_destroy(&msg);
+            log("Log server",
+                LogLevel::Warn,
+                "Received log message header with illegal magic byte: " + std::to_string((uint8_t) headerData[0]));
             continue;
         }
         if (unlikely(headerData[1] != '\x01')) {
-            logger.warn("Received log message with illegal protocol version: " + std::to_string((uint8_t) headerData[1]));
-            zmsg_destroy(&msg);
+            log("Log server",
+                LogLevel::Warn,
+                "Received log message with illegal protocol version: " + std::to_string((uint8_t) headerData[1]));
             continue;
         }
-        //Check if we received a stop message
-        if (unlikely(isStopServerMessage(headerFrame))) {
-            //Log a message that the server is exiting, to all sinks
-            //We can't use the logger here because the log message
-            //won't be received any more
-            if (logLevel >= LogLevel::Info) {
-                //Log that we're stopping
-                log( "Log server", LogLevel::Info, "Log server stopping");
-            }
-            //Cleanup
-            zmsg_destroy(&msg);
+        //Check if we received a stop message (same effect as SIGINT --> log server is 
+        if (unlikely(isStopServerMessage(&frame))) {
+            log("Log server",
+                LogLevel::Debug,
+                "Received stop message, exiting...");
             break;
         }
-        //Parse the log information from the frames
-        LogLevel logLevel = extractBinary<LogLevel>(zmsg_next(msg));
-        uint64_t timestamp = extractBinary<uint64_t>(zmsg_next(msg));
-        std::string senderName = frameToString(zmsg_next(msg));
-        std::string logMessage = frameToString(zmsg_next(msg));
+        /*
+         * Receive log level frame
+         */
+        RECEIVE_CHECK_ERROR(frame, logRequestInputSocket, "log level frame");
+        CHECK_MORE_FRAMES(frame, "log level frame");
+        if(unlikely(sizeof(LogLevel) != zmq_msg_size(&frame))) {
+            log("Log server",
+                LogLevel::Warn,
+                "Received log level frame of invalid size: expected size "
+                + std::to_string(sizeof(LogLevel)) + ", got size "
+                + std::to_string(zmq_msg_size(&frame)));
+            continue;
+        }
+        LogLevel logLevel = extractBinary<LogLevel>(&frame);
+        /*
+         * Receive timestamp frame
+         */
+        RECEIVE_CHECK_ERROR(frame, logRequestInputSocket, "log level frame");
+        CHECK_MORE_FRAMES(frame, "log level frame");
+        if(unlikely(sizeof(uint64_t) != zmq_msg_size(&frame))) {
+            log("Log server",
+                LogLevel::Warn,
+                "Received log level message of invalid size: expected size "
+                + std::to_string(sizeof(uint64_t)) + ", got size "
+                + std::to_string(zmq_msg_size(&frame)));
+            continue;
+        }
+        uint64_t timestamp = extractBinary<uint64_t>(&frame);
+        /*
+         * Receive sender name frame
+         */
+        RECEIVE_CHECK_ERROR(frame, logRequestInputSocket, "sender name frame");
+        CHECK_MORE_FRAMES(frame, "sender name frame");
+        std::string senderName((char*) zmq_msg_data(&frame), zmq_msg_size(&frame));
+        /*
+         * Receive log message frame
+         */
+        RECEIVE_CHECK_ERROR(frame, logRequestInputSocket, "log message frame");
+        CHECK_NO_MORE_FRAMES(frame, "log message frame");
+        std::string logMessage((char*) zmq_msg_data(&frame), zmq_msg_size(&frame));
         //Pass the log message to the log sinks
         for (LogSink* sink : logSinks) {
             sink->log(logLevel, timestamp, senderName, logMessage);
         }
-        //Cleanup
-        zmsg_destroy(&msg);
     }
+    zmq_msg_close(&frame);
+    //Log that we're stopping
+    log("Log server", LogLevel::Info, "Log server stopping");
     //Cleanup
     zmq_close(logRequestInputSocket);
 }
