@@ -381,6 +381,22 @@ bool AbstractFrameProcessor::sendResponseHeader(zmq_msg_t* headerFrame,
     int flags,
     size_t responseSize,
     size_t requestExpectedSize) {
+    return AbstractFrameProcessor::sendResponseHeader(processorOutputSocket,
+            logger,
+            headerFrame,
+            responseHeader,
+            flags,
+            responseSize,
+            requestExpectedSize);
+}
+
+bool AbstractFrameProcessor::sendResponseHeader(void* socket,
+    Logger& logger,
+    zmq_msg_t* headerFrame,
+    const char* responseHeader,
+    int flags,
+    size_t responseSize,
+    size_t requestExpectedSize) {
     /*
      * Essentially this code handles request IDs which are arbitrary binary
      * strings appended to a request, for identification of async responses.
@@ -393,7 +409,7 @@ bool AbstractFrameProcessor::sendResponseHeader(zmq_msg_t* headerFrame,
     size_t headerFrameSize = (headerFrame == nullptr ? 0 : zmq_msg_size(headerFrame));
     if(headerFrameSize <= requestExpectedSize) {
         //No request ID
-        sendFrame(responseHeader, responseSize, processorOutputSocket,
+        sendFrame(responseHeader, responseSize, socket,
             logger, "Response header", flags);
     } else if (requestExpectedSize == responseSize) {
         //The size allows reusing the existing header frame.
@@ -401,7 +417,7 @@ bool AbstractFrameProcessor::sendResponseHeader(zmq_msg_t* headerFrame,
         char* responseData = (char*) zmq_msg_data(headerFrame);
         memcpy(responseData, responseHeader, responseSize);
         //Send the frame
-        if(unlikely(zmq_msg_send(headerFrame, processorOutputSocket, flags) == -1)) {
+        if(unlikely(zmq_msg_send(headerFrame, socket, flags) == -1)) {
             logMessageSendError("Response header", logger);
         }
     } else {
@@ -417,7 +433,7 @@ bool AbstractFrameProcessor::sendResponseHeader(zmq_msg_t* headerFrame,
                headerFrameData + requestExpectedSize,
                headerFrameSize - requestExpectedSize);
         //Send the frame
-        if(unlikely(zmq_msg_send(&msg, processorOutputSocket, flags) == -1)) {
+        if(unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
             logMessageSendError("Response header", logger);
         }
     }
