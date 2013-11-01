@@ -217,13 +217,6 @@ void KeyValueServer::handleRequestResponse() {
     }
 }
 
-/**
- * Poll handler for the main request/response socket
- */
-static int HOT handleRequestResponse(zloop_t *loop, zmq_pollitem_t *poller, void *arg) {
-    
-}
-
 void KeyValueServer::handlePushPull() {
     void* sock = externalPullSocket;
     //Receive the header frame
