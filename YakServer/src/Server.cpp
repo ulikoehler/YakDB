@@ -38,7 +38,7 @@ static void COLD sendProtocolError(zmq_msg_t* addrFrame,
     sendFrame(errmsg, sock, logger, "Protocol error message frame");
 }
 
-void KeyValueServer::handleRequestResponse() {
+void HOT KeyValueServer::handleRequestResponse() {
     //In the REQ/REP handler we only use one socket
     void* sock = externalRepSocket;
     //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
@@ -217,7 +217,7 @@ void KeyValueServer::handleRequestResponse() {
     }
 }
 
-void KeyValueServer::handlePushPull() {
+void HOT KeyValueServer::handlePushPull() {
     void* sock = externalPullSocket;
     //Receive the header frame
     zmq_msg_t headerFrame;
