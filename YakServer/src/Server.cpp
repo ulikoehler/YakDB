@@ -23,18 +23,22 @@ using namespace std;
 
 /**
  * Sends a protocol error message over the given socket.
- * 
- * This function is marked COLD, which also affects branch predictions.
- * Branches that call this function are marked unlikely automatically.
  */
 static void COLD sendProtocolError(zmq_msg_t* addrFrame,
                 zmq_msg_t* delimiterFrame,
+                zmq_msg_t* headerFrame,
                 void* sock,
                 const std::string& errmsg,
                 Logger& logger) {
     zmq_msg_send(addrFrame, sock, ZMQ_SNDMORE);
     zmq_msg_send(delimiterFrame, sock, ZMQ_SNDMORE);
-    sendConstFrame("\x31\x01\xFF", 3, sock, logger, "Protocol error header frame", ZMQ_SNDMORE); //Send protocol error header
+    AbstractFrameProcessor::sendResponseHeader(sock,
+        logger,
+        headerFrame,
+        "\x31\x01\xFF",
+        ZMQ_SNDMORE,
+        3 /*response size*/,
+        3 /*Request expected size*/);
     sendFrame(errmsg, sock, logger, "Protocol error message frame");
 }
 
@@ -58,7 +62,7 @@ void HOT KeyValueServer::handleRequestResponse() {
     zmq_msg_init(&delimiterFrame);
     if (receiveExpectMore(&delimiterFrame, sock, logger, "Delimiter frame") == -1) {
         sendProtocolError(&addrFrame,
-                &delimiterFrame, sock,
+                &delimiterFrame, nullptr, sock,
                 "Received empty message (no YakDB header frame)", logger);
         logger.warn("Client sent empty message (no header frame)");
         return;
@@ -71,7 +75,7 @@ void HOT KeyValueServer::handleRequestResponse() {
     }
     //Check the header -- send error message if invalid
     if (unlikely(!isHeaderFrame(&headerFrame))) {
-        sendProtocolError(&addrFrame, &delimiterFrame, sock,
+        sendProtocolError(&addrFrame, &delimiterFrame, &headerFrame, sock,
                 "Received malformed message, header format is not correct: " +
                 describeMalformedHeaderFrame(&headerFrame),
                 logger);
@@ -158,6 +162,13 @@ void HOT KeyValueServer::handleRequestResponse() {
             //Response type shall be the same as request type
             char data[] = "\x31\x01\x20\x00";
             data[2] = requestType;
+            AbstractFrameProcessor::sendResponseHeader(sock,
+                logger,
+                &headerFrame,
+                "\x31\x01\xFF",
+                ZMQ_SNDMORE,
+                3 /*response size*/,
+                3 /*Request expected size*/);
             sendFrame(data, 4, sock, logger, "Update request async response header");
         }
     } else if (requestType == RequestType::ServerInfoRequest) {
@@ -208,7 +219,7 @@ void HOT KeyValueServer::handleRequestResponse() {
         logger.warn("Unknown message type " + std::to_string(requestType) + " from client");
         //Send a protocol error back to the client
         //TODO detailed error message frame (see protocol specs)
-        sendProtocolError(&addrFrame, &delimiterFrame, sock, "Unknown message type", logger);
+        sendProtocolError(&addrFrame, &delimiterFrame, &headerFrame, sock, "Unknown message type", logger);
         //Dispose non-reused frames
         zmq_msg_close(&headerFrame);
         //There might be more frames of the current msg that clog up the queue

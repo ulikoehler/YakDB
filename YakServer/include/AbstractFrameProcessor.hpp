@@ -226,6 +226,7 @@ protected:
         int flags = 0,
         size_t responseSize = 4,
         size_t requestExpectedSize = 4);
+public:
     static bool sendResponseHeader(void* socket,
         Logger& logger,
         zmq_msg_t* headerFrame,
