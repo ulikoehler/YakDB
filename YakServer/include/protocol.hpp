@@ -93,20 +93,6 @@ enum WriteFlag : uint8_t {
  * 
  * For an error-reporting version of this function, check checkProtocolVersion()
  */
-inline bool isHeaderFrame(zframe_t* frame) {
-    size_t size = zframe_size(frame);
-    if (size < 3) {
-        return false;
-    }
-    byte* data = zframe_data(frame);
-    return (data[0] == magicByte && data[1] == protocolVersion);
-}
-
-/**
- * Check if a given frame is a header frame.
- * 
- * For an error-reporting version of this function, check checkProtocolVersion()
- */
 static inline bool HOT isHeaderFrame(zmq_msg_t* frame) {
     size_t size = zmq_msg_size(frame);
     if (size < 3) {

@@ -203,6 +203,16 @@ protected:
      * Automatically logs errors if neccessary
      */
     void disposeRemainingMsgParts();
+    /**
+     * Send a response header frame. This function automatically handles request IDs.
+     * The request ID from the request header is automatically copied to the response,
+     * if any.
+     */
+    bool sendResponseHeader(zmq_msg_t* headerFrame,
+        const char* responseHeader,
+        size_t responseSize = 4,
+        size_t requestExpectedSize = 4,
+        int flags = ZMQ_SNDMORE);
 };
 
 #endif	/* ABSTRACTFRAMEPROCESSOR_HPP */

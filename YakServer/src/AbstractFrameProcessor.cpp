@@ -365,33 +365,36 @@ bool AbstractFrameProcessor::sendMessage(zmq_msg_t* msg, const char* frameDesc, 
 }
 
 bool AbstractFrameProcessor::sendResponseHeader(zmq_msg_t* headerFrame,
-                                                const char* responseHeader,
-                                                size_t responseSize = 4,
-                                                size_t requestExpectedSize = 4,
-                                                int flags = ZMQ_SNDMORE
-                                               ) {
+    const char* responseHeader,
+    size_t responseSize,
+    size_t requestExpectedSize,
+    int flags ) {
     /*
      * Essentially this code handles request IDs which are arbitrary binary
      * strings appended to a request, for identification of async responses.
      * This code ensures that the response header contains the request ID
      * from the request, if any.
      */
-    size_t headerFrameSize = zmq_msg_size(headerFrame)
+    size_t headerFrameSize = zmq_msg_size(headerFrame);
     if(headerFrameSize <= requestExpectedSize) {
         //No request ID
-        sendConstFrame(ackResponse, 4, processorOutputSocket,
+        sendFrame(responseHeader, responseSize, processorOutputSocket,
             logger, "Response header", flags);
     } else {
         //There is a request ID
-        //Copy both the response and the reu
+        //Copy both the response and the request ID.
         zmq_msg_t msg;
         zmq_msg_init_size(&msg, requestExpectedSize + headerFrameSize - requestExpectedSize);
-        void* data = zmq_msg_data(&msg);
+        char* responseData = (char*) zmq_msg_data(&msg);
+        char* headerFrameData = (char*) zmq_msg_data(headerFrame);
         //Assemble: response header frame = response header + request ID
-        memcpy(data, response, responseSize);
-        memcpy(data + responseSize,
-               zmq_msg_data(headerFrame) + requestExpectedSize,
+        memcpy(responseData, responseHeader, responseSize);
+        memcpy(responseData + responseSize,
+               headerFrameData + requestExpectedSize,
                headerFrameSize - requestExpectedSize);
-        //TODO send frame
+        //Send the frame
+        if(unlikely(zmq_msg_send(&msg, processorOutputSocket, flags) == -1)) {
+            logMessageSendError("Response header", logger);
+        }
     }
 }
