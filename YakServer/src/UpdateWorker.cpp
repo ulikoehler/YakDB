@@ -163,7 +163,7 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse)) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse, headerFrame)) {
         return;
     }
     //Get the table
@@ -182,15 +182,16 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
         zmq_msg_init(&valueFrame);
         //The next two frames contain key and value
         if (unlikely(!receiveMsgHandleError(&keyFrame,
-                "Receive put key frame", errorResponse, generateResponse))) {
+                "Receive put key frame", errorResponse, generateResponse, headerFrame))) {
             break;
         }
         //Check if there is a key but no value
-        if (!expectNextFrame("Protocol error: Found key frame, but no value frame. They must occur in pairs!", generateResponse, "\x31\x01\x20\x01")) {
+        if (!expectNextFrame("Protocol error: Found key frame, but no value frame. They must occur in pairs!",
+                             generateResponse, "\x31\x01\x20\x01", headerFrame)) {
             return;
         }
         if (unlikely(!receiveMsgHandleError(&valueFrame,
-                "Receive put value frame", errorResponse, generateResponse))) {
+                "Receive put value frame", errorResponse, generateResponse, headerFrame))) {
             break;
         }
         //Check if we have more frames
@@ -236,7 +237,7 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
+        sendResponseHeader(headerFrame, ackResponse);
     }
 }
 
@@ -251,7 +252,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse)) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse, headerFrame)) {
         return;
     }
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
@@ -266,7 +267,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
         zmq_msg_init(&keyFrame);
         //The next two frames contain key and value
         if (unlikely(!receiveMsgHandleError(&keyFrame,
-                "Receive deletion key frame", errorResponse, generateResponse))) {
+                "Receive deletion key frame", errorResponse, generateResponse, headerFrame))) {
             return;
         }
         //Convert to LevelDB
@@ -282,14 +283,13 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     //If something went wrong, send an error response
     if (!checkLevelDBStatus(status,
             "Database error while processing delete request: ",
-            generateResponse,
-            errorResponse)) {
+            generateResponse, errorResponse, headerFrame)) {
         return;
     }
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
+        sendResponseHeader(headerFrame, ackResponse);
     }
 }
 
@@ -313,13 +313,12 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
     zmq_msg_close(headerFrame);
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, "\x31\x01\x20\x10")) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, "\x31\x01\x20\x10", headerFrame)) {
         return;
     }
     //Check if there is a range frames
     if (!expectNextFrame("Only table ID frame found in compact request, range missing",
-            generateResponse,
-            errorResponse)) {
+            generateResponse, errorResponse, headerFrame)) {
         return;
     }
     //Get the table
@@ -327,11 +326,9 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
     //Parse the from-to range
     std::string rangeStartStr;
     std::string rangeEndStr;
-    parseRangeFrames(rangeStartStr,
-            rangeEndStr,
+    parseRangeFrames(rangeStartStr, rangeEndStr,
             "Compact request compact range parsing",
-            errorResponse,
-            generateResponse);
+            errorResponse, generateResponse, headerFrame);
     bool haveRangeStart = !(rangeStartStr.empty());
     bool haveRangeEnd = !(rangeEndStr.empty());
     //Do the compaction (takes LONG, so log it before)
@@ -343,7 +340,7 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
     logger.trace("Finished compacting table " + std::to_string(tableId));
     //Create the response if neccessary
     if (generateResponse) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
+        sendResponseHeader(headerFrame, ackResponse);
     }
 }
 
@@ -444,7 +441,7 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     }
     //Create the response if neccessary
     if (generateResponse) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
+        sendResponseHeader(headerFrame, ackResponse);
     }
 }
 
@@ -513,7 +510,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
     //Rewrite the header frame for the response
     //Create the response if neccessary
     if (generateResponse) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
+        sendResponseHeader(headerFrame, ackResponse);
     }
 }
 
@@ -547,7 +544,7 @@ void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool gener
     tableOpenHelper.truncateTable(tableId);
     //Create the response
     if (generateResponse) {
-        sendConstFrame(ackResponse, 4, processorOutputSocket, logger, "ACK response");
+        sendResponseHeader(headerFrame, ackResponse);
     }
 }
 

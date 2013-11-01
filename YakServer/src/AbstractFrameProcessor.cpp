@@ -35,7 +35,7 @@ bool AbstractFrameProcessor::parseUint32Frame(uint32_t& dst,
                 + std::string(frameDesc) + "), but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
-            sendResponseHeader(headerFrame, errorResponseCode);
+            sendResponseHeader(headerFrame, errorResponseCode, ZMQ_SNDMORE);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -53,7 +53,7 @@ bool AbstractFrameProcessor::parseUint32Frame(uint32_t& dst,
                 + std::to_string(zmq_msg_size(&tableIdFrame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
-            sendResponseHeader(headerFrame, errorResponseCode);
+            sendResponseHeader(headerFrame, errorResponseCode, ZMQ_SNDMORE);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -72,7 +72,7 @@ bool AbstractFrameProcessor::parseUint64Frame(uint64_t& valueDest,
                 + std::string(frameDesc) + "), but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
-            sendResponseHeader(headerFrame, errorResponseCode);
+            sendResponseHeader(headerFrame, errorResponseCode, ZMQ_SNDMORE);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -90,7 +90,7 @@ bool AbstractFrameProcessor::parseUint64Frame(uint64_t& valueDest,
                 + std::to_string(zmq_msg_size(&uint64Frame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
-            sendResponseHeader(headerFrame, errorResponseCode);
+            sendResponseHeader(headerFrame, errorResponseCode, ZMQ_SNDMORE);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -111,7 +111,7 @@ bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest
                 + ") with default value, but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
-            sendResponseHeader(headerFrame, errorResponseCode);
+            sendResponseHeader(headerFrame, errorResponseCode, ZMQ_SNDMORE);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -130,7 +130,7 @@ bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest
                 + std::to_string(zmq_msg_size(&uint64Frame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
-            sendResponseHeader(headerFrame, errorResponseCode);
+            sendResponseHeader(headerFrame, errorResponseCode, ZMQ_SNDMORE);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -156,7 +156,7 @@ bool AbstractFrameProcessor::parseUint32FrameOrAssumeDefault(uint32_t& valueDest
                 + ") with default value, but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
-            sendResponseHeader(headerFrame, errorResponseCode);
+            sendResponseHeader(headerFrame, errorResponseCode, ZMQ_SNDMORE);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -175,7 +175,7 @@ bool AbstractFrameProcessor::parseUint32FrameOrAssumeDefault(uint32_t& valueDest
                 + std::to_string(zmq_msg_size(&uint32Frame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
-            sendResponseHeader(headerFrame, errorResponseCode);
+            sendResponseHeader(headerFrame, errorResponseCode, ZMQ_SNDMORE);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -193,7 +193,7 @@ bool AbstractFrameProcessor::expectNextFrame(const char* errString, bool generat
     if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
         logger.warn(errString);
         if (generateResponse) {
-            sendResponseHeader(headerFrame, errorResponseCode);
+            sendResponseHeader(headerFrame, errorResponseCode, ZMQ_SNDMORE);
             sendFrame(errString, strlen(errString), processorOutputSocket, logger, errString);
         }
         return false;
@@ -212,7 +212,7 @@ bool AbstractFrameProcessor::checkLevelDBStatus(const leveldb::Status& status,
         logger.error(completeErrorString);
         if (generateResponse) {
             //Send DB error code
-            sendResponseHeader(headerFrame, errorResponseCode);
+            sendResponseHeader(headerFrame, errorResponseCode, ZMQ_SNDMORE);
             sendFrame(completeErrorString, processorOutputSocket, logger, errString);
             return false;
         }
@@ -263,7 +263,7 @@ bool AbstractFrameProcessor::receiveMsgHandleError(zmq_msg_t* msg,
                 + " in " + std::string(errName);
         logger.warn(errstr);
         if (generateResponse) {
-            sendResponseHeader(headerFrame, errorResponse);
+            sendResponseHeader(headerFrame, errorResponse, ZMQ_SNDMORE);
             sendFrame(errstr, processorOutputSocket, logger, errName);
         }
         return false;
@@ -298,7 +298,7 @@ bool AbstractFrameProcessor::sendMsgHandleError(zmq_msg_t* msg,
                 + " in " + std::string(errName);
         logger.warn(errstr);
         if (generateResponse) {
-            sendResponseHeader(headerFrame, errorResponse);
+            sendResponseHeader(headerFrame, errorResponse, ZMQ_SNDMORE);
             sendFrame(errstr, processorOutputSocket, logger, errName);
         }
         return false;
@@ -340,7 +340,7 @@ bool AbstractFrameProcessor::expectExactFrameSize(zmq_msg_t* msg,
                 + " in " + std::string(errName);
         logger.warn(errstr);
         if(generateResponse) {
-            sendResponseHeader(headerFrame, errorResponse);
+            sendResponseHeader(headerFrame, errorResponse, ZMQ_SNDMORE);
             sendFrame(errstr, processorOutputSocket, logger, errName);
         }
         return false;
@@ -378,9 +378,9 @@ bool AbstractFrameProcessor::sendMessage(zmq_msg_t* msg, const char* frameDesc, 
 
 bool AbstractFrameProcessor::sendResponseHeader(zmq_msg_t* headerFrame,
     const char* responseHeader,
+    int flags,
     size_t responseSize,
-    size_t requestExpectedSize,
-    int flags) {
+    size_t requestExpectedSize) {
     /*
      * Essentially this code handles request IDs which are arbitrary binary
      * strings appended to a request, for identification of async responses.

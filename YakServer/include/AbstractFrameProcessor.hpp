@@ -223,9 +223,9 @@ protected:
      */
     bool sendResponseHeader(zmq_msg_t* headerFrame,
         const char* responseHeader,
+        int flags = 0,
         size_t responseSize = 4,
-        size_t requestExpectedSize = 4,
-        int flags = ZMQ_SNDMORE);
+        size_t requestExpectedSize = 4);
 };
 
 #endif	/* ABSTRACTFRAMEPROCESSOR_HPP */
