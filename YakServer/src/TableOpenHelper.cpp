@@ -423,15 +423,13 @@ void COLD TableOpenServer::terminate() {
         //Create a temporary socket
         void* tempSocket = zmq_socket_new_connect(context, ZMQ_REQ, tableOpenEndpoint);
         if(unlikely(tempSocket == nullptr)) {
-            logger.error("Can't send STOP msg to table open server, because connection attempt failed: "
-                         + std::string(zmq_strerror(errno)));
+            logOperationError("trying to connect to table open server", logger);
             return;
         }
         //Send a stop server msg (signals the table open thread to stop)
         if(sendTableOperationRequest(tempSocket, TableOperationRequestType::StopServer) == -1) {
             logMessageSendError("table server stop message", logger);
         }
-        sendConstFrame("\x00", 1, tempSocket, logger, "Table open server STOP msg");
         //Receive the reply, ignore the data (--> thread has received msg and is terminating)
         receiveAndIgnoreFrame(tempSocket, logger, "Table open server STOP msg reply");
         //Wait for the thread to finish
