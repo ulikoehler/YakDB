@@ -27,13 +27,15 @@ AbstractFrameProcessor::~AbstractFrameProcessor() {
 
 bool AbstractFrameProcessor::parseUint32Frame(uint32_t& dst,
         const char* frameDesc,
-        bool generateResponse, const char* errorResponseCode) {
+        bool generateResponse,
+        const char* errorResponseCode,
+        zmq_msg_t* headerFrame) {
     if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
         std::string errstr = "Trying to read a 32-bit uint frame ("
                 + std::string(frameDesc) + "), but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponseCode);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -51,7 +53,7 @@ bool AbstractFrameProcessor::parseUint32Frame(uint32_t& dst,
                 + std::to_string(zmq_msg_size(&tableIdFrame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponseCode);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -64,13 +66,13 @@ bool AbstractFrameProcessor::parseUint32Frame(uint32_t& dst,
 bool AbstractFrameProcessor::parseUint64Frame(uint64_t& valueDest,
         const char* frameDesc,
         bool generateResponse,
-        const char* errorResponseCode) {
+        const char* errorResponseCode, zmq_msg_t* headerFrame) {
     if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
         std::string errstr = "Trying to read 64-bit unsigned integer frame ("
                 + std::string(frameDesc) + "), but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponseCode);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -88,7 +90,7 @@ bool AbstractFrameProcessor::parseUint64Frame(uint64_t& valueDest,
                 + std::to_string(zmq_msg_size(&uint64Frame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponseCode);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -102,14 +104,14 @@ bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest
         uint64_t defaultValue,
         const char* frameDesc,
         bool generateResponse,
-        const char* errorResponseCode) {
+        const char* errorResponseCode, zmq_msg_t* headerFrame) {
     if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
         std::string errstr = "Trying to read 64-bit unsigned integer frame ("
                 + std::string(frameDesc)
                 + ") with default value, but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponseCode);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -128,7 +130,7 @@ bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& valueDest
                 + std::to_string(zmq_msg_size(&uint64Frame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponseCode);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -146,14 +148,15 @@ bool AbstractFrameProcessor::parseUint32FrameOrAssumeDefault(uint32_t& valueDest
             uint32_t defaultValue,
             const char* frameDesc,
             bool generateResponse,
-            const char* errorResponseCode) {
+            const char* errorResponseCode, zmq_msg_t* headerFrame) {
     if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
+        
         std::string errstr = "Trying to read 32-bit unsigned integer frame ("
                 + std::string(frameDesc)
                 + ") with default value, but no frame was available";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponseCode);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -172,7 +175,7 @@ bool AbstractFrameProcessor::parseUint32FrameOrAssumeDefault(uint32_t& valueDest
                 + std::to_string(zmq_msg_size(&uint32Frame)) + " bytes";
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, frameDesc, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponseCode);
             sendFrame(errstr, processorOutputSocket, logger, frameDesc);
         }
         return false;
@@ -186,11 +189,11 @@ bool AbstractFrameProcessor::parseUint32FrameOrAssumeDefault(uint32_t& valueDest
     return true;
 }
 
-bool AbstractFrameProcessor::expectNextFrame(const char* errString, bool generateResponse, const char* errorResponseCode) {
+bool AbstractFrameProcessor::expectNextFrame(const char* errString, bool generateResponse, const char* errorResponseCode, zmq_msg_t* headerFrame) {
     if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
         logger.warn(errString);
         if (generateResponse) {
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, errString, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponseCode);
             sendFrame(errString, strlen(errString), processorOutputSocket, logger, errString);
         }
         return false;
@@ -198,14 +201,18 @@ bool AbstractFrameProcessor::expectNextFrame(const char* errString, bool generat
     return true;
 }
 
-bool AbstractFrameProcessor::checkLevelDBStatus(const leveldb::Status& status, const char* errString, bool generateResponse, const char* errorResponseCode) {
+bool AbstractFrameProcessor::checkLevelDBStatus(const leveldb::Status& status,
+    const char* errString,
+    bool generateResponse,
+    const char* errorResponseCode,
+    zmq_msg_t* headerFrame) {
     if (unlikely(!status.ok() && !status.IsNotFound())) {
         std::string statusErr = status.ToString();
         std::string completeErrorString = std::string(errString) + statusErr;
         logger.error(completeErrorString);
         if (generateResponse) {
             //Send DB error code
-            sendFrame(errorResponseCode, 4, processorOutputSocket, logger, errString, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponseCode);
             sendFrame(completeErrorString, processorOutputSocket, logger, errString);
             return false;
         }
@@ -217,7 +224,8 @@ bool AbstractFrameProcessor::parseRangeFrames(std::string& startSlice,
         std::string& endSlice,
         const char* errName,
         const char* errorResponse,
-        bool generateResponse) {
+        bool generateResponse,
+        zmq_msg_t* headerFrame) {
     //Parse the start/end frame
     zmq_msg_t rangeStartFrame, rangeEndFrame;
     zmq_msg_init(&rangeStartFrame);
@@ -247,14 +255,15 @@ bool AbstractFrameProcessor::parseRangeFrames(std::string& startSlice,
 bool AbstractFrameProcessor::receiveMsgHandleError(zmq_msg_t* msg,
         const char* errName,
         const char* errorResponse,
-        bool generateResponse) {
+        bool generateResponse,
+        zmq_msg_t* headerFrame) {
     if (unlikely(zmq_msg_recv(msg, processorInputSocket, 0) == -1)) {
         std::string errstr = "Error while receiving message part: "
                 + std::string(zmq_strerror(zmq_errno()))
                 + " in " + std::string(errName);
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponse, 4, processorOutputSocket, logger, errName, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponse);
             sendFrame(errstr, processorOutputSocket, logger, errName);
         }
         return false;
@@ -265,7 +274,8 @@ bool AbstractFrameProcessor::receiveMsgHandleError(zmq_msg_t* msg,
 bool AbstractFrameProcessor::receiveStringFrame(std::string& frame,
             const char* errName,
             const char* errorResponse,
-            bool generateResponse) {
+            bool generateResponse,
+            zmq_msg_t* headerFrame) {
     zmq_msg_t msg;
     zmq_msg_init(&msg);
     bool rc = receiveMsgHandleError(&msg, errName, errorResponse, generateResponse);
@@ -280,14 +290,15 @@ bool AbstractFrameProcessor::sendMsgHandleError(zmq_msg_t* msg,
         int flags,
         const char* errName,
         const char* errorResponse,
-        bool generateResponse) {
+        bool generateResponse,
+        zmq_msg_t* headerFrame) {
     if (unlikely(zmq_msg_send(msg, processorOutputSocket, flags) == -1)) {
         std::string errstr = "Error while sending message part: "
                 + std::string(zmq_strerror(zmq_errno()))
                 + " in " + std::string(errName);
         logger.warn(errstr);
         if (generateResponse) {
-            sendFrame(errorResponse, 4, processorOutputSocket, logger, errName, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponse);
             sendFrame(errstr, processorOutputSocket, logger, errName);
         }
         return false;
@@ -318,7 +329,8 @@ bool AbstractFrameProcessor::expectExactFrameSize(zmq_msg_t* msg,
             size_t expectedSize,
             const char* errName,
             const char* errorResponse,
-            bool generateResponse) {
+            bool generateResponse,
+            zmq_msg_t* headerFrame) {
     size_t actualMsgSize = zmq_msg_size(msg);
     if(unlikely(actualMsgSize != expectedSize)) {
         std::string errstr = "Error while checking ZMQ frame length of "
@@ -328,7 +340,7 @@ bool AbstractFrameProcessor::expectExactFrameSize(zmq_msg_t* msg,
                 + " in " + std::string(errName);
         logger.warn(errstr);
         if(generateResponse) {
-            sendFrame(errorResponse, 4, processorOutputSocket, logger, errName, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, errorResponse);
             sendFrame(errstr, processorOutputSocket, logger, errName);
         }
         return false;
@@ -368,18 +380,30 @@ bool AbstractFrameProcessor::sendResponseHeader(zmq_msg_t* headerFrame,
     const char* responseHeader,
     size_t responseSize,
     size_t requestExpectedSize,
-    int flags ) {
+    int flags) {
     /*
      * Essentially this code handles request IDs which are arbitrary binary
      * strings appended to a request, for identification of async responses.
      * This code ensures that the response header contains the request ID
      * from the request, if any.
+     * 
+     * If, however, the request size is equal to the response size,
+     * we can simple reuse the header frame without needing to copy data around.
      */
-    size_t headerFrameSize = zmq_msg_size(headerFrame);
+    size_t headerFrameSize = (headerFrame == nullptr ? 0 : zmq_msg_size(headerFrame));
     if(headerFrameSize <= requestExpectedSize) {
         //No request ID
         sendFrame(responseHeader, responseSize, processorOutputSocket,
             logger, "Response header", flags);
+    } else if (requestExpectedSize == responseSize) {
+        //The size allows reusing the existing header frame.
+        //We can just replace the request with the response
+        char* responseData = (char*) zmq_msg_data(headerFrame);
+        memcpy(responseData, responseHeader, responseSize);
+        //Send the frame
+        if(unlikely(zmq_msg_send(headerFrame, processorOutputSocket, flags) == -1)) {
+            logMessageSendError("Response header", logger);
+        }
     } else {
         //There is a request ID
         //Copy both the response and the request ID.

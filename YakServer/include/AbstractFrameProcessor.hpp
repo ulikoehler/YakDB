@@ -43,7 +43,8 @@ protected:
     bool parseUint32Frame(uint32_t& tableIdDst,
             const char* frameDesc,
             bool generateResponse,
-            const char* errorResponseCode);
+            const char* errorResponseCode,
+            zmq_msg_t* headerFrame = nullptr);
     /**
      * Parse a 64-bit little-endian unsigned integer in one frame.
      * Automatically receives the frame from workPullSocket.
@@ -57,7 +58,8 @@ protected:
     bool parseUint64Frame(uint64_t& tableIdDst,
             const char* frameDesc,
             bool generateResponse,
-            const char* errorResponseCode);
+            const char* errorResponseCode,
+            zmq_msg_t* headerFrame = nullptr);
     /**
      * Equivalent to parseUint64Frame(), but assumes a given default
      * value if the frame is empty.
@@ -66,7 +68,8 @@ protected:
             uint64_t defaultValue,
             const char* frameDesc,
             bool generateResponse,
-            const char* errorResponseCode);
+            const char* errorResponseCode,
+            zmq_msg_t* headerFrame = nullptr);
     /**
      * Equivalent to parseUint32Frame(), but assumes a given default
      * value if the frame is empty.
@@ -75,7 +78,8 @@ protected:
             uint32_t defaultValue,
             const char* frameDesc,
             bool generateResponse,
-            const char* errorResponseCode);
+            const char* errorResponseCode,
+            zmq_msg_t* headerFrame = nullptr);
     /**
      * Ensure the work pull socket has a next message part in the current message
      * @param errString A descriptive error string logged and sent to the client
@@ -85,7 +89,8 @@ protected:
      */
     bool expectNextFrame(const char* errString,
             bool generateResponse,
-            const char* errorResponseCode);
+            const char* errorResponseCode,
+            zmq_msg_t* headerFrame = nullptr);
     /**
      * Ensure the given LevelDB status code indicates success
      * @param errString A descriptive error string logged and sent to the client. status error string will be appended.
@@ -96,7 +101,8 @@ protected:
     bool checkLevelDBStatus(const leveldb::Status& status,
             const char* errString,
             bool generateResponse,
-            const char* errorResponseCode);
+            const char* errorResponseCode,
+            zmq_msg_t* headerFrame = nullptr);
 
     /**
      * Parse a start/end range from the next two 8-byte-or-empty-frames.
@@ -111,7 +117,8 @@ protected:
             std::string& endSlice,
             const char* errName,
             const char* errorResponse,
-            bool generateResponse=true);
+            bool generateResponse = true,
+            zmq_msg_t* headerFrame = nullptr);
     /**
      * Receive a single frame from this.processorInputSocket
      * Automatically handles errors if neccessary
@@ -124,14 +131,16 @@ protected:
     bool receiveMsgHandleError(zmq_msg_t* msg,
             const char* errName,
             const char* errorResponse,
-            bool generateResponse=true);
+            bool generateResponse = true,
+            zmq_msg_t* headerFrame = nullptr);
     /**
      * Same behaviour as receiveMsgHandleError(), but stores the frame in a string instead of a message.
      */
     bool receiveStringFrame(std::string& frame,
             const char* errName,
             const char* errorResponse,
-            bool generateResponse=true);
+            bool generateResponse = true,
+            zmq_msg_t* headerFrame = nullptr);
     /**
      * Send a single message over this.processorOutputSocket
      * Automatically handles errors if neccessary.
@@ -153,7 +162,8 @@ protected:
             int flags,
             const char* errName,
             const char* errorResponse,
-            bool generateResponse=true);
+            bool generateResponse = true,
+            zmq_msg_t* headerFrame = nullptr);
     /**
      * This function checks if the given frame has a certain size.
      * If the frame sizes match, it returns true and exits.
@@ -172,7 +182,8 @@ protected:
             size_t expectedSize,
             const char* errName,
             const char* errorResponse,
-            bool generateResponse=true);
+            bool generateResponse = true,
+            zmq_msg_t* headerFrame = nullptr);
     /**
      * Send a uint64 frame over the processor output socet.
      * Log any error that might occur.
@@ -207,6 +218,8 @@ protected:
      * Send a response header frame. This function automatically handles request IDs.
      * The request ID from the request header is automatically copied to the response,
      * if any.
+     * 
+     * If the headerFrame parameter is NULL, no request ID is generated.
      */
     bool sendResponseHeader(zmq_msg_t* headerFrame,
         const char* responseHeader,
