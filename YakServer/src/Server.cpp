@@ -42,7 +42,7 @@ void HOT KeyValueServer::handleRequestResponse() {
     //In the REQ/REP handler we only use one socket
     void* sock = externalRepSocket;
     //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
-    //Receive the routing info and the ZeroDB header frame
+    //Receive the routing info and the YakDB header frame
     zmq_msg_t addrFrame, delimiterFrame, headerFrame;
     zmq_msg_init(&addrFrame);
     if (unlikely(receiveExpectMore(&addrFrame, sock, logger, "Routing addr") == -1)) {
@@ -59,7 +59,7 @@ void HOT KeyValueServer::handleRequestResponse() {
     if (receiveExpectMore(&delimiterFrame, sock, logger, "Delimiter frame") == -1) {
         sendProtocolError(&addrFrame,
                 &delimiterFrame, sock,
-                "Received empty message (no ZeroDB header frame)", logger);
+                "Received empty message (no YakDB header frame)", logger);
         logger.warn("Client sent empty message (no header frame)");
         return;
     }
