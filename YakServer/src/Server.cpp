@@ -39,7 +39,6 @@ static void COLD sendProtocolError(zmq_msg_t* addrFrame,
 }
 
 void KeyValueServer::handleRequestResponse() {
-    logger.trace("HanRR");
     //In the REQ/REP handler we only use one socket
     void* sock = externalRepSocket;
     //The message consists of four frames: Client addr, empty delimiter, msg type (1 byte) and data
