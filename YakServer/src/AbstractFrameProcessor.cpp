@@ -406,6 +406,7 @@ bool AbstractFrameProcessor::sendResponseHeader(void* socket,
      * If, however, the request size is equal to the response size,
      * we can simple reuse the header frame without needing to copy data around.
      */
+    logger.trace("blabadha");
     size_t headerFrameSize = (headerFrame == nullptr ? 0 : zmq_msg_size(headerFrame));
     if(headerFrameSize <= requestExpectedSize) {
         //No request ID
@@ -433,7 +434,8 @@ bool AbstractFrameProcessor::sendResponseHeader(void* socket,
                headerFrameData + requestExpectedSize,
                headerFrameSize - requestExpectedSize);
         //Send the frame
-        if(unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
+        int rc = zmq_msg_send(&msg, socket, flags);
+        if(unlikely(rc == -1)) {
             logMessageSendError("Response header", logger);
         }
     }

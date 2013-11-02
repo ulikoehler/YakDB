@@ -7,10 +7,8 @@ linkmode = ARGUMENTS.get("link","dynamic")
 Import("yaklibSrc")
 yaklibSrc = ["../YakClient/" + filename for filename in yaklibSrc]
 
-march = ARGUMENTS.get('march','core2')
-
 linkflags=[]
-cxxflags=["-std=c++0x","-march=" + march,"-Wall","-O2","-ffast-math"]
+cxxflags=["-std=c++0x","-Wall","-ffast-math"]
 if linkmode == "static":
     cxxflags.append("-static")
     linkflags.append("-static")
@@ -22,6 +20,17 @@ else:
 enableDebug = ARGUMENTS.get('debug', 0)
 if int(enableDebug):
     cxxflags.append('-g')
+
+#march
+march = ARGUMENTS.get('march','core2')
+if march != "none":
+    cxxflags.append("-march=%s" % march)
+
+#Optimization level
+optimize = ARGUMENTS.get('optimize', '2')
+if optimize != "none":
+    cxxflags.append("-O%s" % optimize)
+
 
 linkflags.append("-pthread")
 linkflags.append("-Wl,-rpath=.")

@@ -2,17 +2,22 @@
 import os
 
 cxx = ARGUMENTS.get('cxx','clang++')
-march = ARGUMENTS.get('march','core2')
 
-env = Environment(CXX=cxx,CXXFLAGS=["-std=c++0x","-march=" + march,"-O2","-Wall"],CPPPATH=['include'],
-                  ENV = {'PATH' : os.environ['PATH'],
-                         'TERM' : os.environ['TERM'],
-                         'HOME' : os.environ['HOME']})
+cxxflags = ["-std=c++0x","-Wall"]
 #Get CLI flags
 enableDebug = ARGUMENTS.get('debug', 0)
-optimize = ARGUMENTS.get('optimize', 0)
 if int(enableDebug):
-	env.Append(CCFLAGS = '-g')
+    cxxflags.append('-g')
+
+#march
+march = ARGUMENTS.get('march','core2')
+if march != "none":
+    cxxflags.append("-march=%s" % march)
+
+#Optimization level
+optimize = ARGUMENTS.get('optimize', '2')
+if optimize != "none":
+    cxxflags.append("-O%s" % optimize)
 
 
 libraries = ["zmq","czmq"]
@@ -31,6 +36,11 @@ testSrc = [
     "test/TestGraph.cpp",
     "test/TestMain.cpp"
 ]
+
+env = Environment(CXX=cxx,CXXFLAGS=cxxflags,CPPPATH=['include'],
+                  ENV = {'PATH' : os.environ['PATH'],
+                         'TERM' : os.environ['TERM'],
+                         'HOME' : os.environ['HOME']})
 
 libyakclientA = env.Library(target="yakclient",source=yaklibSrc)
 libyakclientSO = env.SharedLibrary(target="yakclient",source=yaklibSrc)
