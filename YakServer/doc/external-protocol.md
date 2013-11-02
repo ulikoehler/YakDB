@@ -330,7 +330,7 @@ Response codes:
 
 ### Write flags: These flags can optionally be supplied with write requests (bitwise-OR different flags to get the flag bytes
 
-* 0x01 PARTSYNC: Hand request to database backend before acknowledging. Does not imply synchronous disk writes.
+* 0x01 PARTSYNC: Hand request over to database backend before acknowledging. Does not imply synchronous disk writes.
 * 0x02 FULLSYNC: Force synchronous write to database
 
 Requests that are not flagged PARTSYNC are called ASYNC.
@@ -342,7 +342,7 @@ PARTSYNC may not be sent for non-REQ-REP sockets. Sending PARTSYNC over other so
 
 ##### Put request:
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 Request type (Put request)] [Optional: Write flags, defaults to 0x00]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x20 Request type (Put request)] [1 byte write flags]
 * Frame 1-n (odd frame numbers): Key to write to. The next frame specifies the value to write
 * Frame 2-n (even frame numbers): Value to write. The previous frame specifies the corresponding key.
 
@@ -350,7 +350,7 @@ If both the key and value frames are empty, the frame pair is ignored.
 
 ##### Delete request:
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x21 Request type (Delete request)] [Optional: Write flags, defaults to 0x00]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x21 Request type (Delete request)] [1 byte write flags]
 * Frame 1: 4-byte unsigned table number
 * Frame 2-n: Key to delete (may contain arbitrary byte sequence)
 
@@ -363,7 +363,7 @@ Deletes data until one of these events occurs:
 - The end key is reached (if any)
 - The limit is reached (if any)
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x22 Request type (Delete range request)] [Optional: Write flags, defaults to 0x00]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x22 Request type (Delete range request)] [1 byte Write flags]
 * Frame 1: 4-byte unsigned table number
 * Frame 1: 8-byte unsigned limit (or zero-length frame --> no limit)
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
@@ -385,7 +385,7 @@ The PARTSYNC flag is not allowed (and therefore ignored), because
 the multi-table put request is internally translated to multiple individual put requests.
 Response to this request type will therefore always be async.
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x23 Request type (Put request)] [Optional: Write flags, defaults to 0x00]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x23 Request type (Put request)] [1-byte Write flags]
 
 An arbitrary number of *modification messages* follow frame 0. Modification messages consist of (frame numbering relative to the mod msg start):
 * Frame 0: [32-bit table no][32-bit number of valuesets in request][8-bit request type]
