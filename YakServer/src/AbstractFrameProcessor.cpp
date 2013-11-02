@@ -453,7 +453,6 @@ bool AbstractFrameProcessor::sendResponseHeader(void* socket,
         memcpy(responseData + responseSize,
                headerFrameData + requestExpectedSize,
                headerFrameSize - requestExpectedSize + 1);
-        logger.trace(std::string(responseData + responseSize, headerFrameSize - requestExpectedSize + 1));
         //Send the frame
         if(unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
             logMessageSendError("Response header", logger);
