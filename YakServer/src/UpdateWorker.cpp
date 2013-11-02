@@ -151,6 +151,10 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
      * 
      * Instead, we re-batch into fixed-size batches. Individual puts
      * are too slow and lock too much.
+     * 
+     * NOTE regarding request IDs: The request has 4 bytes, instead of the default 3.
+     * This needs to be passed to functions generating the response
+     * header.
      */
     static const char* errorResponse = "\x31\x01\x20\x01";
     static const char* ackResponse = "\x31\x01\x20\x00";
@@ -163,7 +167,7 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse, headerFrame)) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse, headerFrame, 4)) {
         return;
     }
     //Get the table
@@ -182,7 +186,7 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
         zmq_msg_init(&valueFrame);
         //The next two frames contain key and value
         if (unlikely(!receiveMsgHandleError(&keyFrame,
-                "Receive put key frame", errorResponse, generateResponse, headerFrame))) {
+                "Receive put key frame", errorResponse, generateResponse, headerFrame, 4))) {
             break;
         }
         //Check if there is a key but no value
@@ -191,7 +195,7 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
             return;
         }
         if (unlikely(!receiveMsgHandleError(&valueFrame,
-                "Receive put value frame", errorResponse, generateResponse, headerFrame))) {
+                "Receive put value frame", errorResponse, generateResponse, headerFrame, 4))) {
             break;
         }
         //Check if we have more frames
@@ -213,7 +217,7 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
             if (!checkLevelDBStatus(status,
                     "Database error while processing update request: ",
                     generateResponse,
-                    errorResponse)) {
+                    errorResponse, headerFrame, 4)) {
                 return;
             }
             batch.Clear();
@@ -231,17 +235,23 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
     if (!checkLevelDBStatus(status,
             "Database error while processing update request: ",
             generateResponse,
-            errorResponse)) {
+            errorResponse,
+            headerFrame, 4)) {
         return;
     }
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendResponseHeader(headerFrame, ackResponse);
+        sendResponseHeader(headerFrame, ackResponse, 0, 4);
     }
 }
 
 void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    /*
+    * NOTE regarding request IDs: The request has 4 bytes, instead of the default 3.
+    * This needs to be passed to functions generating the response
+    * header.
+    */
     static const char* errorResponse = "\x31\x01\x21\x01";
     static const char* ackResponse = "\x31\x01\x21\x00";
     //Process the flags
@@ -252,7 +262,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse, headerFrame)) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse, headerFrame, 4)) {
         return;
     }
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
@@ -267,7 +277,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
         zmq_msg_init(&keyFrame);
         //The next two frames contain key and value
         if (unlikely(!receiveMsgHandleError(&keyFrame,
-                "Receive deletion key frame", errorResponse, generateResponse, headerFrame))) {
+                "Receive deletion key frame", errorResponse, generateResponse, headerFrame, 4))) {
             return;
         }
         //Convert to LevelDB
@@ -283,13 +293,13 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     //If something went wrong, send an error response
     if (!checkLevelDBStatus(status,
             "Database error while processing delete request: ",
-            generateResponse, errorResponse, headerFrame)) {
+            generateResponse, errorResponse, headerFrame, 4)) {
         return;
     }
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendResponseHeader(headerFrame, ackResponse);
+        sendResponseHeader(headerFrame, ackResponse, 0, 4);
     }
 }
 
@@ -313,7 +323,7 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
     zmq_msg_close(headerFrame);
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, "\x31\x01\x20\x10", headerFrame)) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, "\x31\x01\x03\x10", headerFrame)) {
         return;
     }
     //Check if there is a range frames
@@ -345,6 +355,11 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
 }
 
 void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    /*
+    * NOTE regarding request IDs: The request has 4 bytes, instead of the default 3.
+    * This needs to be passed to functions generating the response
+    * header.
+    */
     static const char* errorResponse = "\x31\x01\x22\x01";
     static const char* ackResponse = "\x31\x01\x22\x00";
     //Process the flags
@@ -356,13 +371,12 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     zmq_msg_close(headerFrame);
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse)) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse, headerFrame, 4)) {
         return;
     }
     //Check if there is a range frames
     if (!expectNextFrame("Only table ID frame found in delete rangee request, ĺimit frame missing",
-            generateResponse,
-            errorResponse)) {
+            generateResponse, errorResponse, headerFrame, 4)) {
         return;
     }
     //Parse limit frame. For now we just assume UINT64_MAX is close enough to infinite
@@ -370,13 +384,12 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     if (!parseUint64FrameOrAssumeDefault(scanLimit,
                 std::numeric_limits<uint64_t>::max(),
                 "Receive scan limit frame",
-                true, errorResponse)) {
+                true, errorResponse, headerFrame, 4)) {
         return;
     }
     //Check if there is a range frames
     if (!expectNextFrame("Only table ID frame found in delete range request, range missing",
-            generateResponse,
-            errorResponse)) {
+            generateResponse, errorResponse, headerFrame, 4)) {
         return;
     }
     //Get the table
@@ -385,10 +398,8 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     std::string rangeStartStr;
     std::string rangeEndStr;
     parseRangeFrames(rangeStartStr,
-            rangeEndStr,
-            "Compact request compact range parsing",
-            errorResponse,
-            generateResponse);
+            rangeEndStr, "Compact request compact range parsing",
+            errorResponse, generateResponse, headerFrame, 3);
     bool haveRangeStart = !(rangeStartStr.empty());
     bool haveRangeEnd = !(rangeEndStr.empty());
     //Convert the str to a slice, to compare the iterator slice in-place
@@ -425,7 +436,9 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
         batch.Delete(key);
     }
     //Check if any error occured during iteration
-    if (!checkLevelDBStatus(it->status(), "LevelDB error while processing delete request", true, errorResponse)) {
+    if (!checkLevelDBStatus(it->status(),
+                "LevelDB error while processing delete request",
+                true, errorResponse,headerFrame, 4)) {
         delete it;
         return;
     }
@@ -436,16 +449,21 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     if (!checkLevelDBStatus(status,
             "Database error while processing delete request: ",
             generateResponse,
-            errorResponse)) {
+            errorResponse, headerFrame, 4)) {
         return;
     }
     //Create the response if neccessary
     if (generateResponse) {
-        sendResponseHeader(headerFrame, ackResponse);
+        sendResponseHeader(headerFrame, ackResponse, 0, 4);
     }
 }
 
 void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+    /*
+    * NOTE regarding request IDs: The request has 4 bytes, instead of the default 3.
+    * This needs to be passed to functions generating the response
+    * header.
+    */
     static const char* errorResponse = "\x31\x01\x01\x01";
     static const char* ackResponse = "\x31\x01\x01\x00";
     /*
@@ -462,7 +480,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
     if (!parseUint32Frame(tableId,
             "Table ID frame",
             generateResponse,
-            errorResponse)) {
+            errorResponse, headerFrame, 4)) {
         return;
     }
     uint64_t lruCacheSize;
@@ -470,7 +488,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             UINT64_MAX,
             "LRU cache size frame",
             generateResponse,
-            errorResponse)) {
+            errorResponse, headerFrame, 4)) {
         return;
     }
     uint64_t blockSize;
@@ -478,7 +496,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             UINT64_MAX,
             "Table block size frame",
             generateResponse,
-            errorResponse)) {
+            errorResponse, headerFrame, 4)) {
         return;
     }
     uint64_t writeBufferSize;
@@ -486,7 +504,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             UINT64_MAX,
             "Write buffer size frame",
             generateResponse,
-            errorResponse)) {
+            errorResponse, headerFrame, 4)) {
         return;
     }
     uint64_t bloomFilterBitsPerKey;
@@ -494,7 +512,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             UINT64_MAX,
             "Bits per key bloom filter size frame",
             generateResponse,
-            errorResponse)) {
+            errorResponse, headerFrame, 4)) {
         return;
     }
     //
@@ -510,7 +528,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
     //Rewrite the header frame for the response
     //Create the response if neccessary
     if (generateResponse) {
-        sendResponseHeader(headerFrame, ackResponse);
+        sendResponseHeader(headerFrame, ackResponse, 0, 4);
     }
 }
 

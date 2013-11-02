@@ -120,7 +120,7 @@ class Connection:
         else: endKey = ""
         self.socket.send(startKey, zmq.SNDMORE)
         self.socket.send(endKey,  (zmq.SNDMORE if more else 0))
-    def _checkHeaderFrame(self,  msgParts,  expectedResponseType):
+    def _checkHeaderFrame(self,  msgParts, expectedResponseType):
         """
         Given a list of received message parts, checks the first message part.
         Checks performed:
@@ -142,6 +142,10 @@ class Connection:
             raise YakDBProtocolException(
                 "Response status code is %d instead of 0x00 (ACK), error message: %s"
                 % (ord(msgParts[0][3]),  errorMsg))
+        #Parse and return request ID, if any
+        if len(msgParts[0]) > 4:
+            return msgParts[0][4:]
+        return None #No request ID
     def serverInfo(self):
         """
         Send a server info request to the server and return the version string
@@ -317,7 +321,8 @@ class Connection:
         self.socket.send(nextToSend)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x10')        #Return the data frames
+        self._checkHeaderFrame(msgParts, '\x10')
+        #Return data frames
         if not mapKeys:
             return msgParts[1:]
         else: #Perform key-value mapping

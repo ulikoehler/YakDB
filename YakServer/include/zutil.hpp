@@ -13,6 +13,9 @@
 #include "Logger.hpp"
 #include "macros.hpp"
 
+//Utility definitions
+#define ZMQ_NO_FLAGS 0
+
 extern volatile bool yak_interrupted;
 
 /**
