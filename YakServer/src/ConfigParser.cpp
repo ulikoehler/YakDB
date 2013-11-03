@@ -159,7 +159,7 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
             po::value<uint64_t>(&defaultBloomFilterBitsPerKey)->default_value(0),
             "Set the default bits per key for the bloom filter. Set to 0 to disable bloom filter. Overriden by table-specific options.")
         ("disable-compression,d","By default table compression is enabled for all unconfigured tables. If this option is used, table compression is disabled by default. Overridden by table-specific options."),
-        ("table-dir,t", po::value<string>(&tableSaveFolder)->default_value("./tables"), "The file were the db tables should be saved to.")
+        ("table-dir,t", po::value<string>(&tableSaveFolder)->default_value("./tables"), "The folder were the database tables should be saved to.")
     ;
     //Create the main options group
     po::options_description desc("Options");
