@@ -11,6 +11,7 @@ public:
     const std::vector<std::string>& getPULLEndpoints();
     const std::vector<std::string>& getSUBEndpoints();
     const std::string& getLogFile();
+    const std::string& getTableSaveFolderPath();
     const std::string& getHTTPEndpoint();
     const bool isIPv4Only();
     /**
@@ -33,6 +34,7 @@ public:
     int getExternalHWM();
 private:
     std::string logFile;
+    std::string tableSaveFolder;
     uint64_t statisticsExpungeTimeout;
     //Socket options
     std::vector<std::string> repEndpoints;

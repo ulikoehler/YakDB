@@ -60,6 +60,7 @@ void COLD ConfigParser::saveConfigFile() {
     if(!compressionEnabledPerDefault) {
         fout << "disable-compression=true" << '\n';
     }
+    fout << "table-dir=" << tableSaveFolder << '\n';
     fout.close();
 }
 
@@ -157,7 +158,8 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
         ("bloom-filter-bits-per-key",
             po::value<uint64_t>(&defaultBloomFilterBitsPerKey)->default_value(0),
             "Set the default bits per key for the bloom filter. Set to 0 to disable bloom filter. Overriden by table-specific options.")
-        ("disable-compression,d","By default table compression is enabled for all unconfigured tables. If this option is used, table compression is disabled by default. Overridden by table-specific options.")
+        ("disable-compression,d","By default table compression is enabled for all unconfigured tables. If this option is used, table compression is disabled by default. Overridden by table-specific options."),
+        ("table-dir,t", po::value<string>(&tableSaveFolder)->default_value("./tables"), "The file were the db tables should be saved to.")
     ;
     //Create the main options group
     po::options_description desc("Options");
@@ -233,6 +235,10 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
 
 const std::string& ConfigParser::getLogFile() {
     return logFile;
+}
+
+const std::string& ConfigParser::getTableSaveFolderPath() {
+    return tableSaveFolder;
 }
 
 const std::vector<std::string>& ConfigParser::getREPEndpoints() {
