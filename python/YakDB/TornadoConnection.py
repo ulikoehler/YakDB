@@ -34,7 +34,7 @@ class TornadoConnection(YakDB.Connection.Connection):
         if endKey is not None: endKey = ZMQBinaryUtil.convertToBinary(endKey)
         else: endKey = ""
         return [startKey, endKey]
-    def scan(self, tableNo, callback, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None):
+    def scan(self, tableNo, callback, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False):
         """
         Asynchronous reentrant scan. Scans an entire range at once.
         The scan stops at the table end, endKey (exclusive) or when
@@ -49,6 +49,7 @@ class TornadoConnection(YakDB.Connection.Connection):
         @param limit The maximum number of keys to read, or None, if no limit shall be imposed
         @param keyFilter If this is non-None, the server filters for keys containing (exactly) this substring
         @param valueFilter If this is non-None, the server filters for values containing (exactly) this substring
+        @param invert Set this to true to invert the scan direction
         @return A dictionary of the returned key/value pairs
         """
         #Check parameters and create binary-string only key list
@@ -62,7 +63,7 @@ class TornadoConnection(YakDB.Connection.Connection):
         stream.callback = callback
         stream.expectedRet
         #Send header frame
-        msgParts = ["\x31\x01\x13"]
+        msgParts = ["\x31\x01\x13" + ("\x01" if invert else "\x00")]
         #Create the table number frame
         msgParts.append(struct.pack('<I', tableNo))
         #Send limit frame
