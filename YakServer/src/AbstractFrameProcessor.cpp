@@ -324,7 +324,7 @@ bool AbstractFrameProcessor::sendMsgHandleError(zmq_msg_t* msg,
 
 void AbstractFrameProcessor::disposeRemainingMsgParts() {
     int numErrors = 0;
-    const int errorLimit = 5; //After this number of errors the function exits
+    const int errorLimit = 5; //After this number of errors the function exits to prevent infinite loops
     zmq_msg_t msg;
     zmq_msg_init(&msg);
     while (socketHasMoreFrames(processorInputSocket)) {
