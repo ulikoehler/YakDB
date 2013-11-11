@@ -319,6 +319,10 @@ def yakCLI():
             nargs='?',
             action="store",
             help="The tables to scan. Overrides -t option.")
+    parserScan.add_argument('-i','--invert',
+            action="store_true",
+            default=False,
+            help="Invert the scan direction")
     parserScan.set_defaults(func=scan)
     #Count
     parserCount = subparsers.add_parser("count", description="Count how many keys exist in a specified range of the table")

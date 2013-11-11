@@ -335,7 +335,7 @@ class Connection:
             for i in range(len(values)):
                 res[keys[i]] = values[i]
             return res
-    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None):
+    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False):
         """
         Synchronous scan. Scans an entire range at once.
         The scan stops at the table end, endKey (exclusive) or when
@@ -350,6 +350,7 @@ class Connection:
         @param limit The maximum number of keys to read, or None, if no limit shall be imposed
         @param keyFilter If this is non-None, the server filters for keys containing (exactly) this substring
         @param valueFilter If this is non-None, the server filters for values containing (exactly) this substring
+        @param invert Set this to true to invert the scan direction
         @return A dictionary of the returned key/value pairs
         """
         #Check parameters and create binary-string only key list
@@ -359,7 +360,7 @@ class Connection:
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x13", zmq.SNDMORE)
+        self.socket.send("\x31\x01\x13" + ("\x01" if invert else "\x00"), zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send limit frame
