@@ -296,7 +296,7 @@ The scan ends when one of the following conditions are met:
 - The end key is reached (unless the end key frame is zero-sized)
 - The amount of key-value pairs scanned is equal to the limit (unless the limit frame is zero-sized)
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x13 Request type (scan request)]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x13 Request type (scan request)][1 byte scan flags]
 * Frame 1: 32-bit unsigned table number
 * Frame 2: 64-bit unsigned limit. If this is zero-sized, no limit is imposed
 * Frame 3: Start key (inclusive). If this has zero length, the count starts at the first key
@@ -310,6 +310,10 @@ Filtered keys don't decrease the key-value count that is used to check the limit
 In any case, the filters are compared in a case-sensitive way on a char-by-char basis.
 
 Regardless of filters, the scan will stop at the end key.
+
+**Scan flags:**
+OR combination of these flags (default: reset):
+* Bit 1: Invert scan. Set this flag to invert the scan direction.
 
 ##### Scan response:
 
