@@ -101,7 +101,7 @@ class Connection:
         """
         Send a binary 32-bit number (little-endian) over the current socket
         """
-        ZMQBinaryUtil.sendBinary32(self.socket,  value,  more)
+        ZMQBinaryUtil.sendBinary32(self.socket, value, more)
     def _sendBinary64(self, value, more=True):
         """
         Send a binary 32-bit number (little-endian) over the current socket
@@ -370,14 +370,12 @@ class Connection:
         #Send range. "" --> empty frame --> start/end of table
         self._sendRange(startKey,  endKey, more=True)
         #Send key filter parameters
-        if keyFilter is None: self.socket.send("", zmq.SNDMORE)
-        else: self.socket.send(keyFilter, zmq.SNDMORE)
+        self.socket.send("" if keyFilter is None else keyFilter, zmq.SNDMORE)
         #Send value filter parameters
-        if valueFilter is None: self.socket.send("")
-        else: self.socket.send(valueFilter)
+        self.socket.send("" if valueFilter is None else valueFilter)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x13') #Remap the returned key/value pairs to a dict
+        self._checkHeaderFrame(msgParts, '\x13') #Remap the returned key/value pairs to a dict
         dataParts = msgParts[1:]
         mappedData = {}
         for i in range(0,len(dataParts),2):
