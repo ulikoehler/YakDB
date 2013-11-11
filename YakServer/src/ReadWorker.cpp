@@ -220,13 +220,19 @@ void ReadWorker::handleReadRequest(zmq_msg_t* headerFrame) {
 void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     static const char* errorResponse = "\x31\x01\x13\x01";
     static const char* ackResponse = "\x31\x01\x13\x00";
+    //Parse scan flags
+    if (expectExactFrameSize(headerFrame, 4, "scan request header frame", errorResponse, true, headerFrame, 4)) {
+        return;
+    }
+    uint8_t scanFlags = ((char*)zmq_msg_data(headerFrame))[3];
+    bool invertScanDirection = (scanFlags | ScanFlagInvertDirection) != 0;
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame in scan request", true, errorResponse, headerFrame)) {
+    if (!parseUint32Frame(tableId, "Table ID frame in scan request", true, errorResponse, headerFrame, 4)) {
         return;
     }
     //Check if there is a range frame at all
-    if (!expectNextFrame("Only table ID frame found in scan request, range missing", true, errorResponse, headerFrame)) {
+    if (!expectNextFrame("Only table ID frame found in scan request, range missing", true, errorResponse, headerFrame, 4)) {
         return;
     }
     //Get the table to read from
@@ -236,13 +242,13 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     if (!parseUint64FrameOrAssumeDefault(scanLimit,
                 std::numeric_limits<uint64_t>::max(),
                 "Receive scan limit frame",
-                true, errorResponse, headerFrame)) {
+                true, errorResponse, headerFrame, 4)) {
         return;
     }
     //Parse the from-to range
     std::string rangeStartStr;
     std::string rangeEndStr;
-    if (!parseRangeFrames(rangeStartStr, rangeEndStr, "Scan request scan range parsing", errorResponse, headerFrame)) {
+    if (!parseRangeFrames(rangeStartStr, rangeEndStr, "Scan request scan range parsing", errorResponse, true, headerFrame, 4)) {
         return;
     }
     bool haveRangeStart = !(rangeStartStr.empty());
@@ -250,16 +256,16 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     //Parse the filter frames
     std::string keyFilterStr = "";
     std::string valueFilterStr = "";
-    if(!expectNextFrame("Expected key filter frame", true, errorResponse, headerFrame)) {
+    if(!expectNextFrame("Expected key filter frame", true, errorResponse, headerFrame, 4)) {
         return;
     }
-    if(!receiveStringFrame(keyFilterStr, "Error while receiveing key filter string", errorResponse, headerFrame)) {
+    if(!receiveStringFrame(keyFilterStr, "Error while receiveing key filter string", errorResponse, true, headerFrame, 4)) {
         return;
     }
-    if(!expectNextFrame("Expected value filter frame", true, errorResponse, headerFrame)) {
+    if(!expectNextFrame("Expected value filter frame", true, errorResponse, headerFrame, 4)) {
         return;
     }
-    if(!receiveStringFrame(valueFilterStr, "Error while receiveing key filter string", errorResponse, headerFrame)) {
+    if(!receiveStringFrame(valueFilterStr, "Error while receiveing key filter string", errorResponse, true, headerFrame, 4)) {
         return;
     }
     //Create the boyer moore searchers (unexpensive for empty strings)
@@ -277,7 +283,9 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     leveldb::Iterator* it = db->NewIterator(readOptions);
     if (haveRangeStart) {
         it->Seek(rangeStartStr);
-    } else {
+    } else if(invertScanDirection) {
+        it->SeekToLast();
+    } else { //Non-inverted scan
         it->SeekToFirst();
     }
     //If the range is empty, the header needs to be sent w/out MORE,
@@ -286,7 +294,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     //Iterate over all key-values in the range
     zmq_msg_t keyMsg, valueMsg;
     bool haveLastValueMsg = false; //Needed to send only last frame without SNDMORE
-    for (; it->Valid(); it->Next()) {
+    for (; it->Valid(); (invertScanDirection ? it->Prev() : it->Next())) {
         leveldb::Slice key = it->key();
         const char* keyData = key.data();
         size_t keySize = key.size();

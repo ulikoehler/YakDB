@@ -315,6 +315,12 @@ Regardless of filters, the scan will stop at the end key.
 OR combination of these flags (default: reset):
 * Bit 1: Invert scan. Set this flag to invert the scan direction.
 
+*Note:* If the invert scan flag is set, the iterator is (just like with the non-inverted scan) moved
+to the start key. The scan is continued until the end key is reached. It is therefore neccessary
+to set *end key* > *start key* (requests that dont fulfill this requirement are still valid,
+but yield an empty result). For the non-inverted scan, the opposite (*end key* <= *start key*) is true.
+For inverted scan requests, the results are always returned in inverted order.
+
 ##### Scan response:
 
 The scanned request returns the scan range as alternating key/value frames

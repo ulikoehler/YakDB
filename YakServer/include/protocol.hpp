@@ -88,6 +88,10 @@ enum WriteFlag : uint8_t {
     WriteFlagFULLSYNC = 0x02
 };
 
+enum ScanFlag : uint8_t {
+    ScanFlagInvertDirection = 0x01
+};
+
 /**
  * Check if a given frame is a header frame.
  * 
