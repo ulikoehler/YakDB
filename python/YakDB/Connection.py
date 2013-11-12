@@ -132,8 +132,13 @@ class Connection:
         if len(msgParts) == 0:
             raise YakDBProtocolException("Received empty reply message")
         if len(msgParts[0]) < 4:
-            raise YakDBProtocolException("Header frame has size of %d, but expected 4"
-                                         % len(msgParts[0]))
+            looksLikeAHeaderFrame = (len(msgParts[0]) >= 1)
+            if len(msgParts[0]) >= 1 and msgParts[0][0] != '\x31': looksLikeAHeaderFrame = False
+            if len(msgParts[0]) >= 2 and msgParts[0][1] != '\x01': looksLikeAHeaderFrame = False
+            raise YakDBProtocolException("Reponse header frame has size of %d, but expected size-4 frame%s"
+                                         % (len(msgParts[0]),
+                                           (", it doesn't even look like a header frame" if not looksLikeAHeaderFrame
+                                               else ", but it looks like some kind of header frame")))
         if msgParts[0][2] != expectedResponseType:
             raise YakDBProtocolException("Response code received from server is "
                         "%d instead of %d" % (ord(msgParts[0][2]),  ord(expectedResponseType)))
