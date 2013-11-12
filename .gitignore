@@ -3,5 +3,6 @@
 build
 **/*.o
 **/**/*.o
+**/*.swp
 clientbuild
 testbuild
