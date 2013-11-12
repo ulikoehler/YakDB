@@ -120,7 +120,8 @@ class Connection:
         else: endKey = ""
         self.socket.send(startKey, zmq.SNDMORE)
         self.socket.send(endKey,  (zmq.SNDMORE if more else 0))
-    def _checkHeaderFrame(self,  msgParts, expectedResponseType):
+    @staticmethod
+    def _checkHeaderFrame(msgParts, expectedResponseType):
         """
         Given a list of received message parts, checks the first message part.
         Checks performed:
@@ -133,8 +134,9 @@ class Connection:
             raise YakDBProtocolException("Received empty reply message")
         if len(msgParts[0]) < 4:
             looksLikeAHeaderFrame = (len(msgParts[0]) >= 1)
-            if len(msgParts[0]) >= 1 and msgParts[0][0] != '\x31': looksLikeAHeaderFrame = False
-            if len(msgParts[0]) >= 2 and msgParts[0][1] != '\x01': looksLikeAHeaderFrame = False
+            if ((len(msgParts[0]) >= 1 and msgParts[0][0] != '\x31') or
+                (len(msgParts[0]) >= 2 and msgParts[0][1] != '\x01')):
+                 looksLikeAHeaderFrame = False
             raise YakDBProtocolException("Reponse header frame has size of %d, but expected size-4 frame, %s"
                                          % (len(msgParts[0]),
                                            ("it doesn't even look like a header frame" if not looksLikeAHeaderFrame
@@ -235,7 +237,7 @@ class Connection:
         #If this is a req/rep connection, receive a reply
         if self.mode is zmq.REQ:
             msgParts = self.socket.recv_multipart(copy=True)
-            self._checkHeaderFrame(msgParts,  '\x20')
+            self.__class__._checkHeaderFrame(msgParts,  '\x20')
     def delete(self, tableNo, keys, partsync=False, fullsync=False):
         """
         Delete one or multiples values, identified by their keys, from a table.
@@ -282,7 +284,7 @@ class Connection:
         #Wait for reply
         if self.mode is zmq.REQ:
             msgParts = self.socket.recv_multipart(copy=True)
-            self._checkHeaderFrame(msgParts,  '\x21')
+            self.__class__._checkHeaderFrame(msgParts,  '\x21')
     def read(self, tableNo, keys, mapKeys=False):
         """
         Read one or multiples values, identified by their keys, from a table.
@@ -327,7 +329,7 @@ class Connection:
         self.socket.send(nextToSend)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts, '\x10')
+        self.__class__._checkHeaderFrame(msgParts, '\x10')
         #Return data frames
         if not mapKeys:
             return msgParts[1:]
@@ -382,7 +384,7 @@ class Connection:
         self.socket.send("" if valueFilter is None else valueFilter)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts, '\x13') #Remap the returned key/value pairs to a dict
+        self.__class__._checkHeaderFrame(msgParts, '\x13') #Remap the returned key/value pairs to a dict
         dataParts = msgParts[1:]
         mappedData = {}
         for i in range(0,len(dataParts),2):
@@ -413,7 +415,7 @@ class Connection:
         self._sendRange(startKey,  endKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x22')
+        self.__class__._checkHeaderFrame(msgParts,  '\x22')
     def count(self, tableNo, startKey, endKey):
         """
         self._checkSingleConnection()
@@ -440,7 +442,7 @@ class Connection:
         self._sendRange(startKey,  endKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x11')
+        self.__class__._checkHeaderFrame(msgParts,  '\x11')
         #Deserialize
         binaryCount = msgParts[1]
         count = struct.unpack("<Q", binaryCount)[0]
@@ -486,7 +488,7 @@ class Connection:
         self.socket.send(nextToSend)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x12')
+        self.__class__._checkHeaderFrame(msgParts,  '\x12')
         #Return the data frames after mapping them to bools
         processedValues = []
         for msgPart in msgParts[1:]:
@@ -533,7 +535,7 @@ class Connection:
         self._sendBinary64(bloomFilterBitsPerKey, more=False)
         #Receive and extract response code
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x01')
+        self.__class__._checkHeaderFrame(msgParts,  '\x01')
     def truncateTable(self, tableNo):
         """
         Close & truncate a table.
@@ -551,7 +553,7 @@ class Connection:
         #Send the table number frame
         self._sendBinary32(tableNo, 0) #No SNDMORE flag
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x04')
+        self.__class__._checkHeaderFrame(msgParts,  '\x04')
     def closeTable(self, tableNo):
         """
         Close a table.
@@ -569,7 +571,7 @@ class Connection:
         #Send the table number frame
         self._sendBinary32(tableNo, more=False) #No SNDMORE flag
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x02')
+        self.__class__._checkHeaderFrame(msgParts,  '\x02')
     def stopServer(self):
         """
         Stop the YakDB server. Use with caution
@@ -577,7 +579,7 @@ class Connection:
         self.socket.send("\x31\x01\x05")        
         if self.mode is zmq.REQ:
             response = self.socket.recv_multipart(copy=True)
-            self._checkHeaderFrame(response,  '\x05')
+            self.__class__._checkHeaderFrame(response,  '\x05')
             #Check responseCode
             responseCode = response[0][3]
             if ord(responseCode) != 0:
@@ -599,7 +601,7 @@ class Connection:
         self._sendBinary32(tableNo, more=true)
         self._sendRange(startKey,  endKey)
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x03')
+        self.__class__._checkHeaderFrame(msgParts,  '\x03')
     def initializePassiveDataJob(self, tableNo, startKey=None, endKey=None, scanLimit=None, chunksize=None):
         """
         Initialize a job on the server that waits for client requests.
@@ -626,7 +628,7 @@ class Connection:
         self._sendRange(startKey,  endKey)
         #Receive response
         msgParts = self.socket.recv_multipart(copy=True)
-        self._checkHeaderFrame(msgParts,  '\x42')
+        self.__class__._checkHeaderFrame(msgParts,  '\x42')
         if len(msgParts) < 2:
             raise YakDBProtocolException("CSPTMIR response does not contain APID frame")
         #Get the APID and create a new job instance
@@ -651,7 +653,7 @@ class Connection:
             hdrList = list(msgParts[0]) #Strings are immutable!
             hdrList[3] = '\x00' #Otherwise _checkHeaderFrame would fail
             msgParts[0] = b"".join(hdrList)
-        self._checkHeaderFrame(msgParts,  '\x50')
+        self.__class__._checkHeaderFrame(msgParts,  '\x50')
         #We silently ignore the partial data / no data flags from the header,
         # because we can simply deduce them from the data frames.
         dataParts = msgParts[1:]
