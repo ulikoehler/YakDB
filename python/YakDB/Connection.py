@@ -51,15 +51,15 @@ class Connection:
         if self.cleanupContextOnDestruct:
             self.context.destroy()
     def useRequestReplyMode(self):
-        """Sets the current ZeroDB connection into Request/reply mode (default)"""
+        """Sets the current YakDB connection into Request/reply mode (default)"""
         self.socket = self.context.socket(zmq.REQ)
         self.mode = zmq.REQ
     def usePushMode(self):
-        """Sets the current ZeroDB connection into Push/pull mode (default)"""
+        """Sets the current YakDB connection into Push/pull mode (default)"""
         self.socket = self.context.socket(zmq.PUSH)
         self.mode = zmq.PUSH
     def usePubMode(self):
-        """Sets the current ZeroDB connection into publish/subscribe mode"""
+        """Sets the current YakDB connection into publish/subscribe mode"""
         self.socket = self.context.socket(zmq.PUB)
         self.mode = zmq.PUB
     def connect(self, endpoints):
@@ -94,9 +94,9 @@ class Connection:
     def _checkConnection(self):
         """Check if the current instance is correctly connected, else raise an exception"""
         if self.socket is None:
-            raise Exception("Please connect to server before using serverInfo (use ZeroDBConnection.connect()!")
+            raise Exception("Please connect to server before using serverInfo (use Connection.connect()!")
         if self.numConnections <= 0:
-            raise Exception("Current ZeroDBConnection is setup, but not connected. Please connect before usage!")
+            raise Exception("Current Connection is setup, but not connected. Please connect before usage!")
     def _sendBinary32(self, value, more=True):
         """
         Send a binary 32-bit number (little-endian) over the current socket
@@ -210,9 +210,9 @@ class Connection:
             #None keys or values are not supported, they can't be mapped to binary!
             # Use empty strings if neccessary.
             if key is None:
-                raise ParameterException("'None' keys are not supported by ZeroDB!")
+                raise ParameterException("'None' keys are not supported!")
             if value is None:
-                raise ParameterException("'None' values are not supported by ZeroDB!")
+                raise ParameterException("'None' values are not supported!")
         #Send header frame
         flags = 0
         if partsync: flags |= 1
@@ -343,7 +343,7 @@ class Connection:
             for i in range(len(values)):
                 res[keys[i]] = values[i]
             return res
-    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False):
+    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=True):
         """
         Synchronous scan. Scans an entire range at once.
         The scan stops at the table end, endKey (exclusive) or when
@@ -359,6 +359,7 @@ class Connection:
         @param keyFilter If this is non-None, the server filters for keys containing (exactly) this substring
         @param valueFilter If this is non-None, the server filters for values containing (exactly) this substring
         @param invert Set this to true to invert the scan direction
+        @param mapData If this is set to False, a list of tuples is returned instead of a directory
         @return A dictionary of the returned key/value pairs
         """
         #Check parameters and create binary-string only key list
@@ -386,10 +387,14 @@ class Connection:
         msgParts = self.socket.recv_multipart(copy=True)
         self.__class__._checkHeaderFrame(msgParts, '\x13') #Remap the returned key/value pairs to a dict
         dataParts = msgParts[1:]
-        mappedData = {}
-        for i in range(0,len(dataParts),2):
-            mappedData[dataParts[i]] = dataParts[i+1]
-        return mappedData
+        #Return appropriate data format
+        if mapData:
+            mappedData = {}
+            for i in range(0,len(dataParts),2):
+                mappedData[dataParts[i]] = dataParts[i+1]
+            return mappedData
+        else:
+            return [(dataParts[i], dataParts[i+1]) for i in range(0,len(dataParts),2)]
     def deleteRange(self, tableNo, startKey, endKey, limit=None):
         """
         Deletes a range of keys in the database

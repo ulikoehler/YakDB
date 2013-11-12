@@ -88,8 +88,9 @@ def scan(db, args):
     keyFilter = args.keyFilter
     valueFilter = args.valueFilter
     invert = args.invertDirection
+    mapData = args.mapData
     #Data is remapped into dictionary-form in connection class
-    print(db.scan(tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, invert=invert))
+    print(db.scan(tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, invert=invert, mapData=mapData))
 
 def dump(db, args):
     tableNo = args.tableNo
@@ -325,6 +326,10 @@ def yakCLI():
             dest="invertDirection",
             default=False,
             help="Invert the scan direction")
+    parserScan.add_argument('-n','--no-map-data',
+            action="store_false",
+            dest="mapData",
+            help="Return a list of (key, value) tuples instead of a dictionary")
     parserScan.set_defaults(func=scan)
     #Count
     parserCount = subparsers.add_parser("count", description="Count how many keys exist in a specified range of the table")
