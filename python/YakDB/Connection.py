@@ -135,10 +135,10 @@ class Connection:
             looksLikeAHeaderFrame = (len(msgParts[0]) >= 1)
             if len(msgParts[0]) >= 1 and msgParts[0][0] != '\x31': looksLikeAHeaderFrame = False
             if len(msgParts[0]) >= 2 and msgParts[0][1] != '\x01': looksLikeAHeaderFrame = False
-            raise YakDBProtocolException("Reponse header frame has size of %d, but expected size-4 frame%s"
+            raise YakDBProtocolException("Reponse header frame has size of %d, but expected size-4 frame, %s"
                                          % (len(msgParts[0]),
-                                           (", it doesn't even look like a header frame" if not looksLikeAHeaderFrame
-                                               else ", but it looks like some kind of header frame")))
+                                           ("it doesn't even look like a header frame" if not looksLikeAHeaderFrame
+                                               else "but it looks like some kind of header frame")))
         if msgParts[0][2] != expectedResponseType:
             raise YakDBProtocolException("Response code received from server is "
                         "%d instead of %d" % (ord(msgParts[0][2]),  ord(expectedResponseType)))
@@ -656,6 +656,6 @@ class Connection:
         # because we can simply deduce them from the data frames.
         dataParts = msgParts[1:]
         mappedData = {}
-        for i in range(0,len(dataParts),2):
+        for i in range(0, len(dataParts),2):
             mappedData[dataParts[i]] = dataParts[i+1]
         return mappedData
