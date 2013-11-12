@@ -74,7 +74,7 @@ class Connection:
         if self.socket == None:
             self.useRequestReplyMode()
         for endpoint in endpoints:
-            self._checkParameterType(endpoint, str, "[one of the endpoints]")
+            self.__class__._checkParameterType(endpoint, str, "[one of the endpoints]")
             self.socket.connect(endpoint)
         self.numConnections += len(endpoints)
     def _checkSingleConnection(self):
@@ -170,7 +170,8 @@ class Connection:
                             % (ord(responseHeader[0]), ord(responseHeader[1]), ord(responseHeader[2])))
         #Return the server version string
         return replyParts[1]
-    def _checkParameterType(self, value, expectedType, name,  allowNone=False):
+    @staticmethod
+    def _checkParameterType(value, expectedType, name,  allowNone=False):
         """
         Raises a ParameterException if the given value does not have the given type
         @param allowNone If this is set to true, a 'None' value is also allowed and doesn't throw
@@ -196,8 +197,8 @@ class Connection:
         @return True on success, else an appropriate exception will be raised
         """
         #Check parameters
-        self._checkParameterType(tableNo, int, "tableNo")
-        self._checkParameterType(valueDict, dict, "valueDict")
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        self.__class__._checkParameterType(valueDict, dict, "valueDict")
         #Before sending any frames, check the value dictionary for validity
         #Else, the socket could be left in an inconsistent state
         if len(valueDict) == 0:
@@ -251,7 +252,7 @@ class Connection:
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = []
         if type(keys) is list or type(keys) is tuple:
             for value in keys:
@@ -301,7 +302,7 @@ class Connection:
         self._checkSingleConnection()
         self._checkRequestReply()
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = []
         if type(keys) is list or type(keys) is tuple:
             for value in keys:
@@ -359,8 +360,8 @@ class Connection:
         @return A dictionary of the returned key/value pairs
         """
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
-        self._checkParameterType(limit, int, "limit",  allowNone=True)
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        self.__class__._checkParameterType(limit, int, "limit",  allowNone=True)
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -400,7 +401,7 @@ class Connection:
         @return A dictionary of the returned key/value pairs
         """
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -427,7 +428,7 @@ class Connection:
         @return The count, as integer
         """
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -457,7 +458,7 @@ class Connection:
         @return A list of values, correspondent to the key order
         """
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = []
         if type(keys) is list or type(keys) is tuple:
             for value in keys:
@@ -511,11 +512,11 @@ class Connection:
         @parameter bloomFilterBitsPerKey If this is set to none, no bloom filter is used, else a bloom filter with the given number of bits per key is used.
         """
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
-        self._checkParameterType(lruCacheSize,  int,  "lruCacheSize",  allowNone=True)
-        self._checkParameterType(tableBlocksize,  int,  "tableBlocksize",  allowNone=True)
-        self._checkParameterType(writeBufferSize,  int,  "writeBufferSize",  allowNone=True)
-        self._checkParameterType(bloomFilterBitsPerKey,  int,  "bloomFilterBitsPerKey",  allowNone=True)
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        self.__class__._checkParameterType(lruCacheSize,  int,  "lruCacheSize",  allowNone=True)
+        self.__class__._checkParameterType(tableBlocksize,  int,  "tableBlocksize",  allowNone=True)
+        self.__class__._checkParameterType(writeBufferSize,  int,  "writeBufferSize",  allowNone=True)
+        self.__class__._checkParameterType(bloomFilterBitsPerKey,  int,  "bloomFilterBitsPerKey",  allowNone=True)
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -541,7 +542,7 @@ class Connection:
         @return
         """
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -559,7 +560,7 @@ class Connection:
         @return
         """
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -588,7 +589,7 @@ class Connection:
         under certain circumstances
         """
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -610,8 +611,8 @@ class Connection:
         @return A PassiveDataJob instance, exposing requestDataBlock()
         """
         #Check parameters and create binary-string only key list
-        self._checkParameterType(tableNo, int, "tableNo")
-        self._checkParameterType(chunksize, int, "chunksize",  allowNone=True)
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        self.__class__._checkParameterType(chunksize, int, "chunksize",  allowNone=True)
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -637,7 +638,7 @@ class Connection:
         May only be used for client-side passive jobs.
         @param apid The Asynchronous Process ID
         """
-        self._checkParameterType(apid, int, "apid")
+        self.__class__._checkParameterType(apid, int, "apid")
         self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x50", zmq.SNDMORE)
