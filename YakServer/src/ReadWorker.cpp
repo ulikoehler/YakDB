@@ -221,11 +221,11 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     static const char* errorResponse = "\x31\x01\x13\x01";
     static const char* ackResponse = "\x31\x01\x13\x00";
     //Parse scan flags
-    if (expectExactFrameSize(headerFrame, 4, "scan request header frame", errorResponse, true, headerFrame, 4)) {
+    if (!expectExactFrameSize(headerFrame, 4, "scan request header frame", errorResponse, true, headerFrame, 4)) {
         return;
     }
     uint8_t scanFlags = ((char*)zmq_msg_data(headerFrame))[3];
-    bool invertScanDirection = (scanFlags | ScanFlagInvertDirection) != 0;
+    bool invertScanDirection = (scanFlags & ScanFlagInvertDirection) != 0;
     //Parse table ID
     uint32_t tableId;
     if (!parseUint32Frame(tableId, "Table ID frame in scan request", true, errorResponse, headerFrame, 4)) {

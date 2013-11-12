@@ -87,8 +87,9 @@ def scan(db, args):
     limit = args.scanLimit
     keyFilter = args.keyFilter
     valueFilter = args.valueFilter
+    invert = args.invertDirection
     #Data is remapped into dictionary-form in connection class
-    print(db.scan(tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter))
+    print(db.scan(tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, invert=invert))
 
 def dump(db, args):
     tableNo = args.tableNo
@@ -319,8 +320,9 @@ def yakCLI():
             nargs='?',
             action="store",
             help="The tables to scan. Overrides -t option.")
-    parserScan.add_argument('-i','--invert',
+    parserScan.add_argument('-i','--invert-direction',
             action="store_true",
+            dest="invertDirection",
             default=False,
             help="Invert the scan direction")
     parserScan.set_defaults(func=scan)
