@@ -426,6 +426,9 @@ bool AbstractFrameProcessor::sendResponseHeader(void* socket,
     size_t headerFrameSize = (headerFrame == nullptr ? 0 : zmq_msg_size(headerFrame));
     if(headerFrameSize <= requestExpectedSize) {
         //No request ID
+        if(headerFrame != nullptr) {
+            zmq_msg_close(headerFrame);
+        }
         if(unlikely(sendFrame(responseHeader, responseSize, socket,
             logger, "Response header", flags) == -1)) {
             return false;
@@ -456,7 +459,13 @@ bool AbstractFrameProcessor::sendResponseHeader(void* socket,
         //Send the frame
         if(unlikely(zmq_msg_send(&msg, socket, flags) == -1)) {
             logMessageSendError("Response header", logger);
+            if(headerFrame != nullptr) {
+                zmq_msg_close(headerFrame);
+            }
             return false;
+        }
+        if(headerFrame != nullptr) {
+            zmq_msg_close(headerFrame);
         }
     }
     return true;

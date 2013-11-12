@@ -156,19 +156,21 @@ void HOT KeyValueServer::handleRequestResponse() {
         proxyMultipartMessage(sock, workerSocket);
         //Send acknowledge message unless PARTSYNC is set (in which case it is sent in the update worker thread)
         if (!isPartsync(writeFlags)) {
-             //Send response code 0x00 (ack) (this is the ASYNC reply)
+            //Send response code 0x00 (ack) (this is the ASYNC reply)
             zmq_msg_send(&addrFrame, sock, ZMQ_SNDMORE);
             zmq_msg_send(&delimiterFrame, sock, ZMQ_SNDMORE);
             //Response type shall be the same as request type
             char data[] = "\x31\x01\x20\x00";
             data[2] = requestType;
+            //This method automatically handles
             AbstractFrameProcessor::sendResponseHeader(sock,
                 logger,
                 &headerFrame,
-                "\x31\x01\xFF",
+                data,
                 ZMQ_SNDMORE,
-                3 /*response size*/,
-                3 /*Request expected size*/);
+                3, /*Request expected size*/
+                4 /*response size*/
+                );
             sendFrame(data, 4, sock, logger, "Update request async response header");
         }
     } else if (requestType == RequestType::ServerInfoRequest) {

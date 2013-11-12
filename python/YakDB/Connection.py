@@ -515,10 +515,10 @@ class Connection:
         """
         #Check parameters and create binary-string only key list
         self.__class__._checkParameterType(tableNo, int, "tableNo")
-        self.__class__._checkParameterType(lruCacheSize,  int,  "lruCacheSize",  allowNone=True)
-        self.__class__._checkParameterType(tableBlocksize,  int,  "tableBlocksize",  allowNone=True)
-        self.__class__._checkParameterType(writeBufferSize,  int,  "writeBufferSize",  allowNone=True)
-        self.__class__._checkParameterType(bloomFilterBitsPerKey,  int,  "bloomFilterBitsPerKey",  allowNone=True)
+        self.__class__._checkParameterType(lruCacheSize, int, "lruCacheSize", allowNone=True)
+        self.__class__._checkParameterType(tableBlocksize, int, "tableBlocksize", allowNone=True)
+        self.__class__._checkParameterType(writeBufferSize, int, "writeBufferSize", allowNone=True)
+        self.__class__._checkParameterType(bloomFilterBitsPerKey, int, "bloomFilterBitsPerKey", allowNone=True)
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -574,7 +574,7 @@ class Connection:
         self.__class__._checkHeaderFrame(msgParts,  '\x02')
     def stopServer(self):
         """
-        Stop the YakDB server. Use with caution
+        Stop the YakDB server (by sending a stop request). Use with caution.
         """
         self.socket.send("\x31\x01\x05")        
         if self.mode is zmq.REQ:
@@ -609,7 +609,7 @@ class Connection:
         @param startKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param endKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
         @param scanLimit The maximum number of keys to scan, or None (--> no limit)
-        @param chunksize How many key/value pairs will be returned for a single request. None --> Serverside default
+       @param chunksize How many key/value pairs will be returned for a single request. None --> Serverside default
         @return A PassiveDataJob instance, exposing requestDataBlock()
         """
         #Check parameters and create binary-string only key list
@@ -653,11 +653,11 @@ class Connection:
             hdrList = list(msgParts[0]) #Strings are immutable!
             hdrList[3] = '\x00' #Otherwise _checkHeaderFrame would fail
             msgParts[0] = b"".join(hdrList)
-        self.__class__._checkHeaderFrame(msgParts,  '\x50')
+        self.__class__._checkHeaderFrame(msgParts, '\x50')
         #We silently ignore the partial data / no data flags from the header,
         # because we can simply deduce them from the data frames.
         dataParts = msgParts[1:]
         mappedData = {}
-        for i in range(0, len(dataParts),2):
+        for i in range(0, len(dataParts), 2):
             mappedData[dataParts[i]] = dataParts[i+1]
         return mappedData
