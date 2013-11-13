@@ -5,13 +5,13 @@ Automatically installs itself as tornado IO loop.
 
 Currently in development. Supports only a small subset of available requests.
 """
-import YakDB.Connection
+from YakDB.Connection import Connection
 import struct
 from zmq.eventloop import ioloop
 from zmq.eventloop.zmqstream import ZMQStream
 ioloop.install()
 
-class TornadoConnection(YakDB.Connection.Connection):
+class TornadoConnection(Connection):
     """
     An instance of this class represents a connection to a YakDB database.
     This thin wrapper uses asynchronicity together with the Tornado IO loop.
@@ -19,13 +19,13 @@ class TornadoConnection(YakDB.Connection.Connection):
     This class provides a reentrant wrapper that may be called only from a single
     thread but from multiple IO-loop-based eventlets in that thread.
     """
-    def __initStream(self, callback, expectedRetCode, options={}):
+    def __initStream(self, callback, options={}):
         """
         Initialize a new stream over the current connection.
         """
         stream = ZMQStream(self.socket)
         stream.callback = callback
-        stream.expectedRetCode = expectedRetCode
+        stream.options = {}
         return stream
     @staticmethod
     def _rangeToFrames(startKey, endKey):
@@ -64,7 +64,7 @@ class TornadoConnection(YakDB.Connection.Connection):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Use stream object to store callback data
-        stream = self.__initStream(callback, '\x13')
+        stream = self.__initStream(callback, {"mapData":mapData})
         #Send header frame
         msgParts = ["\x31\x01\x13" + ("\x01" if invert else "\x00")]
         #Create the table number frame
@@ -80,17 +80,81 @@ class TornadoConnection(YakDB.Connection.Connection):
         msgParts.append("" if keyFilter is None else valueFilter)
         #Send & callback after sending all frames finished
         stream.send_multipart(msgParts)
-        stream.on_recv_multipart(__onScanRecvFinish)
+        stream.on_recv_stream(TornadoConnection.__onScanRecvFinish)
+    @staticmethod
     def __onScanRecvFinish(msg, stream):
-        self._checkHeaderFrame(msgParts,  '\x13') #Remap the returned key/value pairs to a dict
+        self._checkHeaderFrame(msgParts, '\x13') #Remap the returned key/value pairs to a dict
         dataParts = msgParts[1:]
-        mappedData = {}
-        for i in range(0,len(dataParts),2):
-            mappedData[dataParts[i]] = dataParts[i+1]
-        stream.callback(stream.callbackParma)
-    def __onSendFinish():
-        #Wait for reply
-        msgParts = self.socket.recv_multipart(copy=True, )
+        #Build return data
+        if stream.options["mapData"]:
+            mappedData = {}
+            for i in range(0,len(dataParts),2):
+                mappedData[dataParts[i]] = dataParts[i+1]
+            data = mappedData
+        else:
+            data = [(dataParts[i], dataParts[i+1]) for i in range(0,len(dataParts),2)]
+        #Call callback
+        stream.callback(stream.callbackParam, data)
+    def read(self, tableNo, keys, callback, callbackParam=None, mapKeys=False):
+        """
+        Read one or multiples values, identified by their keys, from a table.
+
+        @param tableNo The table number to read from
+        @param keys A list, tuple or single value.
+                        Must only contain strings, ints or floats.
+                        integral types are automatically mapped to signed 32-bit little-endian binary,
+                        floating point types are mapped to signed little-endian 64-bit IEEE754 values.
+                        If you'd like to use another binary representation, use a binary string instead.
+        @param mapKeys If this is set to true, a mapping from the original keys to 
+                        values is performed, the return value is a dictionary key->value
+                        rather than a value list. Mapping keys introduces additional overhead.
+        @return A list of values, correspondent to the key order (or a dict, depends on mapKeys parameter)
+        """
+        #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
+        self._checkRequestReply()
+        #Use stream object to store callback data
+        stream = self.__initStream(callback, {"mapKeys": mapKeys})
+        #Check parameters and create binary-string only key list
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        convertedKeys = []
+        if type(keys) is list or type(keys) is tuple:
+            for value in keys:
+                if value is None:
+                    raise ParameterException("Key list contains 'None' value, not mappable to binary")
+                convertedKeys.append(ZMQBinaryUtil.convertToBinary(value))
+        elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
+            #We only have a single value
+            convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
+        #Send header frame
+        msgparts = ["\x31\x01\x10"]
+        #Send the table number frame
+        msgParts.append(struct.pack('<I', tableNo))
+        #Send key list
+        #This is a bit simpler than the normal read() because we don't have to deal with SNDMORE
+        msgparts += convertedKeys
+        #Send & Wait for reply
+        stream.send_multipart(msgParts)
+        stream.on_recv_stream(TornadoConnection.__onReadRecvFinish)
+    @staticmethod
+    def __onReadRecvFinish(msg, stream):
+        self._checkHeaderFrame(msgParts, '\x10') #Remap the returned key/value pairs to a dict
+        dataParts = msgParts[1:]
+        #Build return data
+        if not stream.options["mapKeys"]:
+            data= msgParts[1:]
+        else: #Perform key-value mapping
+            res = {}
+            #For mapping we need to ensure 'keys' is array-ish
+            if type(keys) is not list and type(keys) is not tuple:
+                keys = [keys]
+            #Do the key-value mapping
+            values = msgParts[1:]
+            for i in range(len(values)):
+                res[keys[i]] = values[i]
+            data = res
+        #Call callback
+        stream.callback(stream.callbackParam, data)
     def put(self, tableNo, valueDict, callback, callbackParam=None, partsync=False, fullsync=False):
         """
         Write a dictionary of key-value pairs to the connected servers.
