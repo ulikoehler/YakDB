@@ -326,10 +326,10 @@ def yakCLI():
             dest="invertDirection",
             default=False,
             help="Invert the scan direction")
-    parserScan.add_argument('-n','--no-map-data',
-            action="store_false",
+    parserScan.add_argument('-m','--map-data',
+            action="store_true",
             dest="mapData",
-            help="Return a list of (key, value) tuples instead of a dictionary")
+            help="Return a dict of values instead of a list of tuples")
     parserScan.set_defaults(func=scan)
     #Count
     parserCount = subparsers.add_parser("count", description="Count how many keys exist in a specified range of the table")

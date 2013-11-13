@@ -343,7 +343,7 @@ class Connection:
             for i in range(len(values)):
                 res[keys[i]] = values[i]
             return res
-    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=True):
+    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=False):
         """
         Synchronous scan. Scans an entire range at once.
         The scan stops at the table end, endKey (exclusive) or when

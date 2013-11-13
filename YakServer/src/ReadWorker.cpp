@@ -304,7 +304,10 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         }
         scanLimit--;
         //Check if we have to stop here
-        if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
+        int compareResult = (haveRangeEnd ? key.compare(rangeEndSlice) : 0);
+        if (haveRangeEnd
+                && (!invertScanDirection || compareResult <= 0)
+                && (invertScanDirection  || compareResult >= 0)) {
             break;
         }
         leveldb::Slice value = it->value();
