@@ -55,6 +55,8 @@ class ZMQBinaryUtil:
             return struct.pack('<d', value)
         elif type(value) is str:
             return value
+        elif type(value) is unicode:
+            return value.encode("utf-8")
         else:
-            raise ParameterException("Value '%s' is neither int nor float nor str-type -- not mappable to binary. Please use a binary string for custom types." % value)
+            raise ParameterException("Value '%s' of type %s is not mappable to binary. Please use a binary string for custom types." % (value, str(type(value))))
 

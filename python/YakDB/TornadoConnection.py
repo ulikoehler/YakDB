@@ -6,7 +6,13 @@ Automatically installs itself as tornado IO loop.
 Currently in development. Supports only a small subset of available requests.
 """
 from YakDB.Connection import Connection
+from YakDB.Conversion import ZMQBinaryUtil
 import struct
+import platform
+if platform.python_implementation() == "PyPy":
+    import zmqpy as zmq
+else:
+    import zmq
 from zmq.eventloop import ioloop
 from zmq.eventloop.zmqstream import ZMQStream
 ioloop.install()
@@ -19,13 +25,14 @@ class TornadoConnection(Connection):
     This class provides a reentrant wrapper that may be called only from a single
     thread but from multiple IO-loop-based eventlets in that thread.
     """
-    def __initStream(self, callback, options={}):
+    def __initStream(self, callback, callbackParam, options={}):
         """
         Initialize a new stream over the current connection.
         """
         stream = ZMQStream(self.socket)
         stream.callback = callback
-        stream.options = {}
+        stream.callbackParam = callbackParam
+        stream.options = options
         return stream
     @staticmethod
     def _rangeToFrames(startKey, endKey):
@@ -64,7 +71,7 @@ class TornadoConnection(Connection):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Use stream object to store callback data
-        stream = self.__initStream(callback, {"mapData":mapData})
+        stream = self.__initStream(callback, callbackParam, {"mapData":mapData})
         #Send header frame
         msgParts = ["\x31\x01\x13" + ("\x01" if invert else "\x00")]
         #Create the table number frame
@@ -79,12 +86,12 @@ class TornadoConnection(Connection):
         #Send value filter parameters
         msgParts.append("" if keyFilter is None else valueFilter)
         #Send & callback after sending all frames finished
-        stream.send_multipart(msgParts)
         stream.on_recv_stream(TornadoConnection.__onScanRecvFinish)
+        stream.send_multipart(msgParts)
     @staticmethod
-    def __onScanRecvFinish(msg, stream):
-        self._checkHeaderFrame(msgParts, '\x13') #Remap the returned key/value pairs to a dict
-        dataParts = msgParts[1:]
+    def __onScanRecvFinish(stream, response):
+        TornadoConnection._checkHeaderFrame(response, '\x13') #Remap the returned key/value pairs to a dict
+        dataParts = response[1:]
         #Build return data
         if stream.options["mapData"]:
             mappedData = {}
@@ -114,7 +121,7 @@ class TornadoConnection(Connection):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Use stream object to store callback data
-        stream = self.__initStream(callback, {"mapKeys": mapKeys})
+        stream = self.__initStream(callback, callbackParam, {"mapKeys": mapKeys})
         #Check parameters and create binary-string only key list
         self.__class__._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = []
@@ -126,30 +133,34 @@ class TornadoConnection(Connection):
         elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
             #We only have a single value
             convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
+        elif type(keys) is unicode:
+            convertedKeys.append(keys.encode("utf-8"))
+        else:
+            raise ParameterException("Can't convert key parameter of type %s to binary" % str(type(keys)))
         #Send header frame
-        msgparts = ["\x31\x01\x10"]
+        msgParts = ["\x31\x01\x10"]
         #Send the table number frame
         msgParts.append(struct.pack('<I', tableNo))
         #Send key list
         #This is a bit simpler than the normal read() because we don't have to deal with SNDMORE
-        msgparts += convertedKeys
+        msgParts += convertedKeys
         #Send & Wait for reply
-        stream.send_multipart(msgParts)
         stream.on_recv_stream(TornadoConnection.__onReadRecvFinish)
+        stream.send_multipart(msgParts)
     @staticmethod
-    def __onReadRecvFinish(msg, stream):
-        self._checkHeaderFrame(msgParts, '\x10') #Remap the returned key/value pairs to a dict
-        dataParts = msgParts[1:]
+    def __onReadRecvFinish(stream, response):
+        TornadoConnection._checkHeaderFrame(response, '\x10') #Remap the returned key/value pairs to a dict
+        dataParts = response[1:]
         #Build return data
         if not stream.options["mapKeys"]:
-            data= msgParts[1:]
+            data= response[1:]
         else: #Perform key-value mapping
             res = {}
             #For mapping we need to ensure 'keys' is array-ish
             if type(keys) is not list and type(keys) is not tuple:
                 keys = [keys]
             #Do the key-value mapping
-            values = msgParts[1:]
+            values = response[1:]
             for i in range(len(values)):
                 res[keys[i]] = values[i]
             data = res
@@ -162,7 +173,7 @@ class TornadoConnection(Connection):
         This request can be used in REQ/REP, PUSH/PULL and PUB/SUB mode.
 
         @param tableNo The numeric, unsigned table number to write to
-        @param callback A function(param, scanResult) which is called with the custom defined parameter
+        @param callback A function(param) which is called with the custom defined parameter
         @param callbackParam The first parameter for the callback function. Any value or object is allowed.
         @param valueDict A dictionary containing the key/value pairs to be written.
                         Must not contain None keys or values.
@@ -189,7 +200,7 @@ class TornadoConnection(Connection):
             if value is None:
                 raise ParameterException("'None' values are not supported!")
         #Use stream object to store callback data
-        stream = self.__initStream(callback, '\x20')
+        stream = self.__initStream(callback, callbackParam)
         #Send header frame
         flags = 0
         if partsync: flags |= 1
@@ -199,22 +210,23 @@ class TornadoConnection(Connection):
         #Send the table number
         msgParts.append(struct.pack('<I', tableNo))
         #Send key/value pairs
-        nextToSend = None #Needed because the last value shall be sent w/out SNDMORE
-        for key in valueDict.iterkeys():
-            #Send the value from the last loop iteration
-            if nextToSend is not None: msgParts.append(nextToSend)
-            #Map key to binary data if neccessary
-            value = ZMQBinaryUtil.convertToBinary(valueDict[key])
-            #Send the key and enqueue the value
-            msgParts.append(key)
-            nextToSend = value
-        #If nextToSend is None now, the dict didn't contain valid data
-        #Send the last value without SNDMORE
-        msgParts.append(nextToSend)
+        for key, value in valueDict.iteritems():
+            msgParts.append(ZMQBinaryUtil.convertToBinary(key))
+            msgParts.append(ZMQBinaryUtil.convertToBinary(value))
         #If this is a req/rep connection, receive a reply
         if self.mode is zmq.REQ:
-            msgParts = self.socket.recv_multipart(copy=True)
-            self.__class__._checkHeaderFrame(msgParts,  '\x20')
-    #TODO
+            #Send, call callback when received
+            stream.on_recv_stream(TornadoConnection.__onPutRecvFinish)
+        else:
+            #Send, call callback when sent
+            stream.on_send_stream(TornadoConnection.__onPutSendFinish)
+        stream.send_multipart(msgParts)
+    @staticmethod
+    def __onPutRecvFinish(stream, response):
+        TornadoConnection._checkHeaderFrame(response, '\x20')
+        stream.callback(stream.callbackParam)
+    @staticmethod
+    def __onPutSendFinish(stream, msg, status):
+        stream.callback(stream.callbackParam)
             
         

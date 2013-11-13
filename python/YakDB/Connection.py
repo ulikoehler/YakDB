@@ -314,6 +314,10 @@ class Connection:
         elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
             #We only have a single value
             convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
+        elif type(keys) is unicode:
+            convertedKeys.append(keys.encode("utf-8"))
+        else:
+            raise ParameterException("Can't convert key parameter of type %s to binary" % str(type(keys)))
         #Send header frame
         self.socket.send("\x31\x01\x10", zmq.SNDMORE)
         #Send the table number frame
