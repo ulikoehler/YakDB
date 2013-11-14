@@ -6,12 +6,7 @@ from YakDB.Conversion import ZMQBinaryUtil
 from YakDB.Exceptions import ParameterException, YakDBProtocolException
 from YakDB.DataProcessor import ClientSidePassiveJob
 #Use ZMQPy inside PyPy
-import platform
-if platform.python_implementation() == "PyPy":
-    import zmqpy as zmq
-else:
-    import zmq
-
+import zmq
 
 class Connection:
     """
@@ -114,10 +109,8 @@ class Connection:
         @param more If this is set to true, not only the range start frame but also the range end frame is sent
             with the ZMQ_SNDMORE flag
         """
-        if startKey is not None: startKey = ZMQBinaryUtil.convertToBinary(startKey)
-        else: startKey = ""
-        if endKey is not None: endKey = ZMQBinaryUtil.convertToBinary(endKey)
-        else: endKey = ""
+        startKey = "" if startKey is None else ZMQBinaryUtil.convertToBinary(startKey)
+        endKey = "" if endKey is None else ZMQBinaryUtil.convertToBinary(endKey)
         self.socket.send(startKey, zmq.SNDMORE)
         self.socket.send(endKey,  (zmq.SNDMORE if more else 0))
     @staticmethod
@@ -305,19 +298,7 @@ class Connection:
         self._checkRequestReply()
         #Check parameters and create binary-string only key list
         self.__class__._checkParameterType(tableNo, int, "tableNo")
-        convertedKeys = []
-        if type(keys) is list or type(keys) is tuple:
-            for value in keys:
-                if value is None:
-                    raise ParameterException("Key list contains 'None' value, not mappable to binary")
-                convertedKeys.append(ZMQBinaryUtil.convertToBinary(value))
-        elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
-            #We only have a single value
-            convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
-        elif type(keys) is unicode:
-            convertedKeys.append(keys.encode("utf-8"))
-        else:
-            raise ParameterException("Can't convert key parameter of type %s to binary" % str(type(keys)))
+        convertedKeys = ZMQBinaryUtil.convertToBinaryList(keys)
         #Send header frame
         self.socket.send("\x31\x01\x10", zmq.SNDMORE)
         #Send the table number frame

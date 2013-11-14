@@ -39,10 +39,8 @@ class TornadoConnection(Connection):
         """
         Convert a start and an end key to a list of two frames
         """
-        if startKey is not None: startKey = ZMQBinaryUtil.convertToBinary(startKey)
-        else: startKey = ""
-        if endKey is not None: endKey = ZMQBinaryUtil.convertToBinary(endKey)
-        else: endKey = ""
+        startKey = "" if startKey is None else ZMQBinaryUtil.convertToBinary(startKey)
+        endKey = "" if endKey is None else ZMQBinaryUtil.convertToBinary(endKey)
         return [startKey, endKey]
     def scan(self, tableNo, callback, callbackParam=None, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=True):
         """
@@ -101,8 +99,8 @@ class TornadoConnection(Connection):
         else:
             data = [(dataParts[i], dataParts[i+1]) for i in range(0,len(dataParts),2)]
         #Call callback
-        stream.callback(stream.callbackParam, data)
-    def read(self, tableNo, keys, callback, callbackParam=None, mapKeys=False):
+        stream.callback(data)
+    def read(self, tableNo, keys, callback, mapKeys=False):
         """
         Read one or multiples values, identified by their keys, from a table.
 
@@ -124,19 +122,7 @@ class TornadoConnection(Connection):
         stream = self.__initStream(callback, callbackParam, {"mapKeys": mapKeys})
         #Check parameters and create binary-string only key list
         self.__class__._checkParameterType(tableNo, int, "tableNo")
-        convertedKeys = []
-        if type(keys) is list or type(keys) is tuple:
-            for value in keys:
-                if value is None:
-                    raise ParameterException("Key list contains 'None' value, not mappable to binary")
-                convertedKeys.append(ZMQBinaryUtil.convertToBinary(value))
-        elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
-            #We only have a single value
-            convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
-        elif type(keys) is unicode:
-            convertedKeys.append(keys.encode("utf-8"))
-        else:
-            raise ParameterException("Can't convert key parameter of type %s to binary" % str(type(keys)))
+        convertedKeys = ZMQBinaryUtil.convertToBinaryList(keys)
         #Send header frame
         msgParts = ["\x31\x01\x10"]
         #Send the table number frame
@@ -166,15 +152,14 @@ class TornadoConnection(Connection):
             data = res
         #Call callback
         stream.callback(stream.callbackParam, data)
-    def put(self, tableNo, valueDict, callback, callbackParam=None, partsync=False, fullsync=False):
+    def put(self, tableNo, valueDict, callback, partsync=False, fullsync=False):
         """
         Write a dictionary of key-value pairs to the connected servers.
         
         This request can be used in REQ/REP, PUSH/PULL and PUB/SUB mode.
 
         @param tableNo The numeric, unsigned table number to write to
-        @param callback A function(param) which is called with the custom defined parameter
-        @param callbackParam The first parameter for the callback function. Any value or object is allowed.
+        @param callback A function(param) which is called with the result when finished
         @param valueDict A dictionary containing the key/value pairs to be written.
                         Must not contain None keys or values.
                         integral types are automatically mapped to signed 32-bit little-endian binary,
@@ -228,5 +213,3 @@ class TornadoConnection(Connection):
     @staticmethod
     def __onPutSendFinish(stream, msg, status):
         stream.callback(stream.callbackParam)
-            
-        
