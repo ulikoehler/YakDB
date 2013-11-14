@@ -176,22 +176,11 @@ class TornadoConnection(Connection):
         #Else, the socket could be left in an inconsistent state
         if len(valueDict) == 0:
             raise ParameterException("Dictionary to be written did not contain any valid data!")
-        for key in valueDict.iterkeys():
-            value = valueDict[key]
-            #None keys or values are not supported, they can't be mapped to binary!
-            # Use empty strings if neccessary.
-            if key is None:
-                raise ParameterException("'None' keys are not supported!")
-            if value is None:
-                raise ParameterException("'None' values are not supported!")
+        Connection.__checkDictionaryForNone(valueDict)
         #Use stream object to store callback data
         stream = self.__initStream(callback, callbackParam)
         #Send header frame
-        flags = 0
-        if partsync: flags |= 1
-        if fullsync: flags |= 2
-        headerStr = "\x31\x01\x20" + chr(flags)
-        msgParts = [headerStr]
+        msgParts = [__getWriteHeader("\x20", partsync, fullsync)]
         #Send the table number
         msgParts.append(struct.pack('<I', tableNo))
         #Send key/value pairs

@@ -72,6 +72,23 @@ class Connection:
             self.__class__._checkParameterType(endpoint, str, "[one of the endpoints]")
             self.socket.connect(endpoint)
         self.numConnections += len(endpoints)
+    @staticmethod
+    def __getWriteHeader(requestId, partsync=False, fullsync=False):
+        """Build the request header string including the write flags"""
+        flags = 0
+        if partsync: flags |= 1
+        if fullsync: flags |= 2
+        headerStr = "\x31\x01" + requestId + chr(flags)
+    @staticmethod
+    def __checkDictionaryForNone(dictionary):
+        """Throws a parameter exception if the given dict contains any None keys or values"""
+        for key, value in dictionary.iteritems():
+            #None keys or values are not supported, they can't be mapped to binary!
+            # Use empty strings if neccessary.
+            if key is None:
+                raise ParameterException("Dictionary contains a key = None. Can't convert that to binary!")
+            if value is None:
+                raise ParameterException("Dictionary contains a value = None. Can't convert that to binary!")
     def _checkSingleConnection(self):
         """
         Check if the current instance is connected to
@@ -198,20 +215,9 @@ class Connection:
         #Else, the socket could be left in an inconsistent state
         if len(valueDict) == 0:
             raise ParameterException("Dictionary to be written did not contain any valid data!")
-        for key in valueDict.iterkeys():
-            value = valueDict[key]
-            #None keys or values are not supported, they can't be mapped to binary!
-            # Use empty strings if neccessary.
-            if key is None:
-                raise ParameterException("'None' keys are not supported!")
-            if value is None:
-                raise ParameterException("'None' values are not supported!")
+        Connection.__checkDictionaryForNone(valueDict)
         #Send header frame
-        flags = 0
-        if partsync: flags |= 1
-        if fullsync: flags |= 2
-        headerStr = "\x31\x01\x20" + chr(flags)
-        self.socket.send(headerStr, zmq.SNDMORE)
+        self.socket.send(__getWriteHeader("\x20", partsync, fullsync), zmq.SNDMORE)
         #Send the table number
         self._sendBinary32(tableNo)
         #Send key/value pairs
@@ -258,11 +264,7 @@ class Connection:
             #We only have a single value
             convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
         #Send header frame
-        flags = 0
-        if partsync: flags |= 1
-        if fullsync: flags |= 2
-        headerStr = "\x31\x01\x21" + chr(flags)
-        self.socket.send(headerStr, zmq.SNDMORE)
+        self.socket.send(__getWriteHeader("\x21", partsync, fullsync), zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send key list
