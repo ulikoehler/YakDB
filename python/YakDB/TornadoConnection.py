@@ -6,7 +6,7 @@ Automatically installs itself as tornado IO loop.
 
 Currently in development. Supports only a small subset of available requests.
 """
-from YakDB.Connection import Connection
+from YakDB.ConnectionBase import YakDBConnectionBase
 from YakDB.Conversion import ZMQBinaryUtil
 import struct
 import platform
@@ -15,7 +15,33 @@ from zmq.eventloop import ioloop
 ioloop.install()
 from zmq.eventloop.zmqstream import ZMQStream
 
-class TornadoConnection(Connection):
+class ParallelTornadoConnection(YakDBConnectionBase):
+    """
+    A tornado IOLoop-based connection variant that uses a DEALER connection
+    with YakDB request IDs to support parallel requests without having to wait.
+    
+    This class does not support auto-mapping of scan/read results.
+    """
+    def __init__(endpoints, context=None):
+        super(YakDBConnectionBase, self).__init__(context)
+        self.useDealerMode()
+        self.connect(endpoints)
+        self.requests = {} #Maps request ID to callback
+        self.nextRequestId = 0
+        self.stream = ZMQStream()
+        self.stream.on_recv(self.__recvCallback)
+    def __newRequest(self, callback, requestType):
+        """Setup mapping for a new request. Returns the new request ID"""
+        self.nextRequestId += 1
+        self.requests[self.nextRequestId] = callback
+        return nextRequestId
+    def __recvCallback(self, msg):
+        #Currently we don't check the response type
+        YakDBConnectionBase._checkHeaderFrame(msg)
+        requestId = YakDBConnectionBase._extractRequestId(msg[0])
+        
+
+class TornadoConnection(YakDBConnectionBase):
     """
     An instance of this class represents a connection to a YakDB database.
     This thin wrapper uses asynchronicity together with the Tornado IO loop.
@@ -87,12 +113,9 @@ class TornadoConnection(Connection):
         dataParts = response[1:]
         #Build return data
         if stream.options["mapData"]:
-            mappedData = {}
-            for i in range(0,len(dataParts),2):
-                mappedData[dataParts[i]] = dataParts[i+1]
-            data = mappedData
+            data = YakDBConnectionBase._mapScanToDict(dataParts)
         else:
-            data = [(dataParts[i], dataParts[i+1]) for i in range(0,len(dataParts),2)]
+            data = YakDBConnectionBase._mapScanToTupleList(dataParts)
         #Call callback
         stream.callback(data)
     def read(self, tableNo, keys, callback, mapKeys=False):

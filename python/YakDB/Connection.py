@@ -5,110 +5,13 @@ import struct
 from YakDB.Conversion import ZMQBinaryUtil
 from YakDB.Exceptions import ParameterException, YakDBProtocolException
 from YakDB.DataProcessor import ClientSidePassiveJob
-#Use ZMQPy inside PyPy
+from YakDB.ConnectionBase import YakDBConnectionBase
 import zmq
 
-class Connection:
+class Connection(YakDBConnectionBase):
     """
     An instance of this class represents a connection to a YakDB database.
     """
-    def __init__(self, endpoints=None, context=None):
-        """
-        Create a new YakDB connection instance.
-        @param endpoints An endpoint string or list of endpoints to connect to.
-            New endpoints can be added dynamicallys
-        """
-        if context is None:
-            self.context = zmq.Context()
-            self.cleanupContextOnDestruct = True
-        else:
-            self.context = context
-            self.cleanupContextOnDestruct = False
-        self.socket = None
-        self.numConnections = 0
-        #Connect to the endpoints, if any
-        if endpoints is None:
-            pass
-        elif type(endpoints) is str:
-            self.connect(endpoints)
-        elif type(endpoints) is list:
-            for endpoint in endpoints:
-                self.connect(endpoint)
-        else: #Unknown parameter type
-            raise ParameterException("Endpoints parameter is a '%s' but expected a list or a string!" % (str(type(endpoints))))
-    def __del__(self):
-        """
-        Cleanup ZMQ resources.
-        Auto-destroys context if the context was created in the constructor.
-        """
-        if self.socket is not None:
-            self.socket.close()
-        if self.cleanupContextOnDestruct:
-            self.context.destroy()
-    def useRequestReplyMode(self):
-        """Sets the current YakDB connection into Request/reply mode (default)"""
-        self.socket = self.context.socket(zmq.REQ)
-        self.mode = zmq.REQ
-    def usePushMode(self):
-        """Sets the current YakDB connection into Push/pull mode (default)"""
-        self.socket = self.context.socket(zmq.PUSH)
-        self.mode = zmq.PUSH
-    def usePubMode(self):
-        """Sets the current YakDB connection into publish/subscribe mode"""
-        self.socket = self.context.socket(zmq.PUB)
-        self.mode = zmq.PUB
-    def connect(self, endpoints):
-        """
-        Connect to a YakDB server.
-        @param endpoint The ZMQ endpoint to connect to, e.g. tcp://localhost:7100.
-                An array is also allowed
-        """
-        if isinstance(endpoints, str):
-            endpoints = [endpoints]
-        #Use request/reply as default
-        if self.socket == None:
-            self.useRequestReplyMode()
-        for endpoint in endpoints:
-            self.__class__._checkParameterType(endpoint, str, "[one of the endpoints]")
-            self.socket.connect(endpoint)
-        self.numConnections += len(endpoints)
-    @staticmethod
-    def __getWriteHeader(requestId, partsync=False, fullsync=False):
-        """Build the request header string including the write flags"""
-        flags = 0
-        if partsync: flags |= 1
-        if fullsync: flags |= 2
-        return "\x31\x01" + requestId + chr(flags)
-    @staticmethod
-    def __checkDictionaryForNone(dictionary):
-        """Throws a parameter exception if the given dict contains any None keys or values"""
-        for key, value in dictionary.iteritems():
-            #None keys or values are not supported, they can't be mapped to binary!
-            # Use empty strings if neccessary.
-            if key is None:
-                raise ParameterException("Dictionary contains a key = None. Can't convert that to binary!")
-            if value is None:
-                raise ParameterException("Dictionary contains a value = None. Can't convert that to binary!")
-    def _checkSingleConnection(self):
-        """
-        Check if the current instance is connected to
-        exactly one server. If not, raise an exception.
-        """
-        if self.numConnections > 1:
-            raise ConnectionStateException("This operation can only be executed with exactly one connection, but currently %d connections are active" % self.numConnections)
-    def _checkRequestReply(self):
-        """
-        Check if the current instance is correctly setup for REQ/REP, else raise an exception
-        """
-        self._checkConnection()
-        if self.mode is not zmq.REQ:
-            raise Exception("Only request/reply connections support this message type!")
-    def _checkConnection(self):
-        """Check if the current instance is correctly connected, else raise an exception"""
-        if self.socket is None:
-            raise Exception("Please connect to server before using serverInfo (use Connection.connect()!")
-        if self.numConnections <= 0:
-            raise Exception("Current Connection is setup, but not connected. Please connect before usage!")
     def _sendBinary32(self, value, more=True):
         """
         Send a binary 32-bit number (little-endian) over the current socket
@@ -118,7 +21,10 @@ class Connection:
         """
         Send a binary 32-bit number (little-endian) over the current socket
         """
-        ZMQBinaryUtil.sendBinary64(self.socket,  value,  more)
+        if value is None:
+            self.socket.send("", (zmq.SNDMORE if more else 0))
+        else:
+            ZMQBinaryUtil.sendBinary64(self.socket, value, more)
     def _sendRange(self, startKey,  endKey,  more=False):
         """
         Send a dual-frame range over the socket.
@@ -130,47 +36,14 @@ class Connection:
         endKey = "" if endKey is None else ZMQBinaryUtil.convertToBinary(endKey)
         self.socket.send(startKey, zmq.SNDMORE)
         self.socket.send(endKey,  (zmq.SNDMORE if more else 0))
-    @staticmethod
-    def _checkHeaderFrame(msgParts, expectedResponseType):
-        """
-        Given a list of received message parts, checks the first message part.
-        Checks performed:
-            - Magic byte (expects 0x31)
-            - Version byte (expects 0x01)
-            - Response code (expects 0x00, else it assumes that the next frame, is the error msg)
-        This function throws an exception on check failure and exits normally on success
-        """
-        if len(msgParts) == 0:
-            raise YakDBProtocolException("Received empty reply message")
-        if len(msgParts[0]) < 4:
-            looksLikeAHeaderFrame = (len(msgParts[0]) >= 1)
-            if ((len(msgParts[0]) >= 1 and msgParts[0][0] != '\x31') or
-                (len(msgParts[0]) >= 2 and msgParts[0][1] != '\x01')):
-                 looksLikeAHeaderFrame = False
-            raise YakDBProtocolException("Reponse header frame has size of %d, but expected size-4 frame, %s"
-                                         % (len(msgParts[0]),
-                                           ("it doesn't even look like a header frame" if not looksLikeAHeaderFrame
-                                               else "but it looks like some kind of header frame")))
-        if msgParts[0][2] != expectedResponseType:
-            raise YakDBProtocolException("Response code received from server is "
-                        "%d instead of %d" % (ord(msgParts[0][2]),  ord(expectedResponseType)))
-        if msgParts[0][3] != '\x00':
-            errorMsg = msgParts[1] if len(msgParts) >= 2 else "<Unknown>"
-            raise YakDBProtocolException(
-                "Response status code is %d instead of 0x00 (ACK), error message: %s"
-                % (ord(msgParts[0][3]),  errorMsg))
-        #Parse and return request ID, if any
-        if len(msgParts[0]) > 4:
-            return msgParts[0][4:]
-        return None #No request ID
-    def serverInfo(self):
+    def serverInfo(self, requestId=""):
         """
         Send a server info request to the server and return the version string
         @return The server version string
         """
         self._checkRequestReply()
         self._checkSingleConnection()
-        self.socket.send("\x31\x01\x00")
+        self.socket.send("\x31\x01\x00" + requestId)
         #Check reply message
         replyParts = self.socket.recv_multipart(copy=True)
         if len(replyParts) != 2:
@@ -182,17 +55,7 @@ class Connection:
                             % (ord(responseHeader[0]), ord(responseHeader[1]), ord(responseHeader[2])))
         #Return the server version string
         return replyParts[1]
-    @staticmethod
-    def _checkParameterType(value, expectedType, name,  allowNone=False):
-        """
-        Raises a ParameterException if the given value does not have the given type
-        @param allowNone If this is set to true, a 'None' value is also allowed and doesn't throw
-        """
-        if allowNone and value is None:
-            return
-        if type(value) is not expectedType:
-            raise ParameterException("Parameter '%s' is not a %s but a %s!" % (name, str(expectedType), str(type(value))))
-    def put(self, tableNo, valueDict, partsync=False, fullsync=False):
+    def put(self, tableNo, valueDict, partsync=False, fullsync=False, requestId=""):
         """
         Write a dictionary of key-value pairs to the connected servers.
         
@@ -209,15 +72,15 @@ class Connection:
         @return True on success, else an appropriate exception will be raised
         """
         #Check parameters
-        self.__class__._checkParameterType(tableNo, int, "tableNo")
-        self.__class__._checkParameterType(valueDict, dict, "valueDict")
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
+        YakDBConnectionBase._checkParameterType(valueDict, dict, "valueDict")
         #Before sending any frames, check the value dictionary for validity
         #Else, the socket could be left in an inconsistent state
         if len(valueDict) == 0:
             raise ParameterException("Dictionary to be written did not contain any valid data!")
         Connection.__checkDictionaryForNone(valueDict)
         #Send header frame
-        self.socket.send(Connection.__getWriteHeader("\x20", partsync, fullsync), zmq.SNDMORE)
+        self.socket.send(Connection.__getWriteHeader("\x20", partsync, fullsync) + requestId, zmq.SNDMORE)
         #Send the table number
         self._sendBinary32(tableNo)
         #Send key/value pairs
@@ -236,8 +99,8 @@ class Connection:
         #If this is a req/rep connection, receive a reply
         if self.mode is zmq.REQ:
             msgParts = self.socket.recv_multipart(copy=True)
-            self.__class__._checkHeaderFrame(msgParts,  '\x20')
-    def delete(self, tableNo, keys, partsync=False, fullsync=False):
+            YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x20')
+    def delete(self, tableNo, keys, partsync=False, fullsync=False, requestId=""):
         """
         Delete one or multiples values, identified by their keys, from a table.
         
@@ -253,18 +116,10 @@ class Connection:
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         #Check parameters and create binary-string only key list
-        self.__class__._checkParameterType(tableNo, int, "tableNo")
-        convertedKeys = []
-        if type(keys) is list or type(keys) is tuple:
-            for value in keys:
-                if value is None:
-                    raise ParameterException("Key list contains 'None' value, not mappable to binary")
-                convertedKeys.append(ZMQBinaryUtil.convertToBinary(value))
-        elif (type(keys) is str) or (type(keys) is int) or (type(keys) is float):
-            #We only have a single value
-            convertedKeys.append(ZMQBinaryUtil.convertToBinary(keys))
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
+        convertedKeys = ZMQBinaryUtil.convertToBinary(keys)
         #Send header frame
-        self.socket.send(__getWriteHeader("\x21", partsync, fullsync), zmq.SNDMORE)
+        self.socket.send(YakDBConnectionBase._getWriteHeader("\x21", partsync, fullsync, requestId), zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send key list
@@ -279,7 +134,7 @@ class Connection:
         #Wait for reply
         if self.mode is zmq.REQ:
             msgParts = self.socket.recv_multipart(copy=True)
-            self.__class__._checkHeaderFrame(msgParts,  '\x21')
+            YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x21')
     def read(self, tableNo, keys, mapKeys=False):
         """
         Read one or multiples values, identified by their keys, from a table.
@@ -299,10 +154,10 @@ class Connection:
         self._checkSingleConnection()
         self._checkRequestReply()
         #Check parameters and create binary-string only key list
-        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = ZMQBinaryUtil.convertToBinaryList(keys)
         #Send header frame
-        self.socket.send("\x31\x01\x10", zmq.SNDMORE)
+        self.socket.send(YakDBConnectionBase._getWriteHeader("\x10", partsync, fullsync, requestId), zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send key list
@@ -316,20 +171,12 @@ class Connection:
         self.socket.send(nextToSend)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self.__class__._checkHeaderFrame(msgParts, '\x10')
+        YakDBConnectionBase._checkHeaderFrame(msgParts, '\x10')
         #Return data frames
-        if not mapKeys:
-            return msgParts[1:]
-        else: #Perform key-value mapping
-            res = {}
-            #For mapping we need to ensure 'keys' is array-ish
-            if type(keys) is not list and type(keys) is not tuple:
-                keys = [keys]
-            #Do the key-value mapping
-            values = msgParts[1:]
-            for i in range(len(values)):
-                res[keys[i]] = values[i]
-            return res
+        values = msgParts[1:]
+        if mapKeys:
+            values = YakConnectionBase._mapReadKeyValues(keys, values)
+        return values
     def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=False):
         """
         Synchronous scan. Scans an entire range at once.
@@ -350,13 +197,13 @@ class Connection:
         @return A dictionary of the returned key/value pairs
         """
         #Check parameters and create binary-string only key list
-        self.__class__._checkParameterType(tableNo, int, "tableNo")
-        self.__class__._checkParameterType(limit, int, "limit",  allowNone=True)
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
+        YakDBConnectionBase._checkParameterType(limit, int, "limit",  allowNone=True)
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x13" + ("\x01" if invert else "\x00"), zmq.SNDMORE)
+        self.socket.send(YakDBConnectionBase._getWriteHeader("\x31\x01\x13" + ("\x01" if invert else "\x00"), partsync, fullsync, requestId), zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send limit frame
@@ -372,16 +219,13 @@ class Connection:
         self.socket.send("" if valueFilter is None else valueFilter)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self.__class__._checkHeaderFrame(msgParts, '\x13') #Remap the returned key/value pairs to a dict
+        YakDBConnectionBase._checkHeaderFrame(msgParts, '\x13') #Remap the returned key/value pairs to a dict
         dataParts = msgParts[1:]
         #Return appropriate data format
         if mapData:
-            mappedData = {}
-            for i in range(0,len(dataParts),2):
-                mappedData[dataParts[i]] = dataParts[i+1]
-            return mappedData
+            return _mapScanToTupleList(dataParts)
         else:
-            return [(dataParts[i], dataParts[i+1]) for i in range(0,len(dataParts),2)]
+            return _mapScanToDict(dataParts)
     def deleteRange(self, tableNo, startKey, endKey, limit=None):
         """
         Deletes a range of keys in the database
@@ -395,7 +239,7 @@ class Connection:
         @return A dictionary of the returned key/value pairs
         """
         #Check parameters and create binary-string only key list
-        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -407,7 +251,7 @@ class Connection:
         self._sendRange(startKey,  endKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self.__class__._checkHeaderFrame(msgParts,  '\x22')
+        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x22')
     def count(self, tableNo, startKey, endKey):
         """
         self._checkSingleConnection()
@@ -422,7 +266,7 @@ class Connection:
         @return The count, as integer
         """
         #Check parameters and create binary-string only key list
-        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -434,7 +278,7 @@ class Connection:
         self._sendRange(startKey,  endKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self.__class__._checkHeaderFrame(msgParts,  '\x11')
+        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x11')
         #Deserialize
         binaryCount = msgParts[1]
         count = struct.unpack("<Q", binaryCount)[0]
@@ -452,7 +296,7 @@ class Connection:
         @return A list of values, correspondent to the key order
         """
         #Check parameters and create binary-string only key list
-        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = []
         if type(keys) is list or type(keys) is tuple:
             for value in keys:
@@ -480,7 +324,7 @@ class Connection:
         self.socket.send(nextToSend)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        self.__class__._checkHeaderFrame(msgParts,  '\x12')
+        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x12')
         #Return the data frames after mapping them to bools
         processedValues = []
         for msgPart in msgParts[1:]:
@@ -506,11 +350,11 @@ class Connection:
         @parameter bloomFilterBitsPerKey If this is set to none, no bloom filter is used, else a bloom filter with the given number of bits per key is used.
         """
         #Check parameters and create binary-string only key list
-        self.__class__._checkParameterType(tableNo, int, "tableNo")
-        self.__class__._checkParameterType(lruCacheSize, int, "lruCacheSize", allowNone=True)
-        self.__class__._checkParameterType(tableBlocksize, int, "tableBlocksize", allowNone=True)
-        self.__class__._checkParameterType(writeBufferSize, int, "writeBufferSize", allowNone=True)
-        self.__class__._checkParameterType(bloomFilterBitsPerKey, int, "bloomFilterBitsPerKey", allowNone=True)
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
+        YakDBConnectionBase._checkParameterType(lruCacheSize, int, "lruCacheSize", allowNone=True)
+        YakDBConnectionBase._checkParameterType(tableBlocksize, int, "tableBlocksize", allowNone=True)
+        YakDBConnectionBase._checkParameterType(writeBufferSize, int, "writeBufferSize", allowNone=True)
+        YakDBConnectionBase._checkParameterType(bloomFilterBitsPerKey, int, "bloomFilterBitsPerKey", allowNone=True)
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -527,7 +371,7 @@ class Connection:
         self._sendBinary64(bloomFilterBitsPerKey, more=False)
         #Receive and extract response code
         msgParts = self.socket.recv_multipart(copy=True)
-        self.__class__._checkHeaderFrame(msgParts,  '\x01')
+        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x01')
     def truncateTable(self, tableNo):
         """
         Close & truncate a table.
@@ -536,7 +380,7 @@ class Connection:
         @return
         """
         #Check parameters and create binary-string only key list
-        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -545,7 +389,7 @@ class Connection:
         #Send the table number frame
         self._sendBinary32(tableNo, 0) #No SNDMORE flag
         msgParts = self.socket.recv_multipart(copy=True)
-        self.__class__._checkHeaderFrame(msgParts,  '\x04')
+        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x04')
     def closeTable(self, tableNo):
         """
         Close a table.
@@ -554,7 +398,7 @@ class Connection:
         @return
         """
         #Check parameters and create binary-string only key list
-        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -563,7 +407,7 @@ class Connection:
         #Send the table number frame
         self._sendBinary32(tableNo, more=False) #No SNDMORE flag
         msgParts = self.socket.recv_multipart(copy=True)
-        self.__class__._checkHeaderFrame(msgParts,  '\x02')
+        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x02')
     def stopServer(self):
         """
         Stop the YakDB server (by sending a stop request). Use with caution.
@@ -571,7 +415,7 @@ class Connection:
         self.socket.send("\x31\x01\x05")        
         if self.mode is zmq.REQ:
             response = self.socket.recv_multipart(copy=True)
-            self.__class__._checkHeaderFrame(response,  '\x05')
+            YakDBConnectionBase._checkHeaderFrame(response,  '\x05')
             #Check responseCode
             responseCode = response[0][3]
             if ord(responseCode) != 0:
@@ -583,7 +427,7 @@ class Connection:
         under certain circumstances
         """
         #Check parameters and create binary-string only key list
-        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -593,7 +437,7 @@ class Connection:
         self._sendBinary32(tableNo, more=true)
         self._sendRange(startKey,  endKey)
         msgParts = self.socket.recv_multipart(copy=True)
-        self.__class__._checkHeaderFrame(msgParts,  '\x03')
+        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x03')
     def initializePassiveDataJob(self, tableNo, startKey=None, endKey=None, scanLimit=None, chunksize=None):
         """
         Initialize a job on the server that waits for client requests.
@@ -605,13 +449,13 @@ class Connection:
         @return A PassiveDataJob instance, exposing requestDataBlock()
         """
         #Check parameters and create binary-string only key list
-        self.__class__._checkParameterType(tableNo, int, "tableNo")
-        self.__class__._checkParameterType(chunksize, int, "chunksize",  allowNone=True)
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
+        YakDBConnectionBase._checkParameterType(chunksize, int, "chunksize",  allowNone=True)
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x42",  zmq.SNDMORE)
+        self.socket.send("\x31\x01\x42", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         self._sendBinary32(chunksize)
@@ -620,7 +464,7 @@ class Connection:
         self._sendRange(startKey,  endKey)
         #Receive response
         msgParts = self.socket.recv_multipart(copy=True)
-        self.__class__._checkHeaderFrame(msgParts,  '\x42')
+        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x42')
         if len(msgParts) < 2:
             raise YakDBProtocolException("CSPTMIR response does not contain APID frame")
         #Get the APID and create a new job instance
@@ -632,12 +476,12 @@ class Connection:
         May only be used for client-side passive jobs.
         @param apid The Asynchronous Process ID
         """
-        self.__class__._checkParameterType(apid, int, "apid")
+        YakDBConnectionBase._checkParameterType(apid, int, "apid")
         self._checkRequestReply()
         #Send header frame
         self.socket.send("\x31\x01\x50", zmq.SNDMORE)
         #Send APID
-        self._sendBinary64(apid,  more=False)
+        self._sendBinary64(apid, more=False)
         #Receive response chunk
         msgParts = self.socket.recv_multipart(copy=True)
         #A response code of 0x01 or 0x02 also indicates success
@@ -645,7 +489,7 @@ class Connection:
             hdrList = list(msgParts[0]) #Strings are immutable!
             hdrList[3] = '\x00' #Otherwise _checkHeaderFrame would fail
             msgParts[0] = b"".join(hdrList)
-        self.__class__._checkHeaderFrame(msgParts, '\x50')
+        YakDBConnectionBase._checkHeaderFrame(msgParts, '\x50')
         #We silently ignore the partial data / no data flags from the header,
         # because we can simply deduce them from the data frames.
         dataParts = msgParts[1:]
