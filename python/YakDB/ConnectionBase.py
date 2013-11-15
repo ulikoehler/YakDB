@@ -179,7 +179,7 @@ class YakDBConnectionBase(object):
         Sets the current YakDB connection into DEALER-based REQ/REP mode
         Sets a large random number as socket identity
         """
-        self.socket = self.context.sockspritzgussformet(zmq.DEALER)
+        self.socket = self.context.socket(zmq.DEALER)
         self.socket.setsockopt(zmq.IDENTITY, str(random.randint(1000000000)))
         self.mode = zmq.DEALER
     def connect(self, endpoints):
