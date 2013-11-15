@@ -227,7 +227,7 @@ static inline void recvAndIgnore(void* socket, Logger& logger) {
     zmq_msg_init(&msg);
     while (true) {
         if(zmq_msg_recv(&msg, socket, 0) == -1) {
-            logMessageRecvError("recvAndIgnore frame reception", logger);
+            logMessageRecvError("recvAndIgnore frame", logger);
             break;
         }
         bool more = zmq_msg_more(&msg);
