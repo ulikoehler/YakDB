@@ -91,7 +91,7 @@ void HOT StderrLogSink::log(LogLevel logLevel, uint64_t timestamp, const std::st
             printDateTime(timestamp, std::cerr);
             std::cerr << "[Error] " << senderName << " - ";
             if(coloredLogging) {
-                std::cerr <<  ESCAPE_BLACK_FOREGROUND << std::endl;
+                std::cerr <<  ESCAPE_BLACK_FOREGROUND;
             }
             std::cerr << logMessage << std::endl;
             break;

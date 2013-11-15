@@ -121,7 +121,7 @@ static inline std::string COLD describeMalformedHeaderFrame(zmq_msg_t* frame) {
     if (data[1] != protocolVersion) {
         return "Protocol version should be 0x01 but it is " + std::to_string((int) data[1]);
     }
-    return "";
+    return "[Unknown header frame problem. This is considered a bug.]";
 }
 
 static inline RequestType getRequestType(zframe_t* frame) {

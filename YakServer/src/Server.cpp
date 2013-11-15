@@ -75,11 +75,12 @@ void HOT KeyValueServer::handleRequestResponse() {
     }
     //Check the header -- send error message if invalid
     if (unlikely(!isHeaderFrame(&headerFrame))) {
+        std::string headerFrameProblem = describeMalformedHeaderFrame(&headerFrame);
         sendProtocolError(&addrFrame, &delimiterFrame, &headerFrame, sock,
                 "Received malformed message, header format is not correct: " +
-                describeMalformedHeaderFrame(&headerFrame),
+                headerFrameProblem,
                 logger);
-        logger.warn("Client sent invalid header frame: " + describeMalformedHeaderFrame(&headerFrame));
+        logger.warn("Client sent invalid header frame: " + headerFrameProblem);
         zmq_msg_close(&headerFrame);
         //There might be more frames of the current msg that clog up the queue
         // and could lead to nasty bugs. Clear them, if any.
