@@ -78,9 +78,9 @@ class Connection(YakDBConnectionBase):
         #Else, the socket could be left in an inconsistent state
         if len(valueDict) == 0:
             raise ParameterException("Dictionary to be written did not contain any valid data!")
-        Connection.__checkDictionaryForNone(valueDict)
+        YakDBConnectionBase._checkDictionaryForNone(valueDict)
         #Send header frame
-        self.socket.send(Connection.__getWriteHeader("\x20", partsync, fullsync) + requestId, zmq.SNDMORE)
+        self.socket.send(YakDBConnectionBase._getWriteHeader("\x20", partsync, fullsync, requestId), zmq.SNDMORE)
         #Send the table number
         self._sendBinary32(tableNo)
         #Send key/value pairs
@@ -175,7 +175,7 @@ class Connection(YakDBConnectionBase):
         #Return data frames
         values = msgParts[1:]
         if mapKeys:
-            values = YakConnectionBase._mapReadKeyValues(keys, values)
+            values = YakDBConnectionBase._mapReadKeyValues(keys, values)
         return values
     def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=False):
         """

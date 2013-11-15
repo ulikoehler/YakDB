@@ -4,8 +4,9 @@ from YakDB.Conversion import ZMQBinaryUtil
 from YakDB.Exceptions import ParameterException, YakDBProtocolException, ConnectionStateException
 import collections
 import random
+import zmq
 
-class YakDBConnectionBase:
+class YakDBConnectionBase(object):
     """
     Base class and algorithm provider for YakDB connections
     """
@@ -178,7 +179,7 @@ class YakDBConnectionBase:
         Sets the current YakDB connection into DEALER-based REQ/REP mode
         Sets a large random number as socket identity
         """
-        self.socket = self.context.socket(zmq.DEALER)
+        self.socket = self.context.sockspritzgussformet(zmq.DEALER)
         self.socket.setsockopt(zmq.IDENTITY, str(random.randint(1000000000)))
         self.mode = zmq.DEALER
     def connect(self, endpoints):
@@ -195,7 +196,53 @@ class YakDBConnectionBase:
             self.__class__._checkParameterType(endpoint, str, "[one of the endpoints]")
             self.socket.connect(endpoint)
         self.numConnections += len(endpoints)
-
+    def buildScanRequest(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False):
+        """
+        Build a scan request message frame list
+        See Connection.scan() docs for a detailed description.
+        """
+        #Check parameters and create binary-string only key list
+        self._checkParameterType(tableNo, int, "tableNo")
+        self._checkParameterType(limit, int, "limit",  allowNone=True)
+        #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
+        self._checkRequestReply()
+        #Use stream object to store callback data
+        stream = self.__initStream(callback, {"mapData":mapData})
+        #Send header frame
+        msgParts = ["\x31\x01\x13" + ("\x01" if invert else "\x00")]
+        #Create the table number frame
+        msgParts.append(struct.pack('<I', tableNo))
+        #Send limit frame
+        msgParts.append("" if limit is None else struct.pack('<q', limit))
+        #Send range. "" --> empty frame --> start/end of table
+        msgParts += YakDBConnectionBase._rangeToFrames(startKey, endKey)
+        #Send key filter parameters
+        msgParts.append("" if keyFilter is None else keyFilter)
+        #Send value filter parameters
+        msgParts.append("" if keyFilter is None else valueFilter) 
+        return msgParts
+    def buildReadRequest(self, tableNo, keys):
+        """
+        Build a list of read request message frames.
+        See Connection.read() docs for a detailed description.
+        """
+        #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
+        self._checkRequestReply()
+        #Use stream object to store callback data
+        stream = self.__initStream(callback, {"mapKeys": mapKeys})
+        #Check parameters and create binary-string only key list
+        self.__class__._checkParameterType(tableNo, int, "tableNo")
+        convertedKeys = ZMQBinaryUtil.convertToBinaryList(keys)
+        #Send header frame
+        msgParts = ["\x31\x01\x10"]
+        #Send the table number frame
+        msgParts.append(struct.pack('<I', tableNo))
+        #Send key list
+        #This is a bit simpler than the normal read() because we don't have to deal with SNDMORE
+        msgParts += convertedKeys
+        return msgParts
 if __name__ == "__main__":
     import doctest
     doctest.testmod()

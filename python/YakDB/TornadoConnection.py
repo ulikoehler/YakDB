@@ -8,6 +8,7 @@ Currently in development. Supports only a small subset of available requests.
 """
 from YakDB.ConnectionBase import YakDBConnectionBase
 from YakDB.Conversion import ZMQBinaryUtil
+from YakDB.Exceptions import YakDBProtocolException
 import struct
 import platform
 import zmq
@@ -15,33 +16,57 @@ from zmq.eventloop import ioloop
 ioloop.install()
 from zmq.eventloop.zmqstream import ZMQStream
 
-class ParallelTornadoConnection(YakDBConnectionBase):
+class TornadoConnection(YakDBConnectionBase):
     """
     A tornado IOLoop-based connection variant that uses a DEALER connection
     with YakDB request IDs to support parallel requests without having to wait.
     
     This class does not support auto-mapping of scan/read results.
+    It always returns the raw value (therefore being more efficient):
+        - List of values for read requests
+        - List of tuples for write requests
+
+    Also note that exception-based error reporting in this class
+    does not allow to backtrace the caller because the receipt handler
+    is called from the IO loop. This might be fixed in the future.
     """
-    def __init__(endpoints, context=None):
-        super(YakDBConnectionBase, self).__init__(context)
+    def __init__(self, endpoints, context=None):
+        YakDBConnectionBase.__init__(self, context=context)
         self.useDealerMode()
         self.connect(endpoints)
         self.requests = {} #Maps request ID to callback
         self.nextRequestId = 0
         self.stream = ZMQStream()
         self.stream.on_recv(self.__recvCallback)
-    def __newRequest(self, callback, requestType):
-        """Setup mapping for a new request. Returns the new request ID"""
+    def scan(self, tableNo, callback, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False):
+        msgParts = YakDBConnectionBase.buildScanRequest(self, tableNo, startKey, endKey, limit, keyFilter, valueFilter, invert)
+        self.stream.send_multipart(msgParts)
+    def read(self, tableNo, keys, callback, mapKeys=False):
+        msgParts = YakDBConnectionBase.buildReadRequest(self, tableNo, keys)
+        self.stream.send_multipart(msgParts)
+    def __newRequest(self, callback, params={}):
+        """Setup mapping for a new request. Returns the new request ID."""
         self.nextRequestId += 1
-        self.requests[self.nextRequestId] = callback
-        return nextRequestId
+        self.requests[self.nextRequestId] = (callback, params)
+        return struct.pack("<I", self.nextRequestId)
     def __recvCallback(self, msg):
         #Currently we don't check the response type
         YakDBConnectionBase._checkHeaderFrame(msg)
         requestId = YakDBConnectionBase._extractRequestId(msg[0])
-        
+        callback, params = self.requests[struct.unpack("<I", requestId)]
+        #Postprocess, depending on request type.
+        headerFrame = msg[0]
+        responseType = headerFrame[2]
+        if responseType == "\x13": #Scan
+            data = YakDBConnectionBase._mapScanToTupleList(msg[1:])
+        elif responseType == "\x10": #Read
+            data = YakDBConnectionBase._mapReadKeyValues(params["keys"], msg[1:])
+        else:
+            raise YakDBProtocolException("Received correct response, but cannot handle response code %d" % ord(responseType))
+        #Call original callback
+        callback(data)
 
-class TornadoConnection(YakDBConnectionBase):
+class SerialTornadoConnection(YakDBConnectionBase):
     """
     An instance of this class represents a connection to a YakDB database.
     This thin wrapper uses asynchronicity together with the Tornado IO loop.
