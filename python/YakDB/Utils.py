@@ -28,6 +28,7 @@ class YakDBUtils:
         '\\xff\\xff\\x00'
         """
         #Increment the last char that is != \xFF
+        if isinstance(key, unicode): key = key.encode("utf-8")
         keyList = list(key)
         #Find & increment the last non-\xFF char 
         for idx in range(-1,-1-len(keyList),-1):
@@ -40,6 +41,7 @@ class YakDBUtils:
             return "".join(keyList)
         #The key consists of 0xFF characters only
         return key + "\x00"
+
     
 if __name__ == "__main__":
     import doctest

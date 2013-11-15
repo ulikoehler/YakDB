@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf8 -*-
 """
 Asynchronous YakDB connection that works with the tornado IO loop.
 Automatically installs itself as tornado IO loop.
@@ -9,13 +10,10 @@ from YakDB.Connection import Connection
 from YakDB.Conversion import ZMQBinaryUtil
 import struct
 import platform
-if platform.python_implementation() == "PyPy":
-    import zmqpy as zmq
-else:
-    import zmq
+import zmq
 from zmq.eventloop import ioloop
-from zmq.eventloop.zmqstream import ZMQStream
 ioloop.install()
+from zmq.eventloop.zmqstream import ZMQStream
 
 class TornadoConnection(Connection):
     """
@@ -25,13 +23,12 @@ class TornadoConnection(Connection):
     This class provides a reentrant wrapper that may be called only from a single
     thread but from multiple IO-loop-based eventlets in that thread.
     """
-    def __initStream(self, callback, callbackParam, options={}):
+    def __initStream(self, callback, options={}):
         """
         Initialize a new stream over the current connection.
         """
         stream = ZMQStream(self.socket)
         stream.callback = callback
-        stream.callbackParam = callbackParam
         stream.options = options
         return stream
     @staticmethod
@@ -42,7 +39,7 @@ class TornadoConnection(Connection):
         startKey = "" if startKey is None else ZMQBinaryUtil.convertToBinary(startKey)
         endKey = "" if endKey is None else ZMQBinaryUtil.convertToBinary(endKey)
         return [startKey, endKey]
-    def scan(self, tableNo, callback, callbackParam=None, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=True):
+    def scan(self, tableNo, callback, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=False):
         """
         Asynchronous reentrant scan. Scans an entire range at once.
         The scan stops at the table end, endKey (exclusive) or when
@@ -53,7 +50,6 @@ class TornadoConnection(Connection):
 
         @param tableNo The table number to scan in
         @param callback A function(param, scanResult) which is called with the custom defined parameter
-        @param callbackParam The first parameter for the callback function. Any value or object is allowed.
         @param startKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
         @param endKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
         @param limit The maximum number of keys to read, or None, if no limit shall be imposed
@@ -69,7 +65,7 @@ class TornadoConnection(Connection):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Use stream object to store callback data
-        stream = self.__initStream(callback, callbackParam, {"mapData":mapData})
+        stream = self.__initStream(callback, {"mapData":mapData})
         #Send header frame
         msgParts = ["\x31\x01\x13" + ("\x01" if invert else "\x00")]
         #Create the table number frame
@@ -77,8 +73,7 @@ class TornadoConnection(Connection):
         #Send limit frame
         msgParts.append("" if limit is None else struct.pack('<q', limit))
         #Send range. "" --> empty frame --> start/end of table
-        msgParts.append(struct.pack('<q', limit))
-        msgParts += TornadoConnection.__rangeToFrames(startKey, endKey)
+        msgParts += TornadoConnection._rangeToFrames(startKey, endKey)
         #Send key filter parameters
         msgParts.append("" if keyFilter is None else keyFilter)
         #Send value filter parameters
@@ -119,7 +114,7 @@ class TornadoConnection(Connection):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Use stream object to store callback data
-        stream = self.__initStream(callback, callbackParam, {"mapKeys": mapKeys})
+        stream = self.__initStream(callback, {"mapKeys": mapKeys})
         #Check parameters and create binary-string only key list
         self.__class__._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = ZMQBinaryUtil.convertToBinaryList(keys)
@@ -151,8 +146,8 @@ class TornadoConnection(Connection):
                 res[keys[i]] = values[i]
             data = res
         #Call callback
-        stream.callback(stream.callbackParam, data)
-    def put(self, tableNo, valueDict, callback, partsync=False, fullsync=False):
+        stream.callback(data)
+    def put(self, tableBlocksizeNo, valueDict, callback, partsync=False, fullsync=False):
         """
         Write a dictionary of key-value pairs to the connected servers.
         
@@ -178,7 +173,7 @@ class TornadoConnection(Connection):
             raise ParameterException("Dictionary to be written did not contain any valid data!")
         Connection.__checkDictionaryForNone(valueDict)
         #Use stream object to store callback data
-        stream = self.__initStream(callback, callbackParam)
+        stream = self.__initStream(callback)
         #Send header frame
         msgParts = [__getWriteHeader("\x20", partsync, fullsync)]
         #Send the table number
@@ -198,7 +193,7 @@ class TornadoConnection(Connection):
     @staticmethod
     def __onPutRecvFinish(stream, response):
         TornadoConnection._checkHeaderFrame(response, '\x20')
-        stream.callback(stream.callbackParam)
+        stream.callback()
     @staticmethod
     def __onPutSendFinish(stream, msg, status):
-        stream.callback(stream.callbackParam)
+        stream.callback()

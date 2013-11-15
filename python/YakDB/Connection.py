@@ -78,7 +78,7 @@ class Connection:
         flags = 0
         if partsync: flags |= 1
         if fullsync: flags |= 2
-        headerStr = "\x31\x01" + requestId + chr(flags)
+        return "\x31\x01" + requestId + chr(flags)
     @staticmethod
     def __checkDictionaryForNone(dictionary):
         """Throws a parameter exception if the given dict contains any None keys or values"""
@@ -217,7 +217,7 @@ class Connection:
             raise ParameterException("Dictionary to be written did not contain any valid data!")
         Connection.__checkDictionaryForNone(valueDict)
         #Send header frame
-        self.socket.send(__getWriteHeader("\x20", partsync, fullsync), zmq.SNDMORE)
+        self.socket.send(Connection.__getWriteHeader("\x20", partsync, fullsync), zmq.SNDMORE)
         #Send the table number
         self._sendBinary32(tableNo)
         #Send key/value pairs
