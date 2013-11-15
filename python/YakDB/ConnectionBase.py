@@ -5,6 +5,7 @@ from YakDB.Exceptions import ParameterException, YakDBProtocolException, Connect
 import collections
 import random
 import zmq
+import struct
 
 class YakDBConnectionBase(object):
     """
@@ -106,6 +107,11 @@ class YakDBConnectionBase(object):
         """
         return {dataParts[i]: dataParts[i+1] for i in range(0,len(dataParts),2)}
     @staticmethod
+    def _rangeToFrames(startKey, endKey):
+        startKey = "" if startKey is None else ZMQBinaryUtil.convertToBinary(startKey)
+        endKey = "" if endKey is None else ZMQBinaryUtil.convertToBinary(endKey)
+        return [startKey, endKey]
+    @staticmethod
     def _checkHeaderFrame(msgParts, expectedResponseType=None):
         """
         Given a list of received message parts, checks the first message part.
@@ -160,7 +166,7 @@ class YakDBConnectionBase(object):
         Check if the current instance is correctly setup for REQ/REP, else raise an exception
         """
         self._checkConnection()
-        if self.mode is not zmq.REQ:
+        if self.mode not in [zmq.REQ, zmq.DEALER]:
             raise Exception("Only request/reply connections support this message type!")
     def useRequestReplyMode(self):
         """Sets the current YakDB connection into Request/reply mode (default)"""
@@ -180,7 +186,7 @@ class YakDBConnectionBase(object):
         Sets a large random number as socket identity
         """
         self.socket = self.context.socket(zmq.DEALER)
-        self.socket.setsockopt(zmq.IDENTITY, str(random.randint(1000000000)))
+        self.socket.setsockopt(zmq.IDENTITY, str(random.randint(0, 1000000000)))
         self.mode = zmq.DEALER
     def connect(self, endpoints):
         """
@@ -207,8 +213,6 @@ class YakDBConnectionBase(object):
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
-        #Use stream object to store callback data
-        stream = self.__initStream(callback, {"mapData":mapData})
         #Send header frame
         msgParts = ["\x31\x01\x13" + ("\x01" if invert else "\x00")]
         #Create the table number frame
@@ -230,8 +234,6 @@ class YakDBConnectionBase(object):
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
-        #Use stream object to store callback data
-        stream = self.__initStream(callback, {"mapKeys": mapKeys})
         #Check parameters and create binary-string only key list
         self.__class__._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = ZMQBinaryUtil.convertToBinaryList(keys)

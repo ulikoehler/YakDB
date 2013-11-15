@@ -53,7 +53,7 @@ void HOT KeyValueServer::handleRequestResponse() {
         logger.error("Frame envelope could not be received correctly");
         //There might be more frames of the current msg that clog up the queue
         // and could lead to nasty bugs. Clear them, if any.
-        recvAndIgnore(sock);
+        recvAndIgnore(sock, logger);
         //We can't even send back an error message, because the address can't be correct,
         // considering the envelope is missing
         zmq_msg_close(&addrFrame);
@@ -81,6 +81,9 @@ void HOT KeyValueServer::handleRequestResponse() {
                 logger);
         logger.warn("Client sent invalid header frame: " + describeMalformedHeaderFrame(&headerFrame));
         zmq_msg_close(&headerFrame);
+        //There might be more frames of the current msg that clog up the queue
+        // and could lead to nasty bugs. Clear them, if any.
+        recvAndIgnore(sock, logger);
         return;
     }
     //Extract the request type from the header
@@ -226,7 +229,7 @@ void HOT KeyValueServer::handleRequestResponse() {
         zmq_msg_close(&headerFrame);
         //There might be more frames of the current msg that clog up the queue
         // and could lead to nasty bugs. Clear them, if any.
-        recvAndIgnore(sock);
+        recvAndIgnore(sock, logger);
     }
 }
 
@@ -243,7 +246,7 @@ void HOT KeyValueServer::handlePushPull() {
         logger.warn("Client sent invalid header frame: " + describeMalformedHeaderFrame(&headerFrame));
         //There might be more frames of the current msg that clog up the queue
         // and could lead to nasty bugs. Clear them, if any.
-        recvAndIgnore(sock);
+        recvAndIgnore(sock, logger);
         zmq_msg_close(&headerFrame);
         return;
     }
@@ -271,12 +274,15 @@ void HOT KeyValueServer::handlePushPull() {
         //These request types demand an response and don't make sense over PUB/SUB sockets
         //TODO Use the logger
         logger.error("Error: Received read-type request over PULL/SUB socket (you need to use REQ/REP sockets for read/count requests)");
+        //There might be more frames of the current msg that clog up the queue
+        // and could lead to nasty bugs. Clear them, if any.
+        recvAndIgnore(sock, logger);
     } else {
         //Dispose non-reused frames
         zmq_msg_close(&headerFrame);
         //There might be more frames of the current msg that clog up the queue
         // and could lead to nasty bugs. Clear them, if any.
-        recvAndIgnore(sock);
+        recvAndIgnore(sock, logger);
     }
 }
 

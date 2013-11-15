@@ -507,7 +507,7 @@ void YakHTTPServer::workerMain() {
         bool isGETRequest = (memcmp(requestData, "GET ", 4) == 0);
         assert(isGETRequest);
         //Ensure there are no frames left to receive!
-        recvAndIgnore(httpSocket);
+        recvAndIgnore(httpSocket, logger);
         //Make a NUL-delimited string from the request path
         char* requestPath = strchr(requestData, ' ') + 1;
         char* requestPathEnd = strchr(requestPath, ' ');

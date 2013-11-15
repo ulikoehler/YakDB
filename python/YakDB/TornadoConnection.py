@@ -34,13 +34,15 @@ class TornadoConnection(YakDBConnectionBase):
         YakDBConnectionBase.__init__(self, context=context)
         self.useDealerMode()
         self.connect(endpoints)
+        print "Connecting to ", endpoints
         self.requests = {} #Maps request ID to callback
         self.nextRequestId = 0
-        self.stream = ZMQStream()
+        self.stream = ZMQStream(self.socket)
         self.stream.on_recv(self.__recvCallback)
     def scan(self, tableNo, callback, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False):
         msgParts = YakDBConnectionBase.buildScanRequest(self, tableNo, startKey, endKey, limit, keyFilter, valueFilter, invert)
-        self.stream.send_multipart(msgParts)
+        self.socket.send_multipart(msgParts)
+        print "Scanning"
     def read(self, tableNo, keys, callback, mapKeys=False):
         msgParts = YakDBConnectionBase.buildReadRequest(self, tableNo, keys)
         self.stream.send_multipart(msgParts)
@@ -53,6 +55,8 @@ class TornadoConnection(YakDBConnectionBase):
         #Currently we don't check the response type
         YakDBConnectionBase._checkHeaderFrame(msg)
         requestId = YakDBConnectionBase._extractRequestId(msg[0])
+        print [requestId]
+        print "OFFFFFFFFFFOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO"
         callback, params = self.requests[struct.unpack("<I", requestId)]
         #Postprocess, depending on request type.
         headerFrame = msg[0]
@@ -82,14 +86,6 @@ class SerialTornadoConnection(YakDBConnectionBase):
         stream.callback = callback
         stream.options = options
         return stream
-    @staticmethod
-    def _rangeToFrames(startKey, endKey):
-        """
-        Convert a start and an end key to a list of two frames
-        """
-        startKey = "" if startKey is None else ZMQBinaryUtil.convertToBinary(startKey)
-        endKey = "" if endKey is None else ZMQBinaryUtil.convertToBinary(endKey)
-        return [startKey, endKey]
     def scan(self, tableNo, callback, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=False):
         """
         Asynchronous reentrant scan. Scans an entire range at once.

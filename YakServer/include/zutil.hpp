@@ -218,7 +218,7 @@ inline static bool socketHasMoreFrames(void* socket) {
  * Receives frames from the given socket until ZMQ_RCVMORE is false.
  * Releases any received frame immediately.
  */
-static inline void recvAndIgnore(void* socket) {
+static inline void recvAndIgnore(void* socket, Logger& logger) {
     //TODO check err
     zmq_msg_t msg;
     if (!socketHasMoreFrames(socket)) {
@@ -226,9 +226,13 @@ static inline void recvAndIgnore(void* socket) {
     }
     zmq_msg_init(&msg);
     while (true) {
-        zmq_msg_recv(&msg, socket, 0);
+        if(zmq_msg_recv(&msg, socket, 0) == -1) {
+            logMessageRecvError("recvAndIgnore frame reception", logger);
+            break;
+        }
+        bool more = zmq_msg_more(&msg);
         zmq_msg_close(&msg);
-        if (!socketHasMoreFrames(socket)) {
+        if (!more) {
             break;
         }
     }

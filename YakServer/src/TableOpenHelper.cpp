@@ -499,7 +499,7 @@ void COLD TableOpenHelper::truncateTable(TableOpenHelper::IndexType index) {
     }
     sendFrame(&index, sizeof (IndexType), reqSocket, logger, "Table index");
     //Wait for the reply (it's empty but that does not matter)
-    recvAndIgnore(reqSocket);
+    recvAndIgnore(reqSocket, logger);
 }
 
 COLD TableOpenHelper::~TableOpenHelper() {

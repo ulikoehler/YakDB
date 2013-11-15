@@ -5,6 +5,7 @@ Inverted index utilities for YakDB.
 """
 from YakDB.Utils import YakDBUtils
 from YakDB.Connection import Connection
+from YakDB.ConnectionBase import YakDBConnectionBase
 from YakDB.TornadoConnection import TornadoConnection
 from zmq.eventloop.zmqstream import ZMQStream
 import functools
@@ -35,7 +36,7 @@ class InvertedIndex:
             connection The YakDB connection
             tableNo: The table no to store the inverted index in.
         """
-        assert isinstance(connection, Connection)
+        assert isinstance(connection, YakDBConnectionBase)
         self.conn = connection
         self.tableNo = tableNo
         self.connectionIsAsync = isinstance(connection, TornadoConnection)
