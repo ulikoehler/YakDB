@@ -2,6 +2,7 @@
 #define HTTPSERVER_HPP
 #include <czmq.h>
 #include <thread>
+#include <map>
 #include <unordered_map>
 #include "LogSinks.hpp"
 #include "Logger.hpp"
@@ -35,6 +36,18 @@ public:
      */
     void setLogBuffer(BufferLogSink* logBuffer);
 private:
+    struct ResponseInfo {
+        /**
+         * Move the given message content to the current instance
+         */
+        ResponseInfo(zmq_msg_t* message) {
+            zmq_msg_move(&this->addrInfoFrame, message);
+        }
+        zmq_msg_t addrInfoFrame;
+    };
+    /**
+     * Main function for the HTTP worker thread
+     */
     void workerMain();
     /**
      * Serve a static, mmapped file.
@@ -76,6 +89,9 @@ private:
      * Not initialized in this class.
      */
     BufferLogSink* logBuffer;
+    //The next request ID for async requests
+    uint32_t nextAsyncRequestID;
+    std::map<uint32_t, ResponseInfo> asyncRequests;
 };
 
 #endif //HTTPSERVER_HPP

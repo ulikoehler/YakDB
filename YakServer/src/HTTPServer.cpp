@@ -71,7 +71,8 @@ YakHTTPServer::YakHTTPServer(void* ctxParam, const std::string& endpointParam, c
     thread(nullptr),
     logger(ctx, "HTTP Server"),
     staticFileRoot(staticFileRoot),
-    logBuffer(nullptr) {
+    logBuffer(nullptr),
+    nextAsyncRequestID(0) {
     controlSocket = zmq_socket_new_bind(ctx, ZMQ_PAIR, controlEndpoint);
     assert(controlSocket);
     //Start thread
