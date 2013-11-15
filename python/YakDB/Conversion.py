@@ -3,6 +3,7 @@
 import platform
 import zmq
 import struct
+import collections
 from Exceptions import ParameterException
 
 class ZMQBinaryUtil:
@@ -20,10 +21,10 @@ class ZMQBinaryUtil:
         """
         if value is None:
             socket.send("", (zmq.SNDMORE if more else 0))
-            return
-        if type(value) is not int:
+        elif type(value) is not int:
             raise Exception("Can't format object of non-integer type as binary integer")
-        socket.send(struct.pack('<I', value), (zmq.SNDMORE if more else 0))
+        else:
+            socket.send(struct.pack('<I', value), (zmq.SNDMORE if more else 0))
     @staticmethod
     def sendBinary64(socket, value, more=True):
         """
@@ -74,7 +75,7 @@ class ZMQBinaryUtil:
         """
         Same as ZMQBinaryUtil.convertToBinary(), but always returns lists.
         """
-        conv = convertToBinary(value, convertIterables)
+        conv = ZMQBinaryUtil.convertToBinary(value, convertIterables)
         if type(conv) != list:
             conv = [conv]
         return conv

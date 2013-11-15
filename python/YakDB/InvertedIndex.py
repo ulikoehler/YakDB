@@ -126,7 +126,6 @@ class InvertedIndex:
         self.conn.scan(self.tableNo, callback=internalCallback, startKey=startKey, endKey=endKey, limit=limit)
     @staticmethod
     def __searchSingleTokenAsyncRecvCallback(origCallback, level, response):
-        print "%s -- %s" % (level, str(response))
         result = InvertedIndex._processSingleTokenResult(response, level)
         origCallback(result)
     def searchMultiTokenExact(self, tokens, level=""):
