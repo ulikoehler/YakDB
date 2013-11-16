@@ -215,9 +215,9 @@ class Connection(YakDBConnectionBase):
         #Send key filter parameters
         self.socket.send("" if keyFilter is None else keyFilter, zmq.SNDMORE)
         #Send value filter parameters
-        self.socket.send("" if valueFilter is None else valueFilter)
+        self.socket.send("" if valueFilter is None else valueFilter, zmq.SNDMORE)
         #Send skip number
-        self._sendBinary64(skip)
+        self._sendBinary64(skip, more=False)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         YakDBConnectionBase._checkHeaderFrame(msgParts, '\x13') #Remap the returned key/value pairs to a dict

@@ -89,8 +89,9 @@ def scan(db, args):
     valueFilter = args.valueFilter
     invert = args.invertDirection
     mapData = args.mapData
+    skip = args.skip
     #Data is remapped into dictionary-form in connection class
-    print(db.scan(tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, invert=invert, mapData=mapData))
+    print(db.scan(tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, skip=skip, invert=invert, mapData=mapData))
 
 def dump(db, args):
     tableNo = args.tableNo
@@ -316,11 +317,11 @@ def yakCLI():
             type=int,
             default=None,
             help="The maximum number of keys to scan")
-    parserScan.add_argument('table',
+    parserScan.add_argument('-s','--skip',
             type=int,
             nargs='?',
             action="store",
-            help="The tables to scan. Overrides -t option.")
+            help="How many records to skip. Only filter-passing records count as skipped.")
     parserScan.add_argument('-i','--invert-direction',
             action="store_true",
             dest="invertDirection",
@@ -330,6 +331,11 @@ def yakCLI():
             action="store_true",
             dest="mapData",
             help="Return a dict of values instead of a list of tuples")
+    parserScan.add_argument('table',
+            type=int,
+            nargs='?',
+            action="store",
+            help="The tables to scan. Overrides -t option.")    
     parserScan.set_defaults(func=scan)
     #Count
     parserCount = subparsers.add_parser("count", description="Count how many keys exist in a specified range of the table")
