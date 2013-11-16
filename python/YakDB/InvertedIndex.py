@@ -73,6 +73,9 @@ class InvertedIndex:
         >>> res = [('L1\\x1Ef','x\\x00y'),('X\\x1Eg','a\\x00y'),('L1\\x1Efoo','z\\x00y')]
         >>> sorted(InvertedIndex._processSingleTokenResult(res, 'L1'))
         ['x', 'y', 'z']
+        >>> res = [('L2\\x1Ef','x\\x00y'),('L3\\x1Eg','a\\x00y'),('L4\\x1Efoo','z\\x00y')]
+        >>> sorted(InvertedIndex._processSingleTokenResult(res, 'L1'))
+        []
         """
         result = set()
         for key, value in scanResult:
