@@ -92,6 +92,10 @@ private:
     //The next request ID for async requests
     uint32_t nextAsyncRequestID;
     std::map<uint32_t, ResponseInfo> asyncRequests;
+    /**
+     * If an initialization error occurs (for the HTTP server, this is not fatal), this is set to true
+     */
+    bool errorDuringInitialization;
 };
 
 #endif //HTTPSERVER_HPP

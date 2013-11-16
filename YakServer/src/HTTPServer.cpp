@@ -72,7 +72,8 @@ YakHTTPServer::YakHTTPServer(void* ctxParam, const std::string& endpointParam, c
     logger(ctx, "HTTP Server"),
     staticFileRoot(staticFileRoot),
     logBuffer(nullptr),
-    nextAsyncRequestID(0) {
+    nextAsyncRequestID(0),
+    errorDuringInitialization(false) {
     controlSocket = zmq_socket_new_bind(ctx, ZMQ_PAIR, controlEndpoint);
     assert(controlSocket);
     //Start thread
@@ -442,7 +443,11 @@ void YakHTTPServer::workerMain() {
     logger.trace("HTTP Server starting on " + endpoint);
     //Initialize HTTP socket
     httpSocket = zmq_socket_new_bind(ctx, ZMQ_STREAM, endpoint.c_str());
-    assert(httpSocket);
+    if(!httpSocket) {
+        errorDuringInitialization = true;
+        logOperationError("initializing HTTP server socket", logger);
+        return;
+    }
     //Connect to main Yak router
     mainRouterSocket = zmq_socket_new_connect(ctx, ZMQ_REQ, mainRouterAddr);
     assert(mainRouterSocket);
@@ -547,7 +552,10 @@ void YakHTTPServer::closeTCPConnection() {
 void YakHTTPServer::terminate() {
     if(thread != nullptr) {
         //Send control msg
-        zmq_send_const(controlSocket, "STOP", 4, 0);
+        if(!errorDuringInitialization) {
+            //If errorDuringInitialization == true, the server has already stopped
+            zmq_send_const(controlSocket, "STOP", 4, 0);
+        }
         zmq_close(controlSocket);
         //Wait until the thread exists
         thread->join();
