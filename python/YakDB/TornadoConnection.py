@@ -43,7 +43,8 @@ class TornadoConnection(YakDBConnectionBase):
         msgParts = [""] + YakDBConnectionBase.buildScanRequest(self, tableNo, startKey, endKey, limit, keyFilter, valueFilter, invert, requestId=requestId)
         self.stream.send_multipart(msgParts)
     def read(self, tableNo, keys, callback, mapKeys=False):
-        msgParts = YakDBConnectionBase.buildReadRequest(self, tableNo, keys)
+        requestId = self.__newRequest(callback, {"keys": keys})
+        msgParts = [""] + YakDBConnectionBase.buildReadRequest(self, tableNo, keys, requestId)
         self.stream.send_multipart(msgParts)
     def __newRequest(self, callback, params={}):
         """Setup mapping for a new request. Returns the new request ID."""

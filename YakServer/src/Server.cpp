@@ -77,8 +77,7 @@ void HOT KeyValueServer::handleRequestResponse() {
     if (unlikely(!isHeaderFrame(&headerFrame))) {
         std::string headerFrameProblem = describeMalformedHeaderFrame(&headerFrame);
         sendProtocolError(&addrFrame, &delimiterFrame, &headerFrame, sock,
-                "Received malformed message, header format is not correct: " +
-                headerFrameProblem,
+                "Received malformed message, header format is not correct: " + headerFrameProblem,
                 logger);
         logger.warn("Client sent invalid header frame: " + headerFrameProblem);
         zmq_msg_close(&headerFrame);
