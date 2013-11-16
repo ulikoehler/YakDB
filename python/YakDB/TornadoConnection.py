@@ -40,9 +40,9 @@ class TornadoConnection(YakDBConnectionBase):
         self.nextRequestId = 0
         self.stream = ZMQStream(self.socket)
         self.stream.on_recv(self.__recvCallback)
-    def scan(self, tableNo, callback, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=False):
+    def scan(self, tableNo, callback, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, mapData=False):
         requestId = self.__newRequest(callback, {"mapData": mapData})
-        msgParts = [""] + YakDBConnectionBase.buildScanRequest(self, tableNo, startKey, endKey, limit, keyFilter, valueFilter, invert, requestId=requestId)
+        msgParts = [""] + YakDBConnectionBase.buildScanRequest(self, tableNo, startKey, endKey, limit, keyFilter, valueFilter, skip, invert, requestId=requestId)
         self.stream.send_multipart(msgParts)
     def read(self, tableNo, keys, callback, mapKeys=False):
         requestId = self.__newRequest(callback, {"keys": (keys if mapKeys else None), "mapKeys": mapKeys})

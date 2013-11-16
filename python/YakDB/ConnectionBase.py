@@ -202,7 +202,7 @@ class YakDBConnectionBase(object):
             self.__class__._checkParameterType(endpoint, str, "[one of the endpoints]")
             self.socket.connect(endpoint)
         self.numConnections += len(endpoints)
-    def buildScanRequest(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, requestId=""):
+    def buildScanRequest(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, requestId=""):
         """
         Build a scan request message frame list
         See Connection.scan() docs for a detailed description.

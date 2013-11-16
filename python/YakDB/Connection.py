@@ -177,7 +177,7 @@ class Connection(YakDBConnectionBase):
         if mapKeys:
             values = YakDBConnectionBase._mapReadKeyValues(keys, values)
         return values
-    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=False, requestId=""):
+    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, mapData=False, requestId=""):
         """
         Synchronous scan. Scans an entire range at once.
         The scan stops at the table end, endKey (exclusive) or when
@@ -192,11 +192,13 @@ class Connection(YakDBConnectionBase):
         @param limit The maximum number of keys to read, or None, if no limit shall be imposed
         @param keyFilter If this is non-None, the server filters for keys containing (exactly) this substring
         @param valueFilter If this is non-None, the server filters for values containing (exactly) this substring
+        @param skip The number of records to skip at the beginning. Filter mismatches do not count.
         @param invert Set this to true to invert the scan direction
         @param mapData If this is set to False, a list of tuples is returned instead of a directory
         @return A dictionary of the returned key/value pairs
         """
         #Check parameters and create binary-string only key list
+        YakDBConnectionBase._checkParameterType(skip, int, "skip")
         YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
         YakDBConnectionBase._checkParameterType(limit, int, "limit",  allowNone=True)
         #Check if this connection instance is setup correctly
@@ -207,16 +209,15 @@ class Connection(YakDBConnectionBase):
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send limit frame
-        if limit is None:
-            self.socket.send("", zmq.SNDMORE)
-        else: #We have a limit
-            self._sendBinary64(limit)
+        self._sendBinary64(limit)
         #Send range. "" --> empty frame --> start/end of table
         self._sendRange(startKey,  endKey, more=True)
         #Send key filter parameters
         self.socket.send("" if keyFilter is None else keyFilter, zmq.SNDMORE)
         #Send value filter parameters
         self.socket.send("" if valueFilter is None else valueFilter)
+        #Send skip number
+        self._sendBinary64(skip)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         YakDBConnectionBase._checkHeaderFrame(msgParts, '\x13') #Remap the returned key/value pairs to a dict
