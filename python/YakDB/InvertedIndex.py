@@ -202,7 +202,7 @@ class InvertedIndex:
         if all([obj != None for obj in results]):
             #The multi-token search algorithm uses only the level from the key.
             #Therefore, for read() emulation, we don't need to know the token
-            InvertedIndex._processMultiTokenPrefixResult(results)
+            result = InvertedIndex._processMultiTokenPrefixResult(results)
             origCallback(result)
         
 if __name__ == "__main__":
