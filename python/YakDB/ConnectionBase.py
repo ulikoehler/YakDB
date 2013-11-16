@@ -186,7 +186,7 @@ class YakDBConnectionBase(object):
         Sets a large random number as socket identity
         """
         self.socket = self.context.socket(zmq.DEALER)
-        #self.socket.setsockopt(zmq.IDENTITY, str(random.randint(0, 1000000000)))
+        self.socket.setsockopt(zmq.IDENTITY, str(random.randint(0, 1000000000)))
         self.mode = zmq.DEALER
     def connect(self, endpoints):
         """

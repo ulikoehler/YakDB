@@ -10,7 +10,7 @@ from YakDB.ConnectionBase import YakDBConnectionBase
 from YakDB.Conversion import ZMQBinaryUtil
 from YakDB.Exceptions import YakDBProtocolException
 import struct
-import platform
+import sys
 import zmq
 from zmq.eventloop import ioloop
 ioloop.install()
@@ -34,16 +34,14 @@ class TornadoConnection(YakDBConnectionBase):
         YakDBConnectionBase.__init__(self, context=context)
         self.useDealerMode()
         self.connect(endpoints)
-        print "Connecting to ", endpoints
         self.requests = {} #Maps request ID to callback
         self.nextRequestId = 0
         self.stream = ZMQStream(self.socket)
         self.stream.on_recv(self.__recvCallback)
     def scan(self, tableNo, callback, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False):
         requestId = self.__newRequest(callback)
-        msgParts = YakDBConnectionBase.buildScanRequest(self, tableNo, startKey, endKey, limit, keyFilter, valueFilter, invert, requestId=requestId)
+        msgParts = [""] + YakDBConnectionBase.buildScanRequest(self, tableNo, startKey, endKey, limit, keyFilter, valueFilter, invert, requestId=requestId)
         self.stream.send_multipart(msgParts)
-        print "Scanning"
     def read(self, tableNo, keys, callback, mapKeys=False):
         msgParts = YakDBConnectionBase.buildReadRequest(self, tableNo, keys)
         self.stream.send_multipart(msgParts)
@@ -53,13 +51,19 @@ class TornadoConnection(YakDBConnectionBase):
         self.requests[self.nextRequestId] = (callback, params)
         return struct.pack("<I", self.nextRequestId)
     def __recvCallback(self, msg):
+        #DEALER response contains empty delimiter!
+        if len(msg[0]) != 0:
+            print >>sys.stderr, "Received malformed message: ", msg
+            return
+        msg = msg[1:]
         #Currently we don't check the response type
         YakDBConnectionBase._checkHeaderFrame(msg)
         #Struct unpack yields 1-element tuple!
-        requestId = struct.unpack("<I", YakDBConnectionBase._extractRequestId(msg[0]))[0]
+        headerFrame = msg[0]
+        assert(len(headerFrame) == 8) #4 bytes response + 4 bytes request ID
+        requestId = struct.unpack("<I", YakDBConnectionBase._extractRequestId(headerFrame))[0]
         callback, params = self.requests[requestId]
         #Postprocess, depending on request type.
-        headerFrame = msg[0]
         responseType = headerFrame[2]
         if responseType == "\x13": #Scan
             data = YakDBConnectionBase._mapScanToTupleList(msg[1:])

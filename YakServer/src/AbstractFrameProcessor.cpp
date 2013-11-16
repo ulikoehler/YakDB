@@ -351,7 +351,31 @@ bool AbstractFrameProcessor::expectExactFrameSize(zmq_msg_t* msg,
     size_t actualMsgSize = zmq_msg_size(msg);
     if(unlikely(actualMsgSize != expectedSize)) {
         std::string errstr = "Error while checking ZMQ frame length of "
-                + std::string(errName) + ": Expected length was "
+                + std::string(errName) + ": Expected length to be equal to "
+                + std::to_string(expectedSize) + " bytes but actual length was "
+                + std::to_string(actualMsgSize)
+                + " in " + std::string(errName);
+        logger.warn(errstr);
+        if(generateResponse) {
+            sendResponseHeader(headerFrame, errorResponse, ZMQ_SNDMORE, requestExpectedSize);
+            sendFrame(errstr, processorOutputSocket, logger, errName);
+        }
+        return false;
+    }
+    return true;
+}
+
+bool AbstractFrameProcessor::expectMinimumFrameSize(zmq_msg_t* msg,
+            size_t expectedSize,
+            const char* errName,
+            const char* errorResponse,
+            bool generateResponse,
+            zmq_msg_t* headerFrame,
+            size_t requestExpectedSize) {
+    size_t actualMsgSize = zmq_msg_size(msg);
+    if(unlikely(actualMsgSize < expectedSize)) {
+        std::string errstr = "Error while checking ZMQ frame length of "
+                + std::string(errName) + ": Expected length to be >= "
                 + std::to_string(expectedSize) + " bytes but actual length was "
                 + std::to_string(actualMsgSize)
                 + " in " + std::string(errName);

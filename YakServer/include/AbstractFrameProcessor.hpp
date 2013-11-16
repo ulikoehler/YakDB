@@ -196,6 +196,27 @@ protected:
             zmq_msg_t* headerFrame = nullptr,
             size_t requestExpectedSize = 3);
     /**
+     * This function checks if the given frame has a certain size or more
+     * If the frame sizes match, it returns true and exits.
+     * 
+     * Else, an error message is logged using the logger instance in the current class
+     * and, if generateResponse is set to true, the error reponse plus the error msg
+     * is sent over the output socket.
+     * @param msg
+     * @param expectedSize
+     * @param errName
+     * @param errorResponse
+     * @param generateResponse
+     * @return false in case of error, true else
+     */
+    bool expectMinimumFrameSize(zmq_msg_t* msg,
+            size_t expectedSize,
+            const char* errName,
+            const char* errorResponse,
+            bool generateResponse = true,
+            zmq_msg_t* headerFrame = nullptr,
+            size_t requestExpectedSize = 3);
+    /**
      * Send a uint64 frame over the processor output socet.
      * Log any error that might occur.
      * @return false if any error occured, true else

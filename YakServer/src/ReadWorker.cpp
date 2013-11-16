@@ -221,7 +221,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     static const char* errorResponse = "\x31\x01\x13\x01";
     static const char* ackResponse = "\x31\x01\x13\x00";
     //Parse scan flags
-    if (!expectExactFrameSize(headerFrame, 4, "scan request header frame", errorResponse, true, headerFrame, 4)) {
+    if (!expectMinimumFrameSize(headerFrame, 4, "scan request header frame", errorResponse, true, headerFrame, 4)) {
         return;
     }
     uint8_t scanFlags = ((char*)zmq_msg_data(headerFrame))[3];
@@ -324,11 +324,11 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         }
         //Send the previous value msg, if any
         if (!sentHeader) {
-            sendResponseHeader(headerFrame, ackResponse, ZMQ_SNDMORE);
+            sendResponseHeader(headerFrame, ackResponse, ZMQ_SNDMORE, 4);
             sentHeader = true;
         }
         if (haveLastValueMsg) {
-            if (unlikely(!sendMsgHandleError(&valueMsg, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", errorResponse))) {
+            if (unlikely(!sendMsgHandleError(&valueMsg, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", errorResponse, true, headerFrame, 4))) {
                 delete it;
                 return;
             }
@@ -339,7 +339,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         zmq_msg_init_size(&valueMsg, valueSize);
         memcpy(zmq_msg_data(&keyMsg), keyData, keySize);
         memcpy(zmq_msg_data(&valueMsg), valueData, valueSize);
-        if (unlikely(!sendMsgHandleError(&keyMsg, ZMQ_SNDMORE, "ZMQ error while sending scan reply (not last)", errorResponse))) {
+        if (unlikely(!sendMsgHandleError(&keyMsg, ZMQ_SNDMORE, "ZMQ error while sending scan reply (not last)", errorResponse, true, headerFrame, 4))) {
             zmq_msg_close(&valueMsg);
             delete it;
             return;
@@ -347,20 +347,20 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     }
     //Send the previous value msg, if any
     if (haveLastValueMsg) {
-        if (unlikely(!sendMsgHandleError(&valueMsg, 0, "ZMQ error while sending last scan reply", errorResponse))) {
+        if (unlikely(!sendMsgHandleError(&valueMsg, 0, "ZMQ error while sending last scan reply", errorResponse, true, headerFrame, 4))) {
             delete it;
             return;
         }
     }
     //If the scanned range is empty, the header has not been sent yet
     if (!sentHeader) {
-        sendResponseHeader(headerFrame, ackResponse);
+        sendResponseHeader(headerFrame, ackResponse, 0, 4);
     }
     //Check if any error occured during iteration
     if (!checkLevelDBStatus(it->status(),
             "LevelDB error while scanning",
             true,
-            errorResponse, headerFrame)) {
+            errorResponse, headerFrame, 4)) {
         delete it;
         return;
     }

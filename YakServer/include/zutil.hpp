@@ -208,10 +208,11 @@ static inline int sendFrame(const std::string& msgStr, void* socket, Logger& log
  * message parts in the current message.
  */
 inline static bool socketHasMoreFrames(void* socket) {
+    assert(socket);
     int rcvmore;
     size_t optlen = sizeof(int);
     zmq_getsockopt(socket, ZMQ_RCVMORE, &rcvmore, &optlen);
-    return rcvmore;
+    return rcvmore == 1;
 }
 
 /**

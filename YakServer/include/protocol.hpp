@@ -116,10 +116,12 @@ static inline std::string COLD describeMalformedHeaderFrame(zmq_msg_t* frame) {
     }
     uint8_t* data = (uint8_t*)zmq_msg_data(frame);
     if (data[0] != magicByte) {
-        return "Magic byte should be 0x31 but it is " + std::to_string((int) data[0]);
+        return "Magic byte should be 0x31 but it is (dec)" + std::to_string((int) data[0])
+               + ". Frame size: " + std::to_string(size);
     }
     if (data[1] != protocolVersion) {
-        return "Protocol version should be 0x01 but it is " + std::to_string((int) data[1]);
+        return "Protocol version should be 0x01 but it is (dec)" + std::to_string((int) data[1])
+               + ". Frame size: " + std::to_string(size);
     }
     return "[Unknown header frame problem. This is considered a bug.]";
 }
