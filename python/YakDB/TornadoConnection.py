@@ -40,8 +40,9 @@ class TornadoConnection(YakDBConnectionBase):
         self.stream = ZMQStream(self.socket)
         self.stream.on_recv(self.__recvCallback)
     def scan(self, tableNo, callback, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False):
-        msgParts = YakDBConnectionBase.buildScanRequest(self, tableNo, startKey, endKey, limit, keyFilter, valueFilter, invert)
-        self.socket.send_multipart(msgParts)
+        requestId = self.__newRequest(callback)
+        msgParts = YakDBConnectionBase.buildScanRequest(self, tableNo, startKey, endKey, limit, keyFilter, valueFilter, invert, requestId=requestId)
+        self.stream.send_multipart(msgParts)
         print "Scanning"
     def read(self, tableNo, keys, callback, mapKeys=False):
         msgParts = YakDBConnectionBase.buildReadRequest(self, tableNo, keys)
@@ -54,9 +55,9 @@ class TornadoConnection(YakDBConnectionBase):
     def __recvCallback(self, msg):
         #Currently we don't check the response type
         YakDBConnectionBase._checkHeaderFrame(msg)
-        requestId = YakDBConnectionBase._extractRequestId(msg[0])
-        print [requestId]
-        callback, params = self.requests[struct.unpack("<I", requestId)]
+        #Struct unpack yields 1-element tuple!
+        requestId = struct.unpack("<I", YakDBConnectionBase._extractRequestId(msg[0]))[0]
+        callback, params = self.requests[requestId]
         #Postprocess, depending on request type.
         headerFrame = msg[0]
         responseType = headerFrame[2]

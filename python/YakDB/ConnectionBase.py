@@ -202,7 +202,7 @@ class YakDBConnectionBase(object):
             self.__class__._checkParameterType(endpoint, str, "[one of the endpoints]")
             self.socket.connect(endpoint)
         self.numConnections += len(endpoints)
-    def buildScanRequest(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False):
+    def buildScanRequest(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, requestId=""):
         """
         Build a scan request message frame list
         See Connection.scan() docs for a detailed description.
@@ -214,7 +214,7 @@ class YakDBConnectionBase(object):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        msgParts = ["\x31\x01\x13" + ("\x01" if invert else "\x00")]
+        msgParts = ["\x31\x01\x13" + ("\x01" if invert else "\x00") + requestId]
         #Create the table number frame
         msgParts.append(struct.pack('<I', tableNo))
         #Send limit frame
@@ -226,7 +226,7 @@ class YakDBConnectionBase(object):
         #Send value filter parameters
         msgParts.append("" if keyFilter is None else valueFilter) 
         return msgParts
-    def buildReadRequest(self, tableNo, keys):
+    def buildReadRequest(self, tableNo, keys, requestId=""):
         """
         Build a list of read request message frames.
         See Connection.read() docs for a detailed description.
@@ -238,7 +238,7 @@ class YakDBConnectionBase(object):
         self.__class__._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = ZMQBinaryUtil.convertToBinaryList(keys)
         #Send header frame
-        msgParts = ["\x31\x01\x10"]
+        msgParts = ["\x31\x01\x10" + requestId]
         #Send the table number frame
         msgParts.append(struct.pack('<I', tableNo))
         #Send key list
