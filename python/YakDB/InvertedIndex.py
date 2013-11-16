@@ -85,12 +85,15 @@ class InvertedIndex:
     @staticmethod
     def _processMultiTokenResult(scanResult, level):
         """
-        Process the scan result for a single token search
+        Process the scan result for a multi-token exact search
         Returns the set of entities relating to the token.
         
         >>> res = {'L1\\x1Ef':'x\\x00y','X\\x1Eg':'a\\x00y','L1\\x1Efoo':'z\\x00y'}
         >>> sorted(InvertedIndex._processMultiTokenResult(res, 'L1'))
         ['y']
+        >>> res = {'L4\\x1Ef':'x\\x00y','L3\\x1Eg':'a\\x00y','L5\\x1Efoo':'z\\x00y'}
+        >>> sorted(InvertedIndex._processMultiTokenResult(res, 'L1'))
+        []
         """
         #NOTE: If one of the tokens has no result at all, it is currently ignored
         initialized = False
@@ -103,6 +106,30 @@ class InvertedIndex:
                 else: #First level-matching result
                     result = set(valueList)
                     initialized = True
+        return (set() if result is None else result)
+    @staticmethod
+    def _processMultiTokenPrefixResult(resultList):
+        """
+        Process the scan result for a multi-token prefix search.
+        The result list argument is the list of result sets from
+        the single token searches
+        
+        >>> res = [set(["a","b","x"]),set(["x","y","a"])]
+        >>> sorted(InvertedIndex._processMultiTokenPrefixResult(res))
+        ['a', 'x']
+        >>> res = [set(["a","b","x"]),set(["d","e","f"]),set(["x","y","a"])]
+        >>> sorted(InvertedIndex._processMultiTokenPrefixResult(res))
+        []
+        """
+        #NOTE: If one of the tokens has no result at all, it is currently ignored
+        initialized = False
+        result = None
+        for resultSet in resultList:
+            if initialized:
+                result.intersection_update(resultSet)
+            else: #First result
+                result = resultSet
+                initialized = True
         return (set() if result is None else result)
     def searchSingleToken(self, token, level="", limit=10):
         """Search a single token (or token prefix) in the inverted index"""
@@ -132,7 +159,7 @@ class InvertedIndex:
         result = InvertedIndex._processSingleTokenResult(response, level)
         origCallback(result)
     def searchMultiTokenExact(self, tokens, level=""):
-        """Search multiple tokens in the inverted index"""
+        """Search multiple tokens in the inverted index (by exact match)"""
         assert not self.connectionIsAsync
         readKeys = [InvertedIndex.getKey(token, level) for token in tokens]
         readResult = self.conn.read(self.tableNo, readKeys)
@@ -149,6 +176,34 @@ class InvertedIndex:
         """This is called when the response for a multi token search has been received"""
         result = InvertedIndex._processMultiTokenResult(response, level)
         origCallback(result)
+    def searchMultiTokenPrefix(self, tokens, level="", limit=10):
+        """Search multiple tokens in the inverted index"""
+        assert not self.connectionIsAsync
+        #Basically we execute multiple single token searches and emulate a multi-token
+        # result to pass it into the merging algorithm
+        singleTokenResults = [searchSingleToken(token, level, limit =limit) for token in tokens]
+        return InvertedIndex._processMultiTokenPrefixResult(singleTokenResults)
+    def searchMultiTokenPrefixAsync(self, tokens, callback, level="", limit=10):
+        """Search multiple tokens in the inverted index, for exact matches"""
+        assert self.connectionIsAsync
+        readKeys = [InvertedIndex.getKey(token, level) for token in tokens]
+        #In the results array, we set each index to the corresponding result, if any yet
+        results = [None] * len(tokens)
+        for i, token in enumerate(tokens):
+            internalCallback = functools.partial(InvertedIndex.__searchMultiTokenPrefixAsyncRecvCallback,
+                                                 callback, level, results, i)
+            #Here, we need access to both keys and values --> map the data into a dict
+            self.searchSingleTokenAsync(token=token, level=level, limit=limit, callback=internalCallback)
+    @staticmethod
+    def __searchMultiTokenPrefixAsyncRecvCallback(origCallback, level, results, i, response):
+        """This is called when the response for a multi token search has been received"""
+        #Process & Call the callback if ALL requests have been finished
+        results[i] = response
+        if all([obj != None for obj in results]):
+            #The multi-token search algorithm uses only the level from the key.
+            #Therefore, for read() emulation, we don't need to know the token
+            InvertedIndex._processMultiTokenPrefixResult(results)
+            origCallback(result)
         
 if __name__ == "__main__":
     import doctest
