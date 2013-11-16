@@ -21,10 +21,12 @@ class TornadoConnection(YakDBConnectionBase):
     A tornado IOLoop-based connection variant that uses a DEALER connection
     with YakDB request IDs to support parallel requests without having to wait.
     
-    This class does not support auto-mapping of scan/read results.
-    It always returns the raw value (therefore being more efficient):
-        - List of values for read requests
-        - List of tuples for write requests
+    This class does not have special documentation. See YakDB.Connection for details
+    on function parameters. The purpose of this behaviour is to avoid having to update
+    duplicate content.
+    In addition to the YakDB.Connection arguments, simply supply a callback function.
+    It will be called with the result of the operation (or without parameter if the
+    operation has no result).
 
     Also note that exception-based error reporting in this class
     does not allow to backtrace the caller because the receipt handler
@@ -38,12 +40,12 @@ class TornadoConnection(YakDBConnectionBase):
         self.nextRequestId = 0
         self.stream = ZMQStream(self.socket)
         self.stream.on_recv(self.__recvCallback)
-    def scan(self, tableNo, callback, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False):
-        requestId = self.__newRequest(callback)
+    def scan(self, tableNo, callback, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=False):
+        requestId = self.__newRequest(callback, {"mapData": mapData})
         msgParts = [""] + YakDBConnectionBase.buildScanRequest(self, tableNo, startKey, endKey, limit, keyFilter, valueFilter, invert, requestId=requestId)
         self.stream.send_multipart(msgParts)
     def read(self, tableNo, keys, callback, mapKeys=False):
-        requestId = self.__newRequest(callback, {"keys": keys})
+        requestId = self.__newRequest(callback, {"keys": (keys if mapKeys else None), "mapKeys": mapKeys})
         msgParts = [""] + YakDBConnectionBase.buildReadRequest(self, tableNo, keys, requestId)
         self.stream.send_multipart(msgParts)
     def __newRequest(self, callback, params={}):
@@ -66,10 +68,17 @@ class TornadoConnection(YakDBConnectionBase):
         callback, params = self.requests[requestId]
         #Postprocess, depending on request type.
         responseType = headerFrame[2]
+        dataFrames = msg[1:]
         if responseType == "\x13": #Scan
-            data = YakDBConnectionBase._mapScanToTupleList(msg[1:])
+            if params["mapData"]:
+                data = YakDBConnectionBase(dataFrames)
+            else:
+                data = YakDBConnectionBase._mapScanToTupleList(dataFrames)
         elif responseType == "\x10": #Read
-            data = YakDBConnectionBase._mapReadKeyValues(params["keys"], msg[1:])
+            if params["mapKeys"]:
+                data = YakDBConnectionBase._mapReadKeyValues(params["keys"], dataFrames)
+            else:
+                data = dataFrames
         else:
             raise YakDBProtocolException("Received correct response, but cannot handle response code %d" % ord(responseType))
         #Call original callback
