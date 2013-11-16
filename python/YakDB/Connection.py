@@ -177,7 +177,7 @@ class Connection(YakDBConnectionBase):
         if mapKeys:
             values = YakDBConnectionBase._mapReadKeyValues(keys, values)
         return values
-    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=False):
+    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, invert=False, mapData=False, requestId=""):
         """
         Synchronous scan. Scans an entire range at once.
         The scan stops at the table end, endKey (exclusive) or when
@@ -203,7 +203,7 @@ class Connection(YakDBConnectionBase):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send(YakDBConnectionBase._getWriteHeader("\x31\x01\x13" + ("\x01" if invert else "\x00"), partsync, fullsync, requestId), zmq.SNDMORE)
+        self.socket.send("\x31\x01\x13" + ("\x01" if invert else "\x00") + requestId, zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send limit frame
@@ -223,9 +223,9 @@ class Connection(YakDBConnectionBase):
         dataParts = msgParts[1:]
         #Return appropriate data format
         if mapData:
-            return _mapScanToTupleList(dataParts)
+            return YakDBConnectionBase._mapScanToTupleList(dataParts)
         else:
-            return _mapScanToDict(dataParts)
+            return YakDBConnectionBase._mapScanToDict(dataParts)
     def deleteRange(self, tableNo, startKey, endKey, limit=None):
         """
         Deletes a range of keys in the database

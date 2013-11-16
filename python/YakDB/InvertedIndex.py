@@ -85,15 +85,14 @@ class InvertedIndex:
         Process the scan result for a single token search
         Returns the set of entities relating to the token.
         
-        >>> res = [('L1\\x1Ef','x\\x00y'),('X\\x1Eg','a\\x00y'),('L1\\x1Efoo','z\\x00y')]
+        >>> res = {'L1\\x1Ef':'x\\x00y','X\\x1Eg':'a\\x00y','L1\\x1Efoo':'z\\x00y'}
         >>> sorted(InvertedIndex._processMultiTokenResult(res, 'L1'))
         ['y']
         """
         #NOTE: If one of the tokens has no result at all, it is currently ignored
         initialized = False
         result = None
-        print scanResult
-        for key, value in scanResult:
+        for key, value in scanResult.iteritems():
             if InvertedIndex.extractLevel(key) == level:
                 valueList = InvertedIndex.splitValues(value)
                 if initialized:
@@ -136,11 +135,12 @@ class InvertedIndex:
         readResult = self.conn.read(self.tableNo, readKeys)
         return InvertedIndex._processMultiTokenResult(readResult, level)
     def searchMultiTokenExactAsync(self, tokens, callback, level="", ):
-        """Search multiple tokens in the inverted index"""
-        assert not self.connectionIsAsync
+        """Search multiple tokens in the inverted index, for exact matches"""
+        assert self.connectionIsAsync
         readKeys = [InvertedIndex.getKey(token, level) for token in tokens]
         internalCallback = functools.partial(InvertedIndex.__searchMultiTokenExactAsyncRecvCallback, callback, level)
-        self.conn.read(self.tableNo, readKeys, callback=internalCallback, callbackParam=callback)
+        #Here, we need access to both keys and values --> map the data into a dict
+        self.conn.read(self.tableNo, readKeys, callback=internalCallback, mapKeys=True)
     @staticmethod
     def __searchMultiTokenExactAsyncRecvCallback(origCallback, level, response):
         """This is called when the response for a multi token search has been received"""
