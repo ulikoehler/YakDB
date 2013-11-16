@@ -268,6 +268,15 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     if(!receiveStringFrame(valueFilterStr, "Error while receiveing key filter string", errorResponse, true, headerFrame, 4)) {
         return;
     }
+    if(!expectNextFrame("Expected skip frame", true, errorResponse, headerFrame, 4)) {
+        return;
+    }
+    //Parse number of records to skip
+    uint64_t scanSkipCount = 0;
+    if (!parseUint64FrameOrAssumeDefault(scanSkipCount, 0 /* default */, 
+                "Receive scan skip frame", true, errorResponse, headerFrame, 4)) {
+        return;
+    }
     //Create the boyer moore searchers (unexpensive for empty strings)
     bool haveKeyFilter = !(keyFilterStr.empty());
     bool haveValueFilter = !(valueFilterStr.empty());
@@ -321,6 +330,11 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         if(haveValueFilter && valueFilter.find(valueData, valueSize) == -1) {
             scanLimit++; //Revert decrement from above
             continue; //Next key/value, if any
+        }
+        //Check if the frame needs to be skipped
+        if(scanSkipCount > 0) {
+            scanSkipCount--;
+            continue;
         }
         //Send the previous value msg, if any
         if (!sentHeader) {

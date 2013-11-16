@@ -303,13 +303,16 @@ The scan ends when one of the following conditions are met:
 * Frame 4: End key (exclusive). If this has zero length, the count ends at the last key
 * Frame 5: Key substring filter (frame shall be zero-sized if no filter shall be applied)
 * Frame 6: Value substring filter (frame shall be zero-sized if no filter shall be applied)
+* Frame 7: 64-bit unsigned skip count (Zero-length frame --> 0. Specifies how many records are skipped.)
 
 The substring filter provides fast (Boyer-Moore-Horspool) server-side filtering for keys and values.
 Only 
 Filtered keys don't decrease the key-value count that is used to check the limit.
 In any case, the filters are compared in a case-sensitive way on a char-by-char basis.
 
-Regardless of filters, the scan will stop at the end key.
+If there are filters and those filters do not match the key/value pair, the skip counter is not decremented.
+
+Regardless of filters and skipping, the scan will stop at the end key.
 
 **Scan flags:**
 OR combination of these flags (default: reset):
