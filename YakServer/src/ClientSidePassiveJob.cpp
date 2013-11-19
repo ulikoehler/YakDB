@@ -194,7 +194,7 @@ ClientSidePassiveJob::~ClientSidePassiveJob() {
             sendConstFrame(responseNoData, 4, outSocket, logger, "No data response header frame", 0);
         }
     } else {
-        logger.trace("Skipping job grace period 
+        logger.trace("Skipping job grace period");
     }
     //Cleanup sockets
     zmq_close(inSocket);
