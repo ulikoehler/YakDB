@@ -112,7 +112,8 @@ int ScanRequest::sendRequest(void* socket, uint32_t tableNum,
         const std::string& endKey,
         const std::string& keyFilter,
         const std::string& valueFilter,
-        bool invertDirection
+        bool invertDirection,
+        uint64_t skip
         ) {
     if (zmq_send_const(socket, (invertDirection ? "\x31\x01\x13\x01" : "\x31\x01\x13\x00"), 4, ZMQ_SNDMORE) == -1) {
         return -1;
@@ -129,7 +130,10 @@ int ScanRequest::sendRequest(void* socket, uint32_t tableNum,
     if(zmq_send(socket, keyFilter.data(), keyFilter.size(), ZMQ_SNDMORE) == -1) {
         return -1;
     }
-    return zmq_send(socket, valueFilter.data(), valueFilter.size(), 0);
+    if(zmq_send(socket, valueFilter.data(), valueFilter.size(), ZMQ_SNDMORE) == -1) {
+        return -1;
+    }
+    return sendUint64Frame(socket, skip, 0);
 }
 
 int ScanRequest::receiveResponseHeader(void* socket, std::string& errorMessage) {

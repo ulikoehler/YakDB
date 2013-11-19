@@ -99,7 +99,8 @@ public:
             const std::string& endKey,
             const std::string& keyFilter,
             const std::string& valueFilter,
-            bool invertDirection = false
+            bool invertDirection = false,
+            uint64_t skip = 0
             );
     static int receiveResponseHeader(void* socket, std::string& errorMessage);
     /**
