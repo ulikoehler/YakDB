@@ -85,11 +85,12 @@ class Connection(YakDBConnectionBase):
         self._sendBinary32(tableNo)
         #Send key/value pairs
         nextToSend = None #Needed because the last value shall be sent w/out SNDMORE
-        for key in valueDict.iterkeys():
+        for key, value in valueDict.iteritems():
             #Send the value from the last loop iteration
             if nextToSend is not None: self.socket.send(nextToSend, zmq.SNDMORE)
-            #Map key to binary data if neccessary
-            value = ZMQBinaryUtil.convertToBinary(valueDict[key])
+            #Map key & value to binary data if neccessary
+            key = ZMQBinaryUtil.convertToBinary(key)
+            value = ZMQBinaryUtil.convertToBinary(value)
             #Send the key and enqueue the value
             self.socket.send(key, zmq.SNDMORE)
             nextToSend = value
