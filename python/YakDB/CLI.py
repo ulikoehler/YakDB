@@ -436,6 +436,7 @@ def yakCLI():
     parserDump.add_argument('-o','--output',
             action="store",
             dest="outputFile",
+            required=True,
             help="The file to write the YDF dump to. Append .gz to use gzipped output (recommended)")
     parserDump.add_argument('--from',
             action="store",
