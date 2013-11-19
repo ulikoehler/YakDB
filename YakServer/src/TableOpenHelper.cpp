@@ -353,7 +353,7 @@ void TableOpenServer::tableOpenWorkerThread() {
                         continue;
                     }
                     string fullFileName = dirname + "/" + std::string(ent->d_name);
-                    logger.trace(fullFileName);
+                    logger.trace("Truncating DB: Deleting " + fullFileName);
                     unlink(fullFileName.c_str());
                 }
                 closedir(dir);
