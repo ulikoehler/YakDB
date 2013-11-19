@@ -465,6 +465,7 @@ def yakCLI():
     parserImport.add_argument('-i','--input',
             action="store",
             dest="inputFile",
+            required=True,
             help="The file to read the YDF dump from. Append .gz to use transparent decompression.")
     parserImport.add_argument('table',
             type=int,
