@@ -8,7 +8,7 @@
 #ifndef READWORKER_HPP
 #define	READWORKER_HPP
 #include <thread>
-#include <czmq.h>
+#include <zmq.h>
 #include "BoyerMoore.hpp"
 #include "Tablespace.hpp"
 #include "AbstractFrameProcessor.hpp"
@@ -18,17 +18,10 @@ public:
     ReadWorkerController(void* context, Tablespace& tablespace);
     ~ReadWorkerController();
     /**
-     * Send a message to one of the read workers (load-balanced).
-     * 
-     * Asynchronous. Returns immediately.
-     * @param msg
-     */
-    void send(zmsg_t** msg);
-    /**
      * Start the worker threads
      */
     void start();
-    void* workerPushSocket; //inproc PUSH socket to communicate to the workers#
+    void* workerPushSocket; //inproc PUSH socket to communicate to the workers
     /**
      * Gracefully terminates all update worker threads by sending them stop messages.
      */

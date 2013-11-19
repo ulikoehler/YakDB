@@ -9,7 +9,7 @@
 #define	LOGGER_HPP
 #include <string>
 #include <vector>
-#include <czmq.h>
+#include <zmq.h>
 #include <thread>
 
 //Sample usage:

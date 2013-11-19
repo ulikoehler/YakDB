@@ -3,7 +3,7 @@
 #include <thread>
 #include <map>
 #include <atomic>
-#include <czmq.h>
+#include <zmq.h>
 #include <cstdint>
 #include <string>
 #include "AbstractFrameProcessor.hpp"

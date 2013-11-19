@@ -7,7 +7,7 @@
 
 #ifndef ABSTRACTFRAMEPROCESSOR_HPP
 #define	ABSTRACTFRAMEPROCESSOR_HPP
-#include <czmq.h>
+#include <zmq.h>
 #include <string>
 #include "Logger.hpp"
 #include <leveldb/status.h>

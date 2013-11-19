@@ -627,7 +627,3 @@ UpdateWorkerController::~UpdateWorkerController() {
     //Free the threadlist
     delete[] threads;
 }
-
-void UpdateWorkerController::send(zmsg_t** msg) {
-    zmsg_send(msg, workerPushSocket);
-}

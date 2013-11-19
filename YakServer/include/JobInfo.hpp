@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <limits>
 #include <atomic>
+#include "Logger.hpp"
 
 enum class JobType : uint8_t {
     CLIENTSIDE_PASSIVE,
@@ -35,10 +36,11 @@ struct ThreadStatisticsInfo {
         transferredDataBytes += bytes;
     }
     /**
-     * Set the expunge time to zlock_time()
+     * Set the expunge time
+     * TODO unfinished
      */
     void setExpungeTime() {
-        jobExpungeTime = zclock_time();
+        jobExpungeTime = Logger::getCurrentLogTime();
     }
 };
 

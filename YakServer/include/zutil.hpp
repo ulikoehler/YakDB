@@ -10,6 +10,8 @@
 #include <zmq.h>
 #include <cstdio>
 #include <string>
+#include <cstring>
+#include <cassert>
 #include "Logger.hpp"
 #include "macros.hpp"
 

@@ -69,10 +69,6 @@ ReadWorkerController::~ReadWorkerController() {
     delete[] threads;
 }
 
-void ReadWorkerController::send(zmsg_t** msg) {
-    zmsg_send(msg, workerPushSocket);
-}
-
 ReadWorker::ReadWorker(void* ctx, Tablespace& tablespace) :
 AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Read worker"),
 tablespace(tablespace),

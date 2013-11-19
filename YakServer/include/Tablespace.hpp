@@ -9,7 +9,7 @@
 #define	TABLESPACE_HPP
 #include <vector>
 #include <cstdlib>
-#include <czmq.h>
+#include <zmq.h>
 #include <leveldb/db.h>
 
 #include "TableOpenHelper.hpp"

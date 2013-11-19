@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <signal.h>
 #include "zutil.hpp"
 
 volatile bool yak_interrupted = 0;

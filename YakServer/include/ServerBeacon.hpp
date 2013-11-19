@@ -7,7 +7,7 @@
 
 #ifndef SERVERBEACON_HPP
 #define	SERVERBEACON_HPP
-#include <czmq.h>
+#include <zmq.h>
 
 class ServerBeacon {
 public:

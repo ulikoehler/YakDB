@@ -8,7 +8,7 @@
 #ifndef UPDATEWORKER_HPP
 #define	UPDATEWORKER_HPP
 #include <thread>
-#include <czmq.h>
+#include <zmq.h>
 #include "Tablespace.hpp"
 #include "AbstractFrameProcessor.hpp"
 
@@ -16,16 +16,6 @@ class UpdateWorkerController {
 public:
     UpdateWorkerController(void* context, Tablespace& tablespace, ConfigParser& configParser);
     ~UpdateWorkerController();
-    /**
-     * Send a message to one of the update workers (load-balanced).
-     *
-     * Asynchronous. Returns immediately.
-     *
-     * If no response is desired regardless of the message content,
-     *  the first byte of the header message shall be set to 0x00 (instead of the magic byte 0x31)
-     * @param msg
-     */
-    void send(zmsg_t** msg);
     /**
      * Start the worker threads
      */

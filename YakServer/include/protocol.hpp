@@ -15,7 +15,7 @@
 #include <cassert>
 #include <iostream>
 #include <string>
-#include <czmq.h>
+#include <zmq.h>
 #include "macros.hpp"
 
 const uint8_t magicByte = 0x31;
@@ -126,20 +126,9 @@ static inline std::string COLD describeMalformedHeaderFrame(zmq_msg_t* frame) {
     return "[Unknown header frame problem. This is considered a bug.]";
 }
 
-static inline RequestType getRequestType(zframe_t* frame) {
-    assert(zframe_size(frame) >= 3);
-    return (RequestType) zframe_data(frame)[2];
-}
-
 static inline RequestType getRequestType(zmq_msg_t* frame) {
     assert(zmq_msg_size(frame) >= 3);
     return (RequestType) ((char*)zmq_msg_data(frame))[2];
-}
-
-
-static inline uint8_t getWriteFlags(zframe_t* frame) {
-    //Write flags are optional and default to 0x00
-    return (zframe_size(frame) >= 4 ? zframe_data(frame)[3] : 0x00);
 }
 
 static inline uint8_t getWriteFlags(zmq_msg_t* frame) {

@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <limits>
 #include <map>
-#include <czmq.h>
+#include <zmq.h>
 #include <thread>
 #include <leveldb/db.h>
 #include <vector>

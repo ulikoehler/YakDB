@@ -2,7 +2,7 @@
  * Note: This file contains implementations for different header files.
  */
 #include <cstring>
-#include <czmq.h>
+#include <zmq.h>
 #include "yakclient/Graph/Serialize.hpp"
 
 char* serializeExtAttrId(const std::string& entityId, const std::string& key, size_t* calculatedLength) {

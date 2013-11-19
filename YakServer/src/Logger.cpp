@@ -13,6 +13,9 @@
 #include <functional>
 #include <iostream>
 #include <ctime>
+#include <cassert>
+#include <time.h>
+#include <sys/time.h>
 
 /**
  * Checks if the return code from a zmsg_send call indicates an error.

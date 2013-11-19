@@ -1,6 +1,6 @@
 #ifndef CLIENTSIDEPASSIVEJOB_HPP
 #define CLIENTSIDEPASSIVEJOB_HPP
-#include <czmq.h>
+#include <zmq.h>
 #include <leveldb/db.h>
 #include "JobInfo.hpp"
 #include "Tablespace.hpp"

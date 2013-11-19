@@ -4,6 +4,7 @@
 #include <iostream>
 #include <ctime>
 #include <sstream>
+#include <cassert>
 
 static const char* const ESCAPE_BOLD = "\x1B[1m";
 static const char* const ESCAPE_NORMALFONT = "\x1B[0m";
