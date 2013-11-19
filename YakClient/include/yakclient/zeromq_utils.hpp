@@ -13,7 +13,6 @@
 #ifndef ZMQ_UTILS_HPP
 #define	ZMQ_UTILS_HPP
 #include <zmq.h>
-#include <czmq.h>
 #include <cstdint>
 #include <cstring>
 #include <string>

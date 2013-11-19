@@ -11,36 +11,36 @@
 #include "yakclient/MetaRequests.hpp"
 
 
-YakClient::YakClient() : context(zctx_new()), destroyContextOnExit(true), socketType(SocketType::None) {
+YakClient::YakClient() : context(zmq_ctx_new()), destroyContextOnExit(true), socketType(SocketType::None) {
     //Nothing to be done here
 }
 
-YakClient::YakClient(const char* endpoint) : context(zctx_new()), destroyContextOnExit(true), socketType(SocketType::None) {
+YakClient::YakClient(const char* endpoint) : context(zmq_ctx_new()), destroyContextOnExit(true), socketType(SocketType::None) {
     connectRequestReply(endpoint);
 }
 
-YakClient::YakClient(zctx_t* ctx) : context(ctx), destroyContextOnExit(false) {
+YakClient::YakClient(void* ctx) : context(ctx), destroyContextOnExit(false) {
     //Nothing to be done here
 }
 
 YakClient::~YakClient() {
     if (socket) {
-        zsocket_destroy(context, socket);
+        zmq_close(socket);
     }
     if (destroyContextOnExit && context) {
-        zctx_destroy(&context);
+        zmq_ctx_destroy(context);
     }
 }
 
 void YakClient::connectRequestReply(const char* url) {
-    socket = zsocket_new(context, ZMQ_REQ);
-    zsocket_connect(socket, url);
+    socket = zmq_socket(context, ZMQ_REQ);
+    zmq_connect(socket, url);
     socketType = SocketType::ReqRep;
 }
 
 void YakClient::connectPushPull(const char* url) {
-    socket = zsocket_new(context, ZMQ_PUSH);
-    zsocket_connect(socket, url);
+    socket = zmq_socket(context, ZMQ_PUSH);
+    zmq_connect(socket, url);
     socketType = SocketType::PushPull;
 }
 

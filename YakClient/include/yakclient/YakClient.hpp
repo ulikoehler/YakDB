@@ -8,7 +8,7 @@
 #ifndef DBCLIENT_HPP
 #define DBCLIENT_HPP
 
-#include <czmq.h>
+#include <zmq.h>
 #include <exception>
 #include <string>
 #include <vector>
@@ -52,7 +52,7 @@ public:
      * The context will not be destroyed even if the DKVClient instance is
      * destructed
      */
-    YakClient(zctx_t* ctx);
+    YakClient(void* ctx);
     /**
      * Destructor that only destroyess the underlying context if the corresponding option is set
      */
@@ -83,7 +83,7 @@ public:
      * valid until 
      * @return 
      */
-    inline zctx_t* getContext() {
+    inline void* getContext() {
         return context;
     }
     /**
@@ -183,7 +183,7 @@ public:
      */
     int64_t count(uint32_t table, const std::string& from, const std::string& to);
 private:
-    zctx_t* context;
+    void* context;
     void* socket;
     bool destroyContextOnExit;
     uint64_t writeBatchSize;

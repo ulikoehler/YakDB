@@ -1,6 +1,6 @@
 #ifndef BATCH_HPP
 #define BATCH_HPP
-#include <czmq.h>
+#include <zmq.h>
 #include <string>
 #include <cstdint>
 #include "YakClient.hpp"
