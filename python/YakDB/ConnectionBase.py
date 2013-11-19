@@ -209,6 +209,7 @@ class YakDBConnectionBase(object):
         """
         #Check parameters and create binary-string only key list
         self._checkParameterType(tableNo, int, "tableNo")
+        self._checkParameterType(skip, int, "skip")
         self._checkParameterType(limit, int, "limit",  allowNone=True)
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
@@ -218,13 +219,15 @@ class YakDBConnectionBase(object):
         #Create the table number frame
         msgParts.append(struct.pack('<I', tableNo))
         #Send limit frame
-        msgParts.append("" if limit is None else struct.pack('<q', limit))
+        msgParts.append("" if limit is None else struct.pack('<Q', limit))
         #Send range. "" --> empty frame --> start/end of table
         msgParts += YakDBConnectionBase._rangeToFrames(startKey, endKey)
         #Send key filter parameters
         msgParts.append("" if keyFilter is None else keyFilter)
         #Send value filter parameters
         msgParts.append("" if keyFilter is None else valueFilter) 
+        #Send skip frame
+        msgParts.append(struct.pack('<Q', skip))
         return msgParts
     def buildReadRequest(self, tableNo, keys, requestId=""):
         """
