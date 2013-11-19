@@ -133,6 +133,8 @@ bool UpdateWorker::processNextMessage() {
         logger.error(std::string("Internal routing error: request type ")
                 + std::to_string(requestType) + " routed to update worker thread!");
     }
+    //General cleanup
+    zmq_msg_close(&headerFrame);
     /**
      * In some cases (especially errors) the msg part input queue is clogged
      * up with frames that have not yet been processed.
@@ -175,8 +177,6 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
     leveldb::WriteBatch batch;
     const uint32_t maxBatchSize = 32;
     uint32_t currentBatchSize = 0;
-    //If this point is reached in the control flow, header frame will not be reused
-    zmq_msg_close(headerFrame);
     //The entire update is processed in one batch. Empty batches are allowed.
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
     zmq_msg_t keyFrame, valueFrame;
@@ -268,8 +268,6 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
     //Get the table
     leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
-    //If this point is reached in the control flow, header frame will not be reused
-    zmq_msg_close(headerFrame);
     //The entire update is processed in one batch
     zmq_msg_t keyFrame;
     leveldb::WriteBatch batch;
@@ -320,7 +318,6 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
 void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateResponse) {
     static const char* errorResponse = "\x31\x01\x03\x01";
     static const char* ackResponse = "\x31\x01\x03\x00";
-    zmq_msg_close(headerFrame);
     //Parse table ID
     uint32_t tableId;
     if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, "\x31\x01\x03\x10", headerFrame)) {
@@ -368,7 +365,6 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     //Convert options to LevelDB
     leveldb::WriteOptions writeOptions;
     writeOptions.sync = fullsync;
-    zmq_msg_close(headerFrame);
     //Parse table ID
     uint32_t tableId;
     if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse, headerFrame, 4)) {
@@ -473,8 +469,6 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
     //Extract flags from header
     uint8_t flags = ((uint8_t*) zmq_msg_data(headerFrame))[3];
     bool compressionEnabled = (flags & 0x01) == 0;
-    //Cleanup header frame
-    zmq_msg_close(headerFrame);
     //Extract numeric parameters
     uint32_t tableId;
     if (!parseUint32Frame(tableId,
@@ -535,7 +529,6 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
 void UpdateWorker::handleTableCloseRequest(zmq_msg_t* headerFrame, bool generateResponse) {
     static const char* errorResponse = "\x31\x01\x02\x01";
     static const char* ackResponse = "\x31\x01\x02\x00";
-    zmq_msg_close(headerFrame);
     uint32_t tableId;
     if (!parseUint32Frame(tableId, "Table ID frame", generateResponse,
             errorResponse)) {
@@ -552,7 +545,6 @@ void UpdateWorker::handleTableCloseRequest(zmq_msg_t* headerFrame, bool generate
 void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool generateResponse) {
     static const char* errorResponse = "\x31\x01\x04\x01";
     static const char* ackResponse = "\x31\x01\x04\x00";
-    zmq_msg_close(headerFrame);
     uint32_t tableId;
     if (!parseUint32Frame(tableId, "Table ID frame", generateResponse,
             errorResponse)) {

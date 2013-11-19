@@ -300,7 +300,7 @@ void AsyncJobRouter::terminate(uint64_t apid) {
     cleanupJob(apid);
 }
 
-void COLD  AsyncJobRouter::terminateAll() {
+void COLD AsyncJobRouter::terminateAll() {
     for(auto pair : processThreadMap) {
         uint64_t apid = pair.first;
         logger.trace("terminateAll(): Terminating job " + std::to_string(apid));
@@ -308,6 +308,7 @@ void COLD  AsyncJobRouter::terminateAll() {
     }
     //Manually execute scrub job
     doScrubJob();
+    logger.trace("Finished terminating all jobs");
 }
 
 bool AsyncJobRouter::haveProcess(uint64_t apid) {
@@ -336,6 +337,7 @@ void AsyncJobRouter::doScrubJob() {
      //Find jobs that have already terminated and scrub them
      typedef std::pair<uint64_t, ThreadTerminationInfo*> JobPair;
      for(const JobPair& jobPair: apTerminationInfo) {
+         //Cleanup job-related resources if it has been stopped already.
          if(jobPair.second->hasTerminated()) {
              logger.trace("Scrubbing job with APID " + std::to_string(jobPair.first));
              cleanupJob(jobPair.first);
