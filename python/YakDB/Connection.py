@@ -136,7 +136,7 @@ class Connection(YakDBConnectionBase):
         if self.mode is zmq.REQ:
             msgParts = self.socket.recv_multipart(copy=True)
             YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x21')
-    def read(self, tableNo, keys, mapKeys=False):
+    def read(self, tableNo, keys, mapKeys=False, requestId=""):
         """
         Read one or multiples values, identified by their keys, from a table.
 
@@ -158,7 +158,7 @@ class Connection(YakDBConnectionBase):
         YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = ZMQBinaryUtil.convertToBinaryList(keys)
         #Send header frame
-        self.socket.send(YakDBConnectionBase._getWriteHeader("\x10", partsync, fullsync, requestId), zmq.SNDMORE)
+        self.socket.send("\x31\x01\x10" + requestId, zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send key list
