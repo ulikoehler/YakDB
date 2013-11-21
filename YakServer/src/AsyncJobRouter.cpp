@@ -285,6 +285,8 @@ void AsyncJobRouter::cleanupJob(uint64_t apid) {
     //Destroy the sockets that were used to communicate with the thread
     zmq_close(socket);
     //Remove the map entries
+    delete apTerminationInfo[apid];
+    delete apStatisticsInfo[apid];
     processSocketMap.erase(apid);
     processThreadMap.erase(apid);
     apTerminationInfo.erase(apid);
