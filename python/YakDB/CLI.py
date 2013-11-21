@@ -320,6 +320,7 @@ def yakCLI():
     parserScan.add_argument('-s','--skip',
             type=int,
             nargs='?',
+            default=0,
             action="store",
             help="How many records to skip. Only filter-passing records count as skipped.")
     parserScan.add_argument('-i','--invert-direction',
