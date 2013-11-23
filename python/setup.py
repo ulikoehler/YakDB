@@ -8,7 +8,7 @@ setup(name='YakDB',
       author='Uli Köhler',
       author_email='ukoehler@btronik.de',
       url='http://techoverflow.net/',
-      packages=['YakDB','YakDB.Graph'],
+      packages=['YakDB','YakDB.Graph', 'YakDB.InvertedIndex'],
       scripts=["yak"],
       requires=['zmq (>=13.0)'],
       classifiers = [
