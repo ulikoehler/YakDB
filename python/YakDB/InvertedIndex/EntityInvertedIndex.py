@@ -58,11 +58,11 @@ class EntityInvertedIndex(object):
         assert not self.connectionIsAsync
         key = self.extractKey(entity)
         value = self.packValue(entity)
-        self.conn.put(self, self.entityTableNo, {key: value})
+        self.conn.put(self.entityTableNo, {key: value})
     def writeEntities(self, entities):
         """Write a list of entities at onces"""
         writeDict = {self.extractKey(e): self.packValue(e) for e in entities}
-        self.conn.put(self, self.entityTableNo, writeDict)
+        self.conn.put(self.entityTableNo, writeDict)
     def writeList(self, token, entityList, level=""):
         """
         Write a list of entities that relate to (token, level) to the index.
@@ -72,7 +72,7 @@ class EntityInvertedIndex(object):
     def getEntities(self, keyList):
         """Read a list of entities and unpack them. Return the list of objects"""
         assert not self.connectionIsAsync
-        readResult = self.conn.read(self, keyList)
+        readResult = self.conn.read(keyList)
         return [self.unpackValue(val) for val in readResult]
     def getEntitiesAsync(self, keyList, callback):
         """Read entities asynchronously"""
