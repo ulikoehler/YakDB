@@ -11,7 +11,7 @@ from zmq.eventloop.zmqstream import ZMQStream
 import functools
 
 
-class InvertedIndex:
+class InvertedIndex(object):
     """
     An inverted index wrapper for YakDB that stores
     the entity list in a single row.

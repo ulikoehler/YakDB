@@ -42,6 +42,10 @@ class YakDBUtils:
         #The key consists of 0xFF characters only
         return key + "\x00"
 
+def makeUnique(coll):
+    """Return coll with duplicate instances removed. The ordering is maintained"""
+    uniqueResults = set()
+    return [r for r in coll if r not in seen and not uniqueResults.add(r)]
     
 if __name__ == "__main__":
     import doctest
