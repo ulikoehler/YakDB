@@ -11,7 +11,7 @@ from YakDB.Utils import makeUnique
 from YakDB.InvertedIndex import InvertedIndex
 import functools
 import cPickle as pickle
-#Only needed for the default key extractor
+#Only needed for the default key extractor, but it's a thin wrapper
 import hashlib
 
 
@@ -59,6 +59,14 @@ class EntityInvertedIndex(object):
         key = self.extractKey(entity)
         value = self.packValue(entity)
         self.conn.put(self, self.entityTableNo, {key: value})
+    def writeEntities(self, entities):
+        """Write a list of entities at onces"""
+        writeDict = {}
+        for entity in entities:
+            key = self.extractKey(entity)
+            value = self.packValue(entity)
+            writeDict[key] = value
+        self.conn.put(self, self.entityTableNo, writeDict)
     def writeList(self, token, entityList, level=""):
         """
         Write a list of entities that relate to (token, level) to the index.
