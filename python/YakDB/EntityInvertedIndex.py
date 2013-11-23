@@ -8,6 +8,7 @@ from YakDB.Connection import Connection
 from YakDB.ConnectionBase import YakDBConnectionBase
 from YakDB.TornadoConnection import TornadoConnection
 from YakDB.Utils import makeUnique
+from YakDB.InvertedIndex import InvertedIndex
 import functools
 import cPickle as pickle
 
@@ -50,6 +51,12 @@ class EntityInvertedIndex(object):
         key = self.extractKey(entity)
         value = self.packValue(entity)
         self.conn.put(self, self.entityTableNo, {key: value})
+    def writeList(self, token, entityList, level=""):
+        """
+        Write a list of entities that relate to (token, level) to the index.
+        The previous entity result for that (token, level) is replaced.
+        """
+        self.index.writeList(token, entityList, level)
     def getEntities(self, keyList):
         """Read a list of entities and unpack them. Return the list of objects"""
         assert not self.connectionIsAsync
