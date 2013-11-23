@@ -61,11 +61,7 @@ class EntityInvertedIndex(object):
         self.conn.put(self, self.entityTableNo, {key: value})
     def writeEntities(self, entities):
         """Write a list of entities at onces"""
-        writeDict = {}
-        for entity in entities:
-            key = self.extractKey(entity)
-            value = self.packValue(entity)
-            writeDict[key] = value
+        writeDict = {self.extractKey(e): self.packValue(e) for e in entities}
         self.conn.put(self, self.entityTableNo, writeDict)
     def writeList(self, token, entityList, level=""):
         """
