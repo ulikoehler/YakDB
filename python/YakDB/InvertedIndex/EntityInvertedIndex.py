@@ -11,9 +11,15 @@ from YakDB.Utils import makeUnique
 from YakDB.InvertedIndex import InvertedIndex
 import functools
 import cPickle as pickle
+
 #Only needed for the default key extractor, but it's a thin wrapper
 import hashlib
 
+def hashEntity(entity):
+    """
+    Default entity key extractor: Hex-SHA1 of pickled entity
+    """
+    return hashlib.sha1(pickle.dumps(entity)).hexdigest()
 
 class EntityInvertedIndex(object):
     """
@@ -27,7 +33,7 @@ class EntityInvertedIndex(object):
     The default implementation uses pickle as value packer and SHA1 hashing of
     full entities as key generator.
     """
-    def __init__(self, connection, indexTableNo, entityTableNo, keyFunc=EntityInvertedIndex.hashEntity, minEntities=50, maxEntities=250):
+    def __init__(self, connection, entityTableNo, indexTableNo, keyExtractor=hashEntity, minEntities=50, maxEntities=250):
         """
         Keyword arguments:
             connection The YakDB connection
@@ -36,18 +42,12 @@ class EntityInvertedIndex(object):
         assert isinstance(connection, YakDBConnectionBase)
         self.minEntities = minEntities
         self.maxEntities = maxEntities
-        self.extractKey = keyFunc
+        self.extractKey = keyExtractor
         self.conn = connection
         self.entityTableNo = entityTableNo
         self.index = InvertedIndex(connection, indexTableNo)
         self.connectionIsAsync = isinstance(connection, TornadoConnection)
-    @staticmethod
-    def hashEntity(entity):
-        """
-        Default entity key extractor: Hex-SHA1 of pickled entity
-        """
-        return hashlib.sha1(pickle.dumps(entity)).hexdigest()
-    def packValue(self, entitity):
+    def packValue(self, entity):
         """Pack = Serialize an entity"""
         return pickle.dumps(entity)
     def unpackValue(self, packedEntity):
