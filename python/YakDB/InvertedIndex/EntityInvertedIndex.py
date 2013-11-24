@@ -10,6 +10,7 @@ from YakDB.TornadoConnection import TornadoConnection
 from YakDB.Utils import makeUnique
 from YakDB.InvertedIndex import InvertedIndex
 import functools
+import collections
 import cPickle as pickle
 
 #Only needed for the default key extractor, but it's a thin wrapper
@@ -28,7 +29,7 @@ class EntityInvertedIndex(object):
     Mimics the behaviour of an InvertedIndex (and uses it internally),
     but allows multi-level searches and automatically fetches entities:
     Each consecutive level is searched if the previous level did not return
-    at least a minimal number of results. The overall number of results
+    at least a minimal number of results. The overall number of results can be set by limit.
 
     The default implementation uses pickle as value packer and SHA1 hashing of
     full entities as key generator.
@@ -87,7 +88,6 @@ class EntityInvertedIndex(object):
         """
         Internal search runner for synchronous multi-level search
         """
-        endKey = YakDBUtils.incrementKey(startKey)
         allResults = []
         #Scan all levels
         for level in levels:
@@ -99,11 +99,10 @@ class EntityInvertedIndex(object):
         allResults = allResults[:self.maxEntities]
         #Read the entity objects
         return self.getEntities(allResults)
-    def __execAsyncSearch(self, searchFunc, callback, tokenObj, levels, scanLimit):
+    def __execAsyncSearch(self, searchFunc, callback, tokenObj, levels, scanLimit=None):
         """
         Internal search runner for async multi-level search
         """
-        endKey = YakDBUtils.incrementKey(startKey)
         allResults = []
         #Scan all levels
         states = [None] * len(levels) #Saves the result data for each level
@@ -111,7 +110,10 @@ class EntityInvertedIndex(object):
         #Start parallel jobs for each level
         for i, level in enumerate(levels):
             internalCallback = functools.partial(internalCallbackTpl, i)
-            allResults = searchFunc(tokenObj, level, scanLimit, callback=internalCallback)
+            if scanLimit is None:
+                allResults = searchFunc(tokenObj, level=level, callback=internalCallback)
+            else:
+                allResults = searchFunc(tokenObj, level=level, limit=scanLimit, callback=internalCallback)
             if len(allResults) >= self.minEntities: break
     def __execAsyncSearchScanCB(self, states, callback, i, resultList):
         """Called from the async search runner once a scan result comes in"""
@@ -128,7 +130,7 @@ class EntityInvertedIndex(object):
             allResults = allResults[:self.maxEntities]
             #Read the entity objects
             self.getEntitiesAsync(allResults, callback=callback)
-    def searchSingleTokenPrefix(self, token, levels=[""], limit=10):
+    def searchSingleTokenPrefix(self, token, levels=[""], scanLimit=10):
         """
         Search a single token (or token prefix) in one or multiple levels
         """
@@ -136,28 +138,28 @@ class EntityInvertedIndex(object):
         assert isinstance(levels, collections.Iterable)
         assert type(levels) != str and type(levels) != unicode
         return self.__execSyncSearch(self.index.searchSingleTokenPrefix, token, levels, scanLimit)
-    def searchSingleTokenPrefixAsync(self, token, callback, levels=[""], limit=25):
+    def searchSingleTokenPrefixAsync(self, token, callback, levels=[""], scanLimit=25):
         """
         Search a single token in the inverted index using async connection
         """
         assert self.connectionIsAsync
         return self.__execAsyncSearch(self.index.searchSingleTokenPrefixAsync, callback, token, levels, scanLimit)
-    def searchMultiTokenExact(self, tokens, level=""):
+    def searchMultiTokenExact(self, tokens, levels=""):
         """Search multiple tokens in the inverted i     ndex (by exact match)"""
         assert not self.connectionIsAsync
-        return self.__execSyncSearch(self.index.searchMultiTokenExact, tokens, levels, scanLimit)
-    def searchMultiTokenExactAsync(self, tokens, callback, level="", ):
+        return self.__execSyncSearch(self.index.searchMultiTokenExact, tokens, levels)
+    def searchMultiTokenExactAsync(self, tokens, callback, levels="", scanLimit=25):
         """Search multiple tokens in the inverted index, for exact matches"""
         assert not self.connectionIsAsync
         return self.__execAsyncSearch(self.index.searchMultiTokenExactAsync, callback, tokens, levels, scanLimit)
-    def searchMultiTokenPrefix(self, tokens, level="", limit=25):
+    def searchMultiTokenPrefix(self, tokens, levels="", scanLiimit=25):
         """Search multiple tokens in the inverted index"""
         assert not self.connectionIsAsync
         return self.__execSyncSearch(self.index.searchMultiTokenPrefix, tokens, levels, scanLimit)
-    def searchMultiTokenPrefixAsync(self, tokens, callback, level="", limit=25):
+    def searchMultiTokenPrefixAsync(self, tokens, callback, levels="", scanLimit=25):
         """Search multiple tokens in the inverted index, for exact matches"""
         assert self.connectionIsAsync
-        return self.__execAsyncSearch(self.index.searchMultiTokenPrefixAsync, callback, token, levels, scanLimit)
+        return self.__execAsyncSearch(self.index.searchMultiTokenPrefixAsync, callback, tokens, levels, scanLimit)
 
 if __name__ == "__main__":
     import doctest
