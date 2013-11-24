@@ -80,10 +80,8 @@ class EntityInvertedIndex(object):
         assert self.connectionIsAsync
         internalCallback = functools.partial(self.__getEntitiesAsyncCallback, callback)
         self.conn.read(self.entityTableNo, keyList, callback=internalCallback)
-    @staticmethod
     def __getEntitiesAsyncCallback(self, callback, values):
-        entities = [self.unpackValue(val) for val in values]
-        callback(entities)
+        callback([self.unpackValue(val) for val in values])
     def __execSyncSearch(self, searchFunc, tokenObj, levels, scanLimit):
         """
         Internal search runner for synchronous multi-level search
@@ -114,7 +112,6 @@ class EntityInvertedIndex(object):
                 allResults = searchFunc(tokenObj, level=level, callback=internalCallback)
             else:
                 allResults = searchFunc(tokenObj, level=level, limit=scanLimit, callback=internalCallback)
-            if len(allResults) >= self.minEntities: break
     def __execAsyncSearchScanCB(self, states, callback, i, resultList):
         """Called from the async search runner once a scan result comes in"""
         states[i] = resultList
