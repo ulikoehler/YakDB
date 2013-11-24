@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 """
-Inverted index utilities for YakDB.
+Inverted index plus entity management utilities for YakDB.
 """
 from YakDB.Utils import YakDBUtils
 from YakDB.Connection import Connection
@@ -15,12 +15,13 @@ import cPickle as pickle
 
 #Only needed for the default key extractor, but it's a thin wrapper
 import hashlib
+import base64
 
 def hashEntity(entity):
     """
     Default entity key extractor: Hex-SHA1 of pickled entity
     """
-    return hashlib.sha1(pickle.dumps(entity)).hexdigest()
+    return base64.b64encode(hashlib.sha1(pickle.dumps(entity)).digest())[:16]
 
 class EntityInvertedIndex(object):
     """
@@ -31,8 +32,8 @@ class EntityInvertedIndex(object):
     Each consecutive level is searched if the previous level did not return
     at least a minimal number of results. The overall number of results can be set by limit.
 
-    The default implementation uses pickle as value packer and SHA1 hashing of
-    full entities as key generator.
+    The default implementation uses pickle as value packer and SHA1 hashing of the
+    entity (the first 16 chars of the b64 representation) as key generator.
     """
     def __init__(self, connection, entityTableNo, indexTableNo, keyExtractor=hashEntity, minEntities=50, maxEntities=250):
         """
