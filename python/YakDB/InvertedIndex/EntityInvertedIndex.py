@@ -146,10 +146,10 @@ class EntityInvertedIndex(object):
         """Search multiple tokens in the inverted i     ndex (by exact match)"""
         assert not self.connectionIsAsync
         return self.__execSyncSearch(self.index.searchMultiTokenExact, tokens, levels)
-    def searchMultiTokenExactAsync(self, tokens, callback, levels="", scanLimit=25):
+    def searchMultiTokenExactAsync(self, tokens, callback, levels=""):
         """Search multiple tokens in the inverted index, for exact matches"""
         assert self.connectionIsAsync
-        return self.__execAsyncSearch(self.index.searchMultiTokenExactAsync, callback, tokens, levels, scanLimit)
+        return self.__execAsyncSearch(self.index.searchMultiTokenExactAsync, callback, tokens, levels)
     def searchMultiTokenPrefix(self, tokens, levels="", scanLiimit=25):
         """Search multiple tokens in the inverted index"""
         assert not self.connectionIsAsync
