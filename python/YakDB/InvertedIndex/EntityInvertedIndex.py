@@ -75,14 +75,18 @@ class EntityInvertedIndex(object):
         """Read a list of entities and unpack them. Return the list of objects"""
         assert not self.connectionIsAsync
         readResult = self.conn.read(keyList)
-        return [self.unpackValue(val) for val in readResult]
+        #In some cases, the returned values contain None (e.g. incorrect indexing).
+        #This is not handled as hard error, because it would interrupt services
+        # under certain conditions. Instead we ignore the None's
+        return [self.unpackValue(val) for val in readResult if val]
     def getEntitiesAsync(self, keyList, callback):
         """Read entities asynchronously"""
         assert self.connectionIsAsync
         internalCallback = functools.partial(self.__getEntitiesAsyncCallback, callback)
         self.conn.read(self.entityTableNo, keyList, callback=internalCallback)
     def __getEntitiesAsyncCallback(self, callback, values):
-        callback([self.unpackValue(val) for val in values])
+        #See getEntities() for info on why we filter Nones
+        callback([self.unpackValue(val) for val in values if val])
     def __execSyncSearch(self, searchFunc, tokenObj, levels, scanLimit):
         """
         Internal search runner for synchronous multi-level search
