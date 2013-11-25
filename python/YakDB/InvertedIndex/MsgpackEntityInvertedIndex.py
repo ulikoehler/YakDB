@@ -15,4 +15,5 @@ class MsgpackEntityInvertedIndex(EntityInvertedIndex):
         return msgpack.packb(entity)
     def unpackValue(self, packedEntity):
         """Unpack = deserialize an entity from the database."""
+        assert packedEntity
         return msgpack.unpackb(packedEntity)
