@@ -12,7 +12,7 @@
 #include <map>
 #include <zmq.h>
 #include <thread>
-#include <leveldb/db.h>
+#include <rocksdb/db.h>
 #include <vector>
 #include "Logger.hpp"
 #include "ConfigParser.hpp"
@@ -31,7 +31,7 @@ class TableOpenServer {
 public:
     TableOpenServer(void* ctx,
                     ConfigParser& configParser, 
-                    std::vector<leveldb::DB*>& databases);
+                    std::vector<rocksdb::DB*>& databases);
     ~TableOpenServer();
     /**
      * Terminate the table open server.
@@ -45,11 +45,7 @@ private:
     Logger logger;
     ConfigParser& configParser;
     void* repSocket;
-    std::vector<leveldb::DB*>& databases;
-    /**
-     * We need to save a list of LRU caches to delete.
-     */
-    std::map<leveldb::DB*, leveldb::Cache*> cacheMap;
+    std::vector<rocksdb::DB*>& databases;
 };
 
 /**

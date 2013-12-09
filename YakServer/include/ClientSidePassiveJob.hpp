@@ -1,7 +1,7 @@
 #ifndef CLIENTSIDEPASSIVEJOB_HPP
 #define CLIENTSIDEPASSIVEJOB_HPP
 #include <zmq.h>
-#include <leveldb/db.h>
+#include <rocksdb/db.h>
 #include "JobInfo.hpp"
 #include "Tablespace.hpp"
 #include "Logger.hpp"
@@ -36,12 +36,12 @@ private:
     void* outSocket;
     zmq_msg_t* keyMsgBuffer;
     zmq_msg_t* valueMsgBuffer;
-    leveldb::Iterator* it;
+    rocksdb::Iterator* it;
     std::string rangeEnd;
     uint64_t scanLimit;
     uint32_t chunksize;
-    leveldb::DB* db;
-    leveldb::Snapshot* snapshot;
+    rocksdb::DB* db;
+    rocksdb::Snapshot* snapshot;
     ThreadTerminationInfo* tti;
     ThreadStatisticsInfo* threadStatisticsInfo;
     Logger logger;

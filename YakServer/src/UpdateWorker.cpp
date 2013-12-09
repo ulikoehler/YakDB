@@ -10,7 +10,7 @@
 #include <iostream>
 #include <cassert>
 #include <string>
-#include <leveldb/write_batch.h>
+#include <rocksdb/write_batch.h>
 #include <functional>
 #include <bitset>
 #include "Tablespace.hpp"
@@ -165,7 +165,7 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
     uint8_t flags = getWriteFlags(headerFrame);
     bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
     //Convert options to LevelDB
-    leveldb::WriteOptions writeOptions;
+    rocksdb::WriteOptions writeOptions;
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
@@ -173,8 +173,8 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
         return;
     }
     //Get the table
-    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
-    leveldb::WriteBatch batch;
+    rocksdb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    rocksdb::WriteBatch batch;
     const uint32_t maxBatchSize = 32;
     uint32_t currentBatchSize = 0;
     //The entire update is processed in one batch. Empty batches are allowed.
@@ -207,13 +207,13 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
             continue;
         }
         //Write into batch
-        leveldb::Slice keySlice((char*) zmq_msg_data(&keyFrame), keySize);
-        leveldb::Slice valueSlice((char*) zmq_msg_data(&valueFrame), valueSize);
+        rocksdb::Slice keySlice((char*) zmq_msg_data(&keyFrame), keySize);
+        rocksdb::Slice valueSlice((char*) zmq_msg_data(&valueFrame), valueSize);
         batch.Put(keySlice, valueSlice);
         currentBatchSize++;
         //If batch is full, write to db
         if(currentBatchSize >= maxBatchSize) {
-            leveldb::Status status = db->Write(writeOptions, &batch);
+            rocksdb::Status status = db->Write(writeOptions, &batch);
             if (!checkLevelDBStatus(status,
                     "Database error while processing update request: ",
                     generateResponse,
@@ -231,7 +231,7 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
         zmq_msg_close(&valueFrame);
     }
     //Write last batch part
-    leveldb::Status status = db->Write(writeOptions, &batch);
+    rocksdb::Status status = db->Write(writeOptions, &batch);
     if (!checkLevelDBStatus(status,
             "Database error while processing update request: ",
             generateResponse,
@@ -258,7 +258,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     uint8_t flags = getWriteFlags(headerFrame);
     bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
     //Convert options to LevelDB
-    leveldb::WriteOptions writeOptions;
+    rocksdb::WriteOptions writeOptions;
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
@@ -267,10 +267,10 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     }
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
     //Get the table
-    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    rocksdb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //The entire update is processed in one batch
     zmq_msg_t keyFrame;
-    leveldb::WriteBatch batch;
+    rocksdb::WriteBatch batch;
     while (haveMoreData) {
         zmq_msg_init(&keyFrame);
         //The next two frames contain key and value
@@ -279,7 +279,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
             return;
         }
         //Convert to LevelDB
-        leveldb::Slice keySlice((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
+        rocksdb::Slice keySlice((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
         batch.Delete(keySlice);
         //Check if we have more frames
         haveMoreData = zmq_msg_more(&keyFrame);
@@ -287,7 +287,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
         zmq_msg_close(&keyFrame);
     }
     //Commit the batch
-    leveldb::Status status = db->Write(writeOptions, &batch);
+    rocksdb::Status status = db->Write(writeOptions, &batch);
     //If something went wrong, send an error response
     if (!checkLevelDBStatus(status,
             "Database error while processing delete request: ",
@@ -329,7 +329,7 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
         return;
     }
     //Get the table
-    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    rocksdb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //Parse the from-to range
     std::string rangeStartStr;
     std::string rangeEndStr;
@@ -340,8 +340,8 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
     bool haveRangeEnd = !(rangeEndStr.empty());
     //Do the compaction (takes LONG, so log it before)
     logger.debug("Compacting table " + std::to_string(tableId));
-    leveldb::Slice rangeStart(rangeStartStr);
-    leveldb::Slice rangeEnd(rangeEndStr);
+    rocksdb::Slice rangeStart(rangeStartStr);
+    rocksdb::Slice rangeEnd(rangeEndStr);
     db->CompactRange((haveRangeStart ? &rangeStart : nullptr),
             (haveRangeEnd ? &rangeEnd : nullptr));
     logger.trace("Finished compacting table " + std::to_string(tableId));
@@ -363,7 +363,7 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     uint8_t flags = getWriteFlags(headerFrame);
     bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
     //Convert options to LevelDB
-    leveldb::WriteOptions writeOptions;
+    rocksdb::WriteOptions writeOptions;
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
@@ -389,7 +389,7 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
         return;
     }
     //Get the table
-    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    rocksdb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //Parse the from-to range
     std::string rangeStartStr;
     std::string rangeEndStr;
@@ -399,16 +399,16 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     bool haveRangeStart = !(rangeStartStr.empty());
     bool haveRangeEnd = !(rangeEndStr.empty());
     //Convert the str to a slice, to compare the iterator slice in-place
-    leveldb::Slice rangeEndSlice(rangeEndStr);
+    rocksdb::Slice rangeEndSlice(rangeEndStr);
     //Do the compaction (takes LONG)
     //Create the response object
-    leveldb::ReadOptions readOptions;
-    leveldb::Status status;
+    rocksdb::ReadOptions readOptions;
+    rocksdb::Status status;
     //Create the iterator
-    leveldb::Iterator* it = db->NewIterator(readOptions);
+    rocksdb::Iterator* it = db->NewIterator(readOptions);
     //All deletes are applied in one batch
     // This also avoids construct like deleting while iterating
-    leveldb::WriteBatch batch;
+    rocksdb::WriteBatch batch;
     if (haveRangeStart) {
         it->Seek(rangeStartStr);
     } else {
@@ -424,7 +424,7 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
         }
         scanLimit--;
         //Check range end
-        leveldb::Slice key = it->key();
+        rocksdb::Slice key = it->key();
         if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
             break;
         }

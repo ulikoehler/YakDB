@@ -97,9 +97,9 @@ void ReadWorker::handleExistsRequest(zmq_msg_t* headerFrame) {
         return;
     }
     //Get the table to read from
-    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    rocksdb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //Create the response object
-    leveldb::ReadOptions readOptions;
+    rocksdb::ReadOptions readOptions;
     string value;
     //If there are no keys at all, just send ACK without SNDMORE, else with SNDMORE
     bool dataFramesAvailable = socketHasMoreFrames(processorInputSocket);
@@ -114,9 +114,9 @@ void ReadWorker::handleExistsRequest(zmq_msg_t* headerFrame) {
             return;
         }
         //Build a slice of the key (zero-copy)
-        leveldb::Slice key((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
+        rocksdb::Slice key((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
 
-        leveldb::Status status = db->Get(readOptions, key, &value);
+        rocksdb::Status status = db->Get(readOptions, key, &value);
         if (unlikely(!checkLevelDBStatus(status, "LevelDB error while checking key for existence", true, errorResponse, headerFrame))) {
             logger.trace("The key that caused the previous error was " + std::string((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame)));
             zmq_msg_close(&keyFrame);
@@ -158,10 +158,10 @@ void ReadWorker::handleReadRequest(zmq_msg_t* headerFrame) {
         return;
     }
     //Get the table to read from
-    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    rocksdb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //Create the response object
-    leveldb::ReadOptions readOptions;
-    leveldb::Status status;
+    rocksdb::ReadOptions readOptions;
+    rocksdb::Status status;
     string value;
     //If there are no keys at all, just send ACK without SNDMORE, else with SNDMORE
     bool dataFramesAvailable = socketHasMoreFrames(processorInputSocket);
@@ -176,7 +176,7 @@ void ReadWorker::handleReadRequest(zmq_msg_t* headerFrame) {
             return;
         }
         //Build a slice of the key (zero-copy)
-        leveldb::Slice key((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
+        rocksdb::Slice key((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
         status = db->Get(readOptions, key, &value);
         zmq_msg_close(&keyFrame);
         if (unlikely(!checkLevelDBStatus(status, "LevelDB error while reading key", true, errorResponse, headerFrame))) {
@@ -232,7 +232,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         return;
     }
     //Get the table to read from
-    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    rocksdb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //Parse limit frame. For now we just assume UINT64_MAX is close enough to infinite
     uint64_t scanLimit;
     if (!parseUint64FrameOrAssumeDefault(scanLimit,
@@ -279,13 +279,13 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     BoyerMooreHorspoolSearcher keyFilter(keyFilterStr);
     BoyerMooreHorspoolSearcher valueFilter(valueFilterStr);
     //Convert the str to a slice, to compare the iterator slice in-place
-    leveldb::Slice rangeEndSlice(rangeEndStr);
+    rocksdb::Slice rangeEndSlice(rangeEndStr);
     //Do the compaction (takes LONG)
     //Create the response object
-    leveldb::ReadOptions readOptions;
-    leveldb::Status status;
+    rocksdb::ReadOptions readOptions;
+    rocksdb::Status status;
     //Create the iterator
-    leveldb::Iterator* it = db->NewIterator(readOptions);
+    rocksdb::Iterator* it = db->NewIterator(readOptions);
     if (haveRangeStart) {
         it->Seek(rangeStartStr);
     } else if(invertScanDirection) {
@@ -300,7 +300,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     zmq_msg_t keyMsg, valueMsg;
     bool haveLastValueMsg = false; //Needed to send only last frame without SNDMORE
     for (; it->Valid(); (invertScanDirection ? it->Prev() : it->Next())) {
-        leveldb::Slice key = it->key();
+        rocksdb::Slice key = it->key();
         const char* keyData = key.data();
         size_t keySize = key.size();
         //Check scan limit
@@ -315,7 +315,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
                 && (invertScanDirection  || compareResult >= 0)) {
             break;
         }
-        leveldb::Slice value = it->value();
+        rocksdb::Slice value = it->value();
         const char* valueData = value.data();
         size_t valueSize = value.size();
         //Check key / value filters, if any
@@ -390,7 +390,7 @@ void ReadWorker::handleCountRequest(zmq_msg_t* headerFrame) {
         return;
     }
     //Get the table to read from
-    leveldb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    rocksdb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     //Parse the from-to range
     std::string rangeStartStr;
     std::string rangeEndStr;
@@ -398,13 +398,13 @@ void ReadWorker::handleCountRequest(zmq_msg_t* headerFrame) {
     bool haveRangeStart = !(rangeStartStr.empty());
     bool haveRangeEnd = !(rangeEndStr.empty());
     //Convert the str to a slice, to compare the iterator slice in-place
-    leveldb::Slice rangeEndSlice(rangeEndStr);
+    rocksdb::Slice rangeEndSlice(rangeEndStr);
     //Do the compaction (takes LONG)
     //Create the response object
-    leveldb::ReadOptions readOptions;
-    leveldb::Status status;
+    rocksdb::ReadOptions readOptions;
+    rocksdb::Status status;
     //Create the iterator
-    leveldb::Iterator* it = db->NewIterator(readOptions);
+    rocksdb::Iterator* it = db->NewIterator(readOptions);
     if (haveRangeStart) {
         it->Seek(rangeStartStr);
     } else {
@@ -413,7 +413,7 @@ void ReadWorker::handleCountRequest(zmq_msg_t* headerFrame) {
     uint64_t count = 0;
     //Iterate over all key-values in the range
     for (; it->Valid(); it->Next()) {
-        leveldb::Slice key = it->key();
+        rocksdb::Slice key = it->key();
         if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
             break;
         }

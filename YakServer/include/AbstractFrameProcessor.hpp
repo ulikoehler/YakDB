@@ -10,7 +10,7 @@
 #include <zmq.h>
 #include <string>
 #include "Logger.hpp"
-#include <leveldb/status.h>
+#include <rocksdb/status.h>
 
 /**
  * An abstract class that provides basic parsing
@@ -103,7 +103,7 @@ protected:
      * @param errorResponseCode A 4-long response code to use if generating an error response
      * @return True on success, false if an error has been handled and the caller shall stop processing.
      */
-    bool checkLevelDBStatus(const leveldb::Status& status,
+    bool checkLevelDBStatus(const rocksdb::Status& status,
             const char* errString,
             bool generateResponse,
             const char* errorResponseCode,

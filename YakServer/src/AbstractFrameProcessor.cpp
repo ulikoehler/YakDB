@@ -212,7 +212,7 @@ bool AbstractFrameProcessor::expectNextFrame(const char* errString,
     return true;
 }
 
-bool AbstractFrameProcessor::checkLevelDBStatus(const leveldb::Status& status,
+bool AbstractFrameProcessor::checkLevelDBStatus(const rocksdb::Status& status,
     const char* errString,
     bool generateResponse,
     const char* errorResponseCode,

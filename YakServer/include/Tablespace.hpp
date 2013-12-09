@@ -10,7 +10,7 @@
 #include <vector>
 #include <cstdlib>
 #include <zmq.h>
-#include <leveldb/db.h>
+#include <rocksdb/db.h>
 
 #include "TableOpenHelper.hpp"
 
@@ -21,7 +21,7 @@
 class Tablespace {
 public:
     typedef uint32_t IndexType;
-    typedef leveldb::DB* TableType;
+    typedef rocksdb::DB* TableType;
     typedef typename std::vector<TableType> TableCollectionType;
 
     Tablespace(IndexType defaultTablespaceSize = 128);

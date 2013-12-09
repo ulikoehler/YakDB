@@ -9,9 +9,9 @@
 #include <thread>
 #include <cassert>
 #include <iostream>
-#include <leveldb/db.h>
-#include <leveldb/filter_policy.h>
-#include <leveldb/cache.h>
+#include <rocksdb/db.h>
+#include <rocksdb/filter_policy.h>
+#include <rocksdb/cache.h>
 #include <exception>
 #include <fstream>
 #include <dirent.h>
@@ -76,16 +76,16 @@ struct PACKED TableOpenParameters  {
     /**
      * Convert this instance to a LevelDB table open parameter set
      */
-    leveldb::Options getOptions(ConfigParser& configParser) {
-        leveldb::Options options;
+    rocksdb::Options getOptions(ConfigParser& configParser) {
+        rocksdb::Options options;
         if (lruCacheSize != std::numeric_limits<uint64_t>::max()) {
             if(lruCacheSize > 0) { //0 --> disable
-                options.block_cache = leveldb::NewLRUCache(lruCacheSize);
+                options.block_cache = rocksdb::NewLRUCache(lruCacheSize);
             }
         } else {
             //Use a small LRU cache per default, because OS cache doesn't cache uncompressed data
             // , so it's really slow in random-access-mode for uncompressed data
-            options.block_cache = leveldb::NewLRUCache(configParser.getDefaultTableBlockSize());
+            options.block_cache = rocksdb::NewLRUCache(configParser.getDefaultTableBlockSize());
         }
         if (tableBlockSize != std::numeric_limits<uint64_t>::max()) {
             options.block_size = tableBlockSize;
@@ -104,17 +104,17 @@ struct PACKED TableOpenParameters  {
             //0 --> disable
             if(lruCacheSize > 0) {
                 options.filter_policy
-                        = leveldb::NewBloomFilterPolicy(bloomFilterBitsPerKey);
+                        = rocksdb::NewBloomFilterPolicy(bloomFilterBitsPerKey);
             }
         } else {
             if(configParser.getDefaultBloomFilterBitsPerKey() > 0) {
                 options.filter_policy
-                        = leveldb::NewBloomFilterPolicy(
+                        = rocksdb::NewBloomFilterPolicy(
                             configParser.getDefaultBloomFilterBitsPerKey());
             }
         }
         options.create_if_missing = true;
-        options.compression = (compressionEnabled ? leveldb::kSnappyCompression : leveldb::kNoCompression);
+        options.compression = (compressionEnabled ? rocksdb::kSnappyCompression : rocksdb::kNoCompression);
         return options;
     }
 };
@@ -280,9 +280,9 @@ void TableOpenServer::tableOpenWorkerThread() {
                 readTableConfigFile(tableDir, parameters);
                 //Process the config options
                 logger.info("Creating/opening table #" + std::to_string(tableIndex));
-                leveldb::Options options = parameters.getOptions(configParser);
+                rocksdb::Options options = parameters.getOptions(configParser);
                 //Open the table
-                leveldb::Status status = leveldb::DB::Open(options, tableDir.c_str(), &databases[tableIndex]);
+                rocksdb::Status status = rocksdb::DB::Open(options, tableDir.c_str(), &databases[tableIndex]);
                 if (unlikely(!status.ok())) {
                     std::string errorDescription = "Error while trying to open table #"
                         + std::to_string(tableIndex) + " in directory " + tableDir
@@ -294,8 +294,6 @@ void TableOpenServer::tableOpenWorkerThread() {
                         logMessageSendError("table open error reply", logger);
                     }
                 }
-                //Add the cache to the map
-                cacheMap[databases[tableIndex]] = options.block_cache;
                 //Write the persistent config data
                 writeTableConfigFile(tableDir, parameters);
                 //Send ACK reply
@@ -316,13 +314,9 @@ void TableOpenServer::tableOpenWorkerThread() {
                     logMessageSendError("table close reply", logger);
                 }
             } else {
-                leveldb::DB* db = databases[tableIndex];
+                rocksdb::DB* db = databases[tableIndex];
                 databases[tableIndex] = nullptr; //Erase map entry as early as possible
                 delete db;
-                //Delete the cache, if any
-                leveldb::Cache* cache = cacheMap[db];
-                cacheMap.erase(db);
-                delete cache;
                 if (unlikely(zmq_send_const(repSocket, "\x00", 1, 0) == -1)) {
                     logMessageSendError("table close (success) reply", logger);
                 }
@@ -332,7 +326,7 @@ void TableOpenServer::tableOpenWorkerThread() {
             uint8_t responseCode = 0x00;
             //Close if not already closed
             if (!(databases.size() <= tableIndex || databases[tableIndex] == nullptr)) {
-                leveldb::DB* db = databases[tableIndex];
+                rocksdb::DB* db = databases[tableIndex];
                 databases[tableIndex] = nullptr;
                 delete db;
             }
@@ -390,13 +384,12 @@ void TableOpenServer::tableOpenWorkerThread() {
 
 COLD TableOpenServer::TableOpenServer(void* context, 
                     ConfigParser& configParserParam,
-                    std::vector<leveldb::DB*>& databasesParam)
+                    std::vector<rocksdb::DB*>& databasesParam)
 : context(context),
 logger(context, "Table open server"),
 configParser(configParserParam),
 repSocket(zmq_socket_new_bind(context, ZMQ_REP, tableOpenEndpoint)),
-databases(databasesParam),
-cacheMap() {
+databases(databasesParam) {
     //We need to bind the inproc transport synchronously in the main thread because zmq_connect required that the endpoint has already been bound
     assert(repSocket);
     //NOTE: The child thread will now own repSocket. It will destroy it on exit!
@@ -407,12 +400,6 @@ COLD TableOpenServer::~TableOpenServer() {
     //Logging after the context has been terminated would cause memleaks
     if(workerThread) {
         logger.debug("Table open server terminating");
-    }
-    //Delete all caches
-    for(auto pair : cacheMap) {
-        if(pair.second != nullptr) {
-            delete pair.second;
-        }
     }
     //Terminate the thread
     terminate();

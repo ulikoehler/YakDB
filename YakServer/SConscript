@@ -62,7 +62,7 @@ env = Environment(CXX=cxx,
                          'HOME' : os.environ['HOME']})
 
 malloc = ARGUMENTS.get("malloc","jemalloc")
-libraries = ["leveldb","zmq","boost_program_options",malloc]
+libraries = ["rocksdb","zmq","boost_program_options","bz2","z","snappy",malloc]
 if linkmode == "static":
     #Somehow we need this
     libraries.append("snappy")

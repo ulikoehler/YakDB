@@ -33,8 +33,8 @@ ClientSidePassiveJob::ClientSidePassiveJob(void* ctxParam,
         std::string endpoint = "inproc://apid/" + std::to_string(apid);
         zmq_connect(inSocket, endpoint.c_str());
         //Setup the snapshot and iterator
-        leveldb::ReadOptions options;
-        this->snapshot = (leveldb::Snapshot*) db->GetSnapshot();
+        rocksdb::ReadOptions options;
+        this->snapshot = (rocksdb::Snapshot*) db->GetSnapshot();
         options.snapshot = this->snapshot;
         it = db->NewIterator(options);
         //Seek the iterator
@@ -49,7 +49,7 @@ ClientSidePassiveJob::ClientSidePassiveJob(void* ctxParam,
 
 void ClientSidePassiveJob::mainLoop() {
     bool haveRangeEnd = !(rangeEnd.empty());
-    leveldb::Slice rangeEndSlice(rangeEnd);
+    rocksdb::Slice rangeEndSlice(rangeEnd);
     //Initialize a message buffer to read one data chunk ahead to improve latency and speed.
     //This slightly increases memory usage, but we can interleave DB reads and socket writes
     uint32_t bufferValidSize = 0; //Number of valid elements in the buffer
@@ -71,11 +71,11 @@ void ClientSidePassiveJob::mainLoop() {
             }
             scanLimit--;
             //Check end key reached condition
-            leveldb::Slice key = it->key();
+            rocksdb::Slice key = it->key();
             if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
                 break;
             }
-            leveldb::Slice value = it->value();
+            rocksdb::Slice value = it->value();
             //Create the msgs from the slices (can't zero-copy here, slices are just references!)
             size_t keySize = key.size();
             size_t valueSize = value.size();
