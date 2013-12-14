@@ -73,12 +73,7 @@ public:
      * @param writeBufferSizeFrame LevelDB write buffer in bytes
      * @param bloomFilterBitsPerKeyFrame LevelDB bloom filter bits per key
      */
-    void openTable(IndexType tableId,
-            uint64_t lruCacheSize = UINT64_MAX,
-            uint64_t tableBlockSizeFrame = UINT64_MAX,
-            uint64_t writeBufferSize = UINT64_MAX,
-            uint64_t bloomFilterBitsPerKey = UINT64_MAX,
-            const std::string& compressionCode = std::string());
+    void openTable(IndexType tableId, std::map<std::string, std::string>& parameterMap);
     void closeTable(IndexType index);
     void truncateTable(IndexType index);
     void* reqSocket; //This ZMQ socket is used to send requests

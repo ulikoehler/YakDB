@@ -301,6 +301,16 @@ bool AbstractFrameProcessor::receiveStringFrame(std::string& frame,
     return true;
 }
 
+bool AbstractFrameProcessor::receiveMap(std::map<std::string, std::string>& target,
+        const char* errName,
+        const char* errorResponse,
+        bool generateResponse,
+        zmq_msg_t* headerFrame,
+        size_t requestExpectedSize) {
+    
+    
+}
+
 bool AbstractFrameProcessor::sendMsgHandleError(zmq_msg_t* msg,
         int flags,
         const char* errName,

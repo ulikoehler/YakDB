@@ -17,12 +17,15 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <map>
+#include <memory>
 #include "zutil.hpp"
 #include "endpoints.hpp"
 #include "macros.hpp"
 #include "Tablespace.hpp"
 #include "Logger.hpp"
 #include "protocol.hpp"
+#include "MergeOperators.hpp"
 #include "FileUtils.hpp"
 
 /*
@@ -66,21 +69,84 @@
 
 using namespace std;
 
+
+/**
+ * Create a merge operator instance by code 
+ */
+static inline std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(const std::string& mergeOperatorCode) {
+    assert(!mergeOperatorCode.empty());
+    if(mergeOperatorCode == "INT64ADD") {
+        return std::make_shared<Int64AddOperator>();
+    } else if(mergeOperatorCode == "DMUL") {
+        return std::make_shared<DMulOperator>();
+    } else if(mergeOperatorCode == "APPEND") {
+        return std::make_shared<AppendOperator>();
+    } else if(mergeOperatorCode == "REPLACE") { //Also handles REPLACE
+        return std::make_shared<ReplaceOperator>();
+    } else {
+        cerr << "Warning: Invalid merge operator code: " << mergeOperatorCode << endl;
+        return std::make_shared<ReplaceOperator>();
+    }
+}
+
+
+/**
+ * Parse the compression mode from a string.
+ * Defaults to no compression if 
+ */
+rocksdb::CompressionType parseCompressionMode(const std::string& compressionCode) {
+    //Parse compression option
+    if(compressionCode == "ZLIB") {
+        return rocksdb::kZlibCompression;
+    } else if(compressionCode == "BZIP2") {
+        return rocksdb::kBZip2Compression;
+    } else if(compressionCode == "SNAPPY") {
+        return rocksdb::kSnappyCompression;
+    } else if(compressionCode.empty()) {
+        return rocksdb::kNoCompression;
+    } else {
+        cerr << "Error: Invalid compression code: " << compressionCode << endl;
+        return rocksdb::kNoCompression;
+    }
+}
+
 struct PACKED TableOpenParameters  {
     uint64_t lruCacheSize; //UINT64_MAX --> Not set
     uint64_t tableBlockSize; //UINT64_MAX --> Not set
     uint64_t writeBufferSize; //UINT64_MAX --> Not set
     uint64_t bloomFilterBitsPerKey; //UINT64_MAX --> Not set
-    int8_t compression; //INT8_MAX --> Not set
+    rocksdb::CompressionType compression; //INT8_MAX --> Not set
+    std::shared_ptr<rocksdb::MergeOperator> mergeOperator;
     
     TableOpenParameters() :
         lruCacheSize(std::numeric_limits<uint64_t>::max()),
         tableBlockSize(std::numeric_limits<uint64_t>::max()),
         writeBufferSize(std::numeric_limits<uint64_t>::max()),
         bloomFilterBitsPerKey(std::numeric_limits<uint64_t>::max()),
-        compression(std::numeric_limits<int8_t>::max()) {
+        compression(rocksdb::kSnappyCompression) {
         }
-    
+        
+    void parseFromParameterMap(std::map<std::string, std::string>& parameters) {
+        if(parameters.count("LRUCacheSize")) {
+            lruCacheSize = stoull(parameters["LRUCacheSize"]);
+        }
+        if(parameters.count("Blocksize")) {
+            tableBlockSize = stoull(parameters["Blocksize"]);
+        }
+        if(parameters.count("WriteBufferSize")) {
+            writeBufferSize = stoull(parameters["WriteBufferSize"]);
+        }
+        if(parameters.count("BloomFilterBitsPerKey")) {
+            bloomFilterBitsPerKey = stoull(parameters["BloomFilterBitsPerKey"]);
+        }
+        if(parameters.count("CompressionMode")) {
+            compression = parseCompressionMode(parameters["CompressionMode"]);
+        }
+        if(parameters.count("MergeOperator")) {
+            mergeOperator = createMergeOperator(parameters["MergeOperator"]);
+        }
+    }
+        
     /**
      * Convert this instance to a RocksDB table open parameter set
      */
@@ -111,8 +177,7 @@ struct PACKED TableOpenParameters  {
         if (bloomFilterBitsPerKey != std::numeric_limits<uint64_t>::max()) {
             //0 --> disable
             if(lruCacheSize > 0) {
-                options.filter_policy
-                        = rocksdb::NewBloomFilterPolicy(bloomFilterBitsPerKey);
+                options.filter_policy = rocksdb::NewBloomFilterPolicy(bloomFilterBitsPerKey);
             }
         } else {
             if(configParser.getDefaultBloomFilterBitsPerKey() > 0) {
@@ -122,29 +187,13 @@ struct PACKED TableOpenParameters  {
             }
         }
         options.create_if_missing = true;
+        //Compression. Default: Snappy
+        options.compression = (rocksdb::CompressionType) compression;
+        //Merge operator
+        options.merge_operator = mergeOperator;
         return options;
     }
     
-    /**
-     * Parse the compression mode from a string.
-     * Defaults to no compression if 
-     */
-    void parseCompressionMode(const std::string& compressionCode) {
-        //Parse compression option
-        if(compressionCode == "ZLIB") {
-            compression = rocksdb::kZlibCompression;
-        } else if(compressionCode == "BZIP2") {
-            compression = rocksdb::kBZip2Compression;
-        } else if(compressionCode == "SNAPPY") {
-            compression = rocksdb::kSnappyCompression;
-        } else if(compressionCode.empty()) {
-            compression = rocksdb::kNoCompression;
-        } else {
-            cerr << "Error: Invalid compression code: '"
-                 << compressionCode << "'. Ignoring." << endl;
-            compression = rocksdb::kNoCompression;
-        }
-    }
     
     /**
      * Read a table config file (request is ignored if file does not exist).
@@ -160,18 +209,18 @@ struct PACKED TableOpenParameters  {
                 assert(sepIndex != string::npos);
                 string key = line.substr(0, sepIndex);
                 string value = line.substr(sepIndex+1);
-                if(key == "lruCacheSize") {
+                if(key == "LRUCacheSize") {
                     lruCacheSize = stoull(value);
-                } else if(key == "tableBlockSize") {
+                } else if(key == "Blocksize") {
                     tableBlockSize = stoull(value);
-                } else if(key == "writeBufferSize") {
+                } else if(key == "WriteBufferSize") {
                     writeBufferSize = stoull(value);
-                } else if(key == "bloomFilterBitsPerKey") {
+                } else if(key == "BloomFilterBitsPerKey") {
                     bloomFilterBitsPerKey = stoull(value);
-                } else if(key == "compression") {
+                } else if(key == "CompressionMode") {
                     parseCompressionMode(value);
                 } else {
-                    cerr << "ERRR : " << key << " --- " << value << endl;
+                    cerr << "Unknown key in table config file : " << key << " (= " << value << ")" << endl;
                 }
             }
             fin.close();
@@ -182,22 +231,22 @@ struct PACKED TableOpenParameters  {
         std::string cfgFileName = tableDir + ".cfg";
         ofstream fout(cfgFileName.c_str());
         if(lruCacheSize != std::numeric_limits<uint64_t>::max()) {
-            fout << "lruCacheSize=" << lruCacheSize << endl;
+            fout << "LRUCacheSize=" << lruCacheSize << endl;
         }
         if(tableBlockSize != std::numeric_limits<uint64_t>::max()) {
-            fout << "tableBlockSize=" << tableBlockSize << endl;
+            fout << "Blocksize=" << tableBlockSize << endl;
         }
         if(writeBufferSize != std::numeric_limits<uint64_t>::max()) {
-            fout << "writeBufferSize=" << writeBufferSize << endl;
+            fout << "WriteBufferSize=" << writeBufferSize << endl;
         }
         if(bloomFilterBitsPerKey != std::numeric_limits<uint64_t>::max()) {
-            fout << "bloomFilterBitsPerKey=" << bloomFilterBitsPerKey << endl;
+            fout << "BloomFilterBitsPerKey=" << bloomFilterBitsPerKey << endl;
         }
         if(compression != std::numeric_limits<int8_t>::max()) {
             compression = rocksdb::kNoCompression;
-            fout << "compression=";
+            fout << "CompressionMode=";
             if(compression == rocksdb::kNoCompression) {
-                fout << endl;
+                fout << "NONE" << endl;
             } else if (compression == rocksdb::kZlibCompression) {
                 fout << "ZLIB" << endl;
             } else if (compression == rocksdb::kBZip2Compression) {
@@ -455,18 +504,9 @@ COLD TableOpenHelper::TableOpenHelper(void* context) : context(context), logger(
     }
 }
 
-void COLD TableOpenHelper::openTable(uint32_t tableId,
-        uint64_t lruCacheSize,
-        uint64_t tableBlockSizeFrame,
-        uint64_t writeBufferSize,
-        uint64_t bloomFilterBitsPerKey,
-        const std::string& compression) {
+void COLD TableOpenHelper::openTable(uint32_t tableId, std::map<std::string, std::string>& parameterMap) {
     TableOpenParameters parameters;
-    parameters.lruCacheSize = lruCacheSize;
-    parameters.tableBlockSize = tableBlockSizeFrame;
-    parameters.writeBufferSize = writeBufferSize;
-    parameters.bloomFilterBitsPerKey = bloomFilterBitsPerKey;
-    parameters.parseCompressionMode(compression);
+    parameters.parseFromParameterMap(parameterMap);
     //Just send a message containing the table index to the opener thread
     if(sendTableOperationRequest(reqSocket, TableOperationRequestType::OpenTable, ZMQ_SNDMORE) == -1) {
         logMessageSendError("table open message", logger);

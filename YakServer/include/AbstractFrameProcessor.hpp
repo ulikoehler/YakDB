@@ -9,6 +9,7 @@
 #define	ABSTRACTFRAMEPROCESSOR_HPP
 #include <zmq.h>
 #include <string>
+#include <map>
 #include "Logger.hpp"
 #include <rocksdb/status.h>
 
@@ -145,6 +146,15 @@ protected:
      * Same behaviour as receiveMsgHandleError(), but stores the frame in a string instead of a message.
      */
     bool receiveStringFrame(std::string& frame,
+            const char* errName,
+            const char* errorResponse,
+            bool generateResponse = true,
+            zmq_msg_t* headerFrame = nullptr,
+            size_t requestExpectedSize = 3);
+    /**
+     * Receive a map of alternating key/value frames, until the message ends.
+     */
+    bool receiveMap(std::map<std::string, std::string>& target,
             const char* errName,
             const char* errorResponse,
             bool generateResponse = true,

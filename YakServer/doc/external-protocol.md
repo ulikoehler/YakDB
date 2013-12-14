@@ -116,16 +116,20 @@ Table Open request: Opens a specified table. Creates the table if not already pr
 Tables can also be opened on-the-fly (optional feature), but you can't specify compression etc. in this case.
 Additionally, opening tables takes a considerable amount of time, therefore
 
-* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x01 Request type (table open requst)][1 byte Table open flags]
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x01 Request type (table open requst)]
 * Frame 1: [4-byte unsigned integer table number]
-* Frame 2: [8 bytes unsigned integer LRU cache size (in bytes) or zero-length to assume default]
-* Frame 3: [8 bytes unsigned integer table blocksize (in bytes) or zero-length to assume default]
-* Frame 4: [8 bytes unsigned integer write buffer size (in bytes) or zero-length to assume default]
-* Frame 5: [8 bytes unsigned integer bloom filter bits per key or zero-length to use no bloom filter]
-* Frame 6: [String describing the compression mode to use, or empty to assume default]
-* Frame 7: [String describing the table merge operator, or empty to assume default]
+* Frame 2-n (even numbers): Option key
+* Frame 3-n (odd numbers): Option value
 
-*Table open flags*: 8-bit-field of bitwise-OR-concatenated flags. Currently ignored, set to zero.
+Table open options are specified as key/value pairs (both string).
+Allowed key/value pairs:
+
+* 'LRUCacheSize': LRU cache size in bytes (unsigned)
+* 'Blocksize': Table blocksize in bytes (unsigned)
+* 'WriteBufferSize': Write buffer size in bytes (unsigned)
+* 'BloomFilterBitsPerKey': Bits per key for table bloom filter (unsigned)
+* 'CompressionMode': String code for the table compression mode (see below)
+* 'MergeOperator': String code for the table merge operator (see below)
 
 Supported compression modes:
 
@@ -134,7 +138,12 @@ Supported compression modes:
 * SNAPPY
 * NONE
 
-By default (if no commandline flags are given), *Snappy* is used as default compression mode.
+Supported merge operators:
+
+* REPLACE (default)
+* INT64ADD (64-bit signed add)
+* DMUL (64-bit double IEEE754 multiply)
+* APPEND (Binary append)
 
 
 

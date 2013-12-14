@@ -516,6 +516,14 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             headerFrame, 4)) {
         return;
     }
+    std::string mergeOperator;
+    if (!receiveStringFrame(mergeOperator,
+            "Merge operator frame",
+            errorResponse,
+            generateResponse,
+            headerFrame, 4)) {
+        return;
+    }
     //
     //Parse the flags from the header frame
     //
@@ -525,7 +533,8 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             blockSize,
             writeBufferSize,
             bloomFilterBitsPerKey,
-            compressionCode);
+            compressionCode,
+            mergeOperator);
     //Rewrite the header frame for the response
     //Create the response if neccessary
     if (generateResponse) {
