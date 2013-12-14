@@ -78,7 +78,7 @@ public:
             uint64_t tableBlockSizeFrame = UINT64_MAX,
             uint64_t writeBufferSize = UINT64_MAX,
             uint64_t bloomFilterBitsPerKey = UINT64_MAX,
-            bool compressionEnabled = true);
+            const std::string& compressionCode = std::string());
     void closeTable(IndexType index);
     void truncateTable(IndexType index);
     void* reqSocket; //This ZMQ socket is used to send requests

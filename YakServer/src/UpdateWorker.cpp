@@ -466,9 +466,8 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
      * This method performs frame correctness check, the table open server
      * serializes everything in a single struct.
      */
-    //Extract flags from header
+    //Extract flags from header (currently ignored)
     uint8_t flags = ((uint8_t*) zmq_msg_data(headerFrame))[3];
-    bool compressionEnabled = (flags & 0x01) == 0;
     //Extract numeric parameters
     uint32_t tableId;
     if (!parseUint32Frame(tableId,
@@ -509,6 +508,14 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             errorResponse, headerFrame, 4)) {
         return;
     }
+    std::string compressionCode;
+    if (!receiveStringFrame(compressionCode,
+            "Compression code frame",
+            errorResponse,
+            generateResponse,
+            headerFrame, 4)) {
+        return;
+    }
     //
     //Parse the flags from the header frame
     //
@@ -518,7 +525,7 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             blockSize,
             writeBufferSize,
             bloomFilterBitsPerKey,
-            compressionEnabled);
+            compressionCode);
     //Rewrite the header frame for the response
     //Create the response if neccessary
     if (generateResponse) {

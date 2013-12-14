@@ -67,14 +67,22 @@
 using namespace std;
 
 struct PACKED TableOpenParameters  {
-    uint64_t lruCacheSize;
-    uint64_t tableBlockSize;
-    uint64_t writeBufferSize;
-    uint64_t bloomFilterBitsPerKey;
-    bool compressionEnabled;
+    uint64_t lruCacheSize; //UINT64_MAX --> Not set
+    uint64_t tableBlockSize; //UINT64_MAX --> Not set
+    uint64_t writeBufferSize; //UINT64_MAX --> Not set
+    uint64_t bloomFilterBitsPerKey; //UINT64_MAX --> Not set
+    int8_t compression; //INT8_MAX --> Not set
+    
+    TableOpenParameters() :
+        lruCacheSize(std::numeric_limits<uint64_t>::max()),
+        tableBlockSize(std::numeric_limits<uint64_t>::max()),
+        writeBufferSize(std::numeric_limits<uint64_t>::max()),
+        bloomFilterBitsPerKey(std::numeric_limits<uint64_t>::max()),
+        compression(std::numeric_limits<int8_t>::max()) {
+        }
     
     /**
-     * Convert this instance to a LevelDB table open parameter set
+     * Convert this instance to a RocksDB table open parameter set
      */
     rocksdb::Options getOptions(ConfigParser& configParser) {
         rocksdb::Options options;
@@ -89,8 +97,8 @@ struct PACKED TableOpenParameters  {
         }
         if (tableBlockSize != std::numeric_limits<uint64_t>::max()) {
             options.block_size = tableBlockSize;
-        } else { //Default table block size (= more than LevelDB default)
-            //256k, LevelDB default = 4k
+        } else { //Default table block size (= more than RocksDB default)
+            //Factory default 256k, RocksDB default = 4k
             options.block_size = configParser.getDefaultTableBlockSize(); 
         }
         if (writeBufferSize != std::numeric_limits<uint64_t>::max()) {
@@ -114,85 +122,94 @@ struct PACKED TableOpenParameters  {
             }
         }
         options.create_if_missing = true;
-        options.compression = (compressionEnabled ? rocksdb::kSnappyCompression : rocksdb::kNoCompression);
         return options;
+    }
+    
+    /**
+     * Parse the compression mode from a string.
+     * Defaults to no compression if 
+     */
+    void parseCompressionMode(const std::string& compressionCode) {
+        //Parse compression option
+        if(compressionCode == "ZLIB") {
+            compression = rocksdb::kZlibCompression;
+        } else if(compressionCode == "BZIP2") {
+            compression = rocksdb::kBZip2Compression;
+        } else if(compressionCode == "SNAPPY") {
+            compression = rocksdb::kSnappyCompression;
+        } else if(compressionCode.empty()) {
+            compression = rocksdb::kNoCompression;
+        } else {
+            cerr << "Error: Invalid compression code: '"
+                 << compressionCode << "'. Ignoring." << endl;
+            compression = rocksdb::kNoCompression;
+        }
+    }
+    
+    /**
+     * Read a table config file (request is ignored if file does not exist).
+     */
+    void COLD readTableConfigFile(const std::string& tableDir) {
+        std::string cfgFileName = tableDir + ".cfg";
+        if(fexists(cfgFileName)) {
+            string line;
+            ifstream fin(cfgFileName.c_str());
+            while(fin.good()) {
+                fin >> line;
+                size_t sepIndex = line.find_first_of('=');
+                assert(sepIndex != string::npos);
+                string key = line.substr(0, sepIndex);
+                string value = line.substr(sepIndex+1);
+                if(key == "lruCacheSize") {
+                    lruCacheSize = stoull(value);
+                } else if(key == "tableBlockSize") {
+                    tableBlockSize = stoull(value);
+                } else if(key == "writeBufferSize") {
+                    writeBufferSize = stoull(value);
+                } else if(key == "bloomFilterBitsPerKey") {
+                    bloomFilterBitsPerKey = stoull(value);
+                } else if(key == "compression") {
+                    parseCompressionMode(value);
+                } else {
+                    cerr << "ERRR : " << key << " --- " << value << endl;
+                }
+            }
+            fin.close();
+        }
+    }
+    
+    void COLD writeToFile(const std::string& tableDir) {
+        std::string cfgFileName = tableDir + ".cfg";
+        ofstream fout(cfgFileName.c_str());
+        if(lruCacheSize != std::numeric_limits<uint64_t>::max()) {
+            fout << "lruCacheSize=" << lruCacheSize << endl;
+        }
+        if(tableBlockSize != std::numeric_limits<uint64_t>::max()) {
+            fout << "tableBlockSize=" << tableBlockSize << endl;
+        }
+        if(writeBufferSize != std::numeric_limits<uint64_t>::max()) {
+            fout << "writeBufferSize=" << writeBufferSize << endl;
+        }
+        if(bloomFilterBitsPerKey != std::numeric_limits<uint64_t>::max()) {
+            fout << "bloomFilterBitsPerKey=" << bloomFilterBitsPerKey << endl;
+        }
+        if(compression != std::numeric_limits<int8_t>::max()) {
+            compression = rocksdb::kNoCompression;
+            fout << "compression=";
+            if(compression == rocksdb::kNoCompression) {
+                fout << endl;
+            } else if (compression == rocksdb::kZlibCompression) {
+                fout << "ZLIB" << endl;
+            } else if (compression == rocksdb::kBZip2Compression) {
+                fout << "BZIP2" << endl;
+            } else if (compression == rocksdb::kSnappyCompression) {
+                fout << "SNAPPY" << endl;
+            }
+        }
+        fout.close();
     }
 };
 
-
-/**
-* If the table config file for the table exists,
-* read it and save it in an options object.
-* 
-* If the values are not set to DEFAULT in the options parameter,
-* they are not overwritten (--> users choice has precedence)
-* 
-* Compression is always set to the user-supplied value.
-*/
-static void readTableConfigFile(const std::string& tableDirName, TableOpenParameters& options) {
-    string cfgFileName = tableDirName + ".cfg";
-    if(fexists(cfgFileName)) {
-        string line;
-        ifstream fin(cfgFileName.c_str());
-        while(fin.good()) {
-            fin >> line;
-            size_t sepIndex = line.find_first_of('=');
-            assert(sepIndex != string::npos);
-            string key = line.substr(0, sepIndex);
-            string value = line.substr(sepIndex+1);
-            if(key == "lruCacheSize") {
-                if(options.lruCacheSize == UINT64_MAX) {
-                    options.lruCacheSize = stoull(value);
-                }
-            } else if(key == "tableBlockSize") {
-                if(options.lruCacheSize == UINT64_MAX) {
-                    options.tableBlockSize = stoull(value);
-                }
-            } else if(key == "writeBufferSize") {
-                if(options.lruCacheSize == UINT64_MAX) {
-                    options.writeBufferSize = stoull(value);
-                }
-            } else if(key == "bloomFilterBitsPerKey") {
-                if(options.lruCacheSize == UINT64_MAX) {
-                    options.bloomFilterBitsPerKey = stoull(value);
-                }
-            } else {
-                cerr << "ERRR : " << key << " --- " << value << endl;
-            }
-        }
-        fin.close();
-    }
-}
-
-/**
- * Write a table config file that is used to persistently store the table open options.
- */
-static void writeTableConfigFile(const std::string& tableDirName, const TableOpenParameters& options) {
-    string cfgFileName = tableDirName + ".cfg";
-    //Don't open file if nothing would be written
-    if(!(
-        options.lruCacheSize != UINT64_MAX || 
-        options.tableBlockSize != UINT64_MAX ||
-        options.writeBufferSize != UINT64_MAX ||
-        options.bloomFilterBitsPerKey != UINT64_MAX
-    )) {
-        return;
-    }
-    ofstream fout(cfgFileName.c_str());
-    if(options.lruCacheSize != UINT64_MAX) {
-        fout << "lruCacheSize=" << options.lruCacheSize << endl;
-    }
-    if(options.tableBlockSize != UINT64_MAX) {
-        fout << "tableBlockSize=" << options.tableBlockSize << endl;
-    }
-    if(options.writeBufferSize != UINT64_MAX) {
-        fout << "writeBufferSize=" << options.writeBufferSize << endl;
-    }
-    if(options.bloomFilterBitsPerKey != UINT64_MAX) {
-        fout << "bloomFilterBitsPerKey=" << options.bloomFilterBitsPerKey << endl;
-    }
-    fout.close();
-}
 
 enum class TableOperationRequestType : uint8_t {
     StopServer = 0,
@@ -277,7 +294,7 @@ void TableOpenServer::tableOpenWorkerThread() {
             if (databases[tableIndex] == nullptr) {
                 std::string tableDir = "tables/" + std::to_string(tableIndex);
                 //Override default values with the last values from the table config file, if any
-                readTableConfigFile(tableDir, parameters);
+                parameters.readTableConfigFile(tableDir);
                 //Process the config options
                 logger.info("Creating/opening table #" + std::to_string(tableIndex));
                 rocksdb::Options options = parameters.getOptions(configParser);
@@ -295,7 +312,7 @@ void TableOpenServer::tableOpenWorkerThread() {
                     }
                 }
                 //Write the persistent config data
-                writeTableConfigFile(tableDir, parameters);
+                parameters.writeToFile(tableDir);
                 //Send ACK reply
                 if(ok) {
                     if (unlikely(zmq_send_const(repSocket, "\x00", 1, 0) == -1)) {
@@ -443,13 +460,13 @@ void COLD TableOpenHelper::openTable(uint32_t tableId,
         uint64_t tableBlockSizeFrame,
         uint64_t writeBufferSize,
         uint64_t bloomFilterBitsPerKey,
-        bool compressionEnabled) {
+        const std::string& compression) {
     TableOpenParameters parameters;
     parameters.lruCacheSize = lruCacheSize;
     parameters.tableBlockSize = tableBlockSizeFrame;
     parameters.writeBufferSize = writeBufferSize;
     parameters.bloomFilterBitsPerKey = bloomFilterBitsPerKey;
-    parameters.compressionEnabled = compressionEnabled;
+    parameters.parseCompressionMode(compression);
     //Just send a message containing the table index to the opener thread
     if(sendTableOperationRequest(reqSocket, TableOperationRequestType::OpenTable, ZMQ_SNDMORE) == -1) {
         logMessageSendError("table open message", logger);

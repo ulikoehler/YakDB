@@ -125,7 +125,7 @@ Additionally, opening tables takes a considerable amount of time, therefore
 * Frame 6: [String describing the compression mode to use, or empty to assume default]
 * Frame 7: [String describing the table merge operator, or empty to assume default]
 
-* *[Table open flags]*: 8-bit-field, with bitwise-OR-concatenated flags. Currently ignored.
+*Table open flags*: 8-bit-field of bitwise-OR-concatenated flags. Currently ignored, set to zero.
 
 Supported compression modes:
 
