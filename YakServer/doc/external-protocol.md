@@ -121,10 +121,22 @@ Additionally, opening tables takes a considerable amount of time, therefore
 * Frame 2: [8 bytes unsigned integer LRU cache size (in bytes) or zero-length to assume default]
 * Frame 3: [8 bytes unsigned integer table blocksize (in bytes) or zero-length to assume default]
 * Frame 4: [8 bytes unsigned integer write buffer size (in bytes) or zero-length to assume default]
-* Frame 4: [8 bytes unsigned integer bloom filter bits per key or zero-length to use no bloom filter]
+* Frame 5: [8 bytes unsigned integer bloom filter bits per key or zero-length to use no bloom filter]
+* Frame 6: [String describing the compression mode to use, or empty to assume default]
+* Frame 7: [String describing the table merge operator, or empty to assume default]
 
-* *[Table open flags]*: 8-bit-field, with bitwise-OR-concatenated flags.
-* 0x01: NOCOMPRESSION: If this flag is set the table shall be opened with compression disabled
+* *[Table open flags]*: 8-bit-field, with bitwise-OR-concatenated flags. Currently ignored.
+
+Supported compression modes:
+
+* BZIP2
+* ZLIB
+* SNAPPY
+* NONE
+
+By default (if no commandline flags are given), *Snappy* is used as default compression mode.
+
+
 
 ##### Table Open response
 
