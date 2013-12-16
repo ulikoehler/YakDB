@@ -107,8 +107,9 @@ AsyncJobRouter::~AsyncJobRouter() {
 }
 
 bool AsyncJobRouter::processNextRequest() {
-    zmq_msg_t routingFrame, delimiterFrame, headerFrame;
+    zmq_msg_t routingFrame, delimiterFrame;
     //Read routing info
+    errorResponse = "\x31\x01\xFF\xFF";
     zmq_msg_init(&routingFrame);
     if(receiveLogError(&routingFrame, processorInputSocket, logger, "Routing frame") == -1) {
         return true;
@@ -119,7 +120,7 @@ bool AsyncJobRouter::processNextRequest() {
         return false;
     }
     //If it isn't empty, we expect to see the delimiter frame
-    if (!expectNextFrame("Received nonempty routing frame, but no delimiter frame", false, "\x31\x01\xFF\xFF")) {
+    if (!expectNextFrame("Received nonempty routing frame, but no delimiter frame", false)) {
         zmq_msg_close(&routingFrame);
         return true;
     }
@@ -129,7 +130,7 @@ bool AsyncJobRouter::processNextRequest() {
     }
     //Receive the header frame
     zmq_msg_init(&headerFrame);
-    if (unlikely(!receiveMsgHandleError(&headerFrame, "Receive header frame in read worker thread", "\x31\x01\xFF\xFF", true))) {
+    if (unlikely(!receiveMsgHandleError(&headerFrame, "Receive header frame in read worker thread", true))) {
         return true;
     }
     assert(isHeaderFrame(&headerFrame));
@@ -139,7 +140,8 @@ bool AsyncJobRouter::processNextRequest() {
     if (requestType == ClientDataRequest) {
         //Parse the APID frame
         uint64_t apid;
-        if(!parseUint64Frame(apid, "APID frame", true, "\x31\01\x50\x01")) {
+        errorResponse = "\x31\01\x50\x01";
+        if(!parseUint64Frame(apid, "APID frame", true)) {
             return true;
         }
         /*
@@ -189,20 +191,21 @@ bool AsyncJobRouter::processNextRequest() {
         zmq_msg_close(&headerFrame);
         //Parse all parameters
         uint32_t tableId;
-        if(!parseUint32Frame(tableId, "APID frame", true, "\x31\01\x42\x01")) {
+        errorResponse = "\x31\01\x42\x01";
+        if(!parseUint32Frame(tableId, "APID frame", true)) {
             return true;
         }
         uint32_t chunkSize;
-        if(!parseUint32FrameOrAssumeDefault(chunkSize, 1000, "Block size frame", true, "\x31\01\x42\x01")) {
+        if(!parseUint32FrameOrAssumeDefault(chunkSize, 1000, "Block size frame", true)) {
             return true;
         }
         uint64_t scanLimit;
-        if(!parseUint64FrameOrAssumeDefault(scanLimit, UINT64_MAX, "Scan limit frame", true, "\x31\01\x42\x01")) {
+        if(!parseUint64FrameOrAssumeDefault(scanLimit, UINT64_MAX, "Scan limit frame", true)) {
             return true;
         }
         std::string rangeStart;
         std::string rangeEnd;
-        parseRangeFrames(rangeStart, rangeEnd, "CSPTMIR range", "\x31\x01\x42\x01", true);
+        parseRangeFrames(rangeStart, rangeEnd, "CSPTMIR range", true);
         //Initialize it
         uint64_t apid = initializeJob();
         startClientSidePassiveJob(apid, tableId, chunkSize, scanLimit, rangeStart, rangeEnd);

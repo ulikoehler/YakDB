@@ -86,14 +86,11 @@ ReadWorker::~ReadWorker() {
 }
 
 void ReadWorker::handleExistsRequest(zmq_msg_t* headerFrame) {
-    static const char* errorResponse = "\x31\x01\x12\x01";
+    errorResponse = "\x31\x01\x12\x01";
     static const char* ackResponse = "\x31\x01\x12\x00";
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId,
-            "Table ID frame in exists request",
-            true,
-            errorResponse, headerFrame)) {
+    if (!parseUint32Frame(tableId, "Table ID frame in exists request", true)) {
         return;
     }
     //Get the table to read from
@@ -103,21 +100,21 @@ void ReadWorker::handleExistsRequest(zmq_msg_t* headerFrame) {
     string value;
     //If there are no keys at all, just send ACK without SNDMORE, else with SNDMORE
     bool dataFramesAvailable = socketHasMoreFrames(processorInputSocket);
-    sendResponseHeader(headerFrame, ackResponse, (dataFramesAvailable ? ZMQ_SNDMORE : 0));
+    sendResponseHeader(ackResponse, (dataFramesAvailable ? ZMQ_SNDMORE : 0));
     //Read each read request
     zmq_msg_t keyFrame;
     zmq_msg_t previousResponse; //Needed to only send last frame without SNDMORE
     bool havePreviousResponse = false;
     while (socketHasMoreFrames(processorInputSocket)) {
         zmq_msg_init(&keyFrame);
-        if (unlikely(!receiveMsgHandleError(&keyFrame, "Receive exists key frame", errorResponse, true, headerFrame))) {
+        if (unlikely(!receiveMsgHandleError(&keyFrame, "Receive exists key frame", true))) {
             return;
         }
         //Build a slice of the key (zero-copy)
         rocksdb::Slice key((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
 
         rocksdb::Status status = db->Get(readOptions, key, &value);
-        if (unlikely(!checkLevelDBStatus(status, "LevelDB error while checking key for existence", true, errorResponse, headerFrame))) {
+        if (unlikely(!checkLevelDBStatus(status, "LevelDB error while checking key for existence", true))) {
             logger.trace("The key that caused the previous error was " + std::string((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame)));
             zmq_msg_close(&keyFrame);
             return;
@@ -125,7 +122,7 @@ void ReadWorker::handleExistsRequest(zmq_msg_t* headerFrame) {
         zmq_msg_close(&keyFrame);
         //Send the previous response, if any
         if (havePreviousResponse) {
-            if (unlikely(!sendMsgHandleError(&previousResponse, ZMQ_SNDMORE, "ZMQ error while sending exists reply (not last)", errorResponse, headerFrame))) {
+            if (unlikely(!sendMsgHandleError(&previousResponse, ZMQ_SNDMORE, "ZMQ error while sending exists reply (not last)"))) {
                 return;
             }
         }
@@ -139,22 +136,18 @@ void ReadWorker::handleExistsRequest(zmq_msg_t* headerFrame) {
     }
     //Send the last response, if any (last msg, without MORE)
     if (havePreviousResponse) {
-        if (unlikely(!sendMsgHandleError(&previousResponse,
-                0, "ZMQ error while sending last exists reply",
-                errorResponse, headerFrame))) {
+        if (unlikely(!sendMsgHandleError(&previousResponse, 0, "ZMQ error while sending last exists reply"))) {
             return;
         }
     }
 }
 
 void ReadWorker::handleReadRequest(zmq_msg_t* headerFrame) {
-    static const char* errorResponse = "\x31\x01\x10\x01";
+    errorResponse = "\x31\x01\x10\x01";
     static const char* ackResponse = "\x31\x01\x10\x00";
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId,
-            "Table ID frame in read request",
-            true, errorResponse, headerFrame)) {
+    if (!parseUint32Frame(tableId, "Table ID frame in read request", true)) {
         return;
     }
     //Get the table to read from
@@ -165,21 +158,21 @@ void ReadWorker::handleReadRequest(zmq_msg_t* headerFrame) {
     string value;
     //If there are no keys at all, just send ACK without SNDMORE, else with SNDMORE
     bool dataFramesAvailable = socketHasMoreFrames(processorInputSocket);
-    sendResponseHeader(headerFrame, ackResponse, (dataFramesAvailable ? ZMQ_SNDMORE : 0));
+    sendResponseHeader(ackResponse, (dataFramesAvailable ? ZMQ_SNDMORE : 0));
     //Read each read request
     zmq_msg_t keyFrame;
     zmq_msg_t previousResponse; //Needed to only send last frame without SNDMORE
     bool havePreviousResponse = false;
     while (socketHasMoreFrames(processorInputSocket)) {
         zmq_msg_init(&keyFrame);
-        if (unlikely(!receiveMsgHandleError(&keyFrame, "Receive read key frame", errorResponse, headerFrame))) {
+        if (unlikely(!receiveMsgHandleError(&keyFrame, "Receive read key frame", true))) {
             return;
         }
         //Build a slice of the key (zero-copy)
         rocksdb::Slice key((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
         status = db->Get(readOptions, key, &value);
         zmq_msg_close(&keyFrame);
-        if (unlikely(!checkLevelDBStatus(status, "LevelDB error while reading key", true, errorResponse, headerFrame))) {
+        if (unlikely(!checkLevelDBStatus(status, "LevelDB error while reading key", true))) {
             logger.trace("The key that caused the error was " + key.ToString());
             zmq_msg_close(&keyFrame);
             return;
@@ -188,9 +181,7 @@ void ReadWorker::handleReadRequest(zmq_msg_t* headerFrame) {
         if (havePreviousResponse) {
             if (unlikely(!sendMsgHandleError(&previousResponse,
                                              ZMQ_SNDMORE,
-                                             "ZMQ error while sending read reply (not last)",
-                                             errorResponse,
-                                             headerFrame))) {
+                                             "ZMQ error while sending read reply (not last)"))) {
                 return;
             }
         }
@@ -214,21 +205,22 @@ void ReadWorker::handleReadRequest(zmq_msg_t* headerFrame) {
 }
 
 void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
-    static const char* errorResponse = "\x31\x01\x13\x01";
+    errorResponse = "\x31\x01\x13\x01";
     static const char* ackResponse = "\x31\x01\x13\x00";
+    requestExpectedSize = 4;
     //Parse scan flags
-    if (!expectMinimumFrameSize(headerFrame, 4, "scan request header frame", errorResponse, true, headerFrame, 4)) {
+    if (!expectMinimumFrameSize(headerFrame, 4, "scan request header frame", true)) {
         return;
     }
     uint8_t scanFlags = ((char*)zmq_msg_data(headerFrame))[3];
     bool invertScanDirection = (scanFlags & ScanFlagInvertDirection) != 0;
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame in scan request", true, errorResponse, headerFrame, 4)) {
+    if (!parseUint32Frame(tableId, "Table ID frame in scan request", true)) {
         return;
     }
     //Check if there is a range frame at all
-    if (!expectNextFrame("Only table ID frame found in scan request, range missing", true, errorResponse, headerFrame, 4)) {
+    if (!expectNextFrame("Only table ID frame found in scan request, range missing", true)) {
         return;
     }
     //Get the table to read from
@@ -238,13 +230,13 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     if (!parseUint64FrameOrAssumeDefault(scanLimit,
                 std::numeric_limits<uint64_t>::max(),
                 "Receive scan limit frame",
-                true, errorResponse, headerFrame, 4)) {
+                true)) {
         return;
     }
     //Parse the from-to range
     std::string rangeStartStr;
     std::string rangeEndStr;
-    if (!parseRangeFrames(rangeStartStr, rangeEndStr, "Scan request scan range parsing", errorResponse, true, headerFrame, 4)) {
+    if (!parseRangeFrames(rangeStartStr, rangeEndStr, "Scan request scan range parsing", true)) {
         return;
     }
     bool haveRangeStart = !(rangeStartStr.empty());
@@ -252,25 +244,25 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     //Parse the filter frames
     std::string keyFilterStr = "";
     std::string valueFilterStr = "";
-    if(!expectNextFrame("Expected key filter frame", true, errorResponse, headerFrame, 4)) {
+    if(!expectNextFrame("Expected key filter frame", true)) {
         return;
     }
-    if(!receiveStringFrame(keyFilterStr, "Error while receiveing key filter string", errorResponse, true, headerFrame, 4)) {
+    if(!receiveStringFrame(keyFilterStr, "Error while receiveing key filter string", true)) {
         return;
     }
-    if(!expectNextFrame("Expected value filter frame", true, errorResponse, headerFrame, 4)) {
+    if(!expectNextFrame("Expected value filter frame", true)) {
         return;
     }
-    if(!receiveStringFrame(valueFilterStr, "Error while receiveing key filter string", errorResponse, true, headerFrame, 4)) {
+    if(!receiveStringFrame(valueFilterStr, "Error while receiveing key filter string", true)) {
         return;
     }
-    if(!expectNextFrame("Expected skip frame", true, errorResponse, headerFrame, 4)) {
+    if(!expectNextFrame("Expected skip frame", true)) {
         return;
     }
     //Parse number of records to skip
     uint64_t scanSkipCount = 0;
     if (!parseUint64FrameOrAssumeDefault(scanSkipCount, 0 /* default */, 
-                "Receive scan skip frame", true, errorResponse, headerFrame, 4)) {
+                "Receive scan skip frame", true)) {
         return;
     }
     //Create the boyer moore searchers (unexpensive for empty strings)
@@ -334,11 +326,11 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         }
         //Send the previous value msg, if any
         if (!sentHeader) {
-            sendResponseHeader(headerFrame, ackResponse, ZMQ_SNDMORE, 4);
+            sendResponseHeader(ackResponse, ZMQ_SNDMORE);
             sentHeader = true;
         }
         if (haveLastValueMsg) {
-            if (unlikely(!sendMsgHandleError(&valueMsg, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", errorResponse, true, headerFrame, 4))) {
+            if (unlikely(!sendMsgHandleError(&valueMsg, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", true))) {
                 delete it;
                 return;
             }
@@ -349,7 +341,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         zmq_msg_init_size(&valueMsg, valueSize);
         memcpy(zmq_msg_data(&keyMsg), keyData, keySize);
         memcpy(zmq_msg_data(&valueMsg), valueData, valueSize);
-        if (unlikely(!sendMsgHandleError(&keyMsg, ZMQ_SNDMORE, "ZMQ error while sending scan reply (not last)", errorResponse, true, headerFrame, 4))) {
+        if (unlikely(!sendMsgHandleError(&keyMsg, ZMQ_SNDMORE, "ZMQ error while sending scan reply (not last)", true))) {
             zmq_msg_close(&valueMsg);
             delete it;
             return;
@@ -357,20 +349,19 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     }
     //Send the previous value msg, if any
     if (haveLastValueMsg) {
-        if (unlikely(!sendMsgHandleError(&valueMsg, 0, "ZMQ error while sending last scan reply", errorResponse, true, headerFrame, 4))) {
+        if (unlikely(!sendMsgHandleError(&valueMsg, 0, "ZMQ error while sending last scan reply", true))) {
             delete it;
             return;
         }
     }
     //If the scanned range is empty, the header has not been sent yet
     if (!sentHeader) {
-        sendResponseHeader(headerFrame, ackResponse, 0, 4);
+        sendResponseHeader(ackResponse, 0);
     }
     //Check if any error occured during iteration
     if (!checkLevelDBStatus(it->status(),
             "LevelDB error while scanning",
-            true,
-            errorResponse, headerFrame, 4)) {
+            true)) {
         delete it;
         return;
     }
@@ -378,15 +369,15 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
 }
 
 void ReadWorker::handleCountRequest(zmq_msg_t* headerFrame) {
-    static const char* errorResponse = "\x31\x01\x11\x01";
+    errorResponse = "\x31\x01\x11\x01";
     static const char* ackResponse = "\x31\x01\x11\x00";
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame in count request", true, errorResponse, headerFrame)) {
+    if (!parseUint32Frame(tableId, "Table ID frame in count request", true)) {
         return;
     }
     //Check if there is a range frame at all
-    if (!expectNextFrame("Only table ID frame found in count request, range missing", true, errorResponse, headerFrame)) {
+    if (!expectNextFrame("Only table ID frame found in count request, range missing", true)) {
         return;
     }
     //Get the table to read from
@@ -394,7 +385,7 @@ void ReadWorker::handleCountRequest(zmq_msg_t* headerFrame) {
     //Parse the from-to range
     std::string rangeStartStr;
     std::string rangeEndStr;
-    parseRangeFrames(rangeStartStr, rangeEndStr, "Count request compact range parsing", errorResponse, headerFrame);
+    parseRangeFrames(rangeStartStr, rangeEndStr, "Count request compact range parsing");
     bool haveRangeStart = !(rangeStartStr.empty());
     bool haveRangeEnd = !(rangeEndStr.empty());
     //Convert the str to a slice, to compare the iterator slice in-place
@@ -420,18 +411,19 @@ void ReadWorker::handleCountRequest(zmq_msg_t* headerFrame) {
         count++;
     }
     //Check if any error occured during iteration
-    if (!checkLevelDBStatus(it->status(), "LevelDB error while counting", true, errorResponse, headerFrame)) {
+    if (!checkLevelDBStatus(it->status(), "LevelDB error while counting", true)) {
         delete it;
         return;
     }
     delete it;
     //Send ACK and count
-    sendResponseHeader(headerFrame, ackResponse, ZMQ_SNDMORE);
+    sendResponseHeader(ackResponse, ZMQ_SNDMORE);
     sendBinary<uint64_t>(count, processorOutputSocket, logger);
 }
 
 bool ReadWorker::processNextRequest() {
-    zmq_msg_t routingFrame, delimiterFrame, headerFrame;
+    zmq_msg_t routingFrame, delimiterFrame;
+    requestExpectedSize = 3;
     //Read routing info
     zmq_msg_init(&routingFrame);
     if(receiveLogError(&routingFrame, processorInputSocket, logger, "Routing frame") == -1) {
@@ -443,7 +435,8 @@ bool ReadWorker::processNextRequest() {
         return false;
     }
     //If it isn't empty, we expect to see the delimiter frame
-    if (!expectNextFrame("Received nonempty routing frame, but no delimiter frame", false, "\x31\x01\xFF\xFF")) {
+    errorResponse = "\x31\x01\xFF\xFF";
+    if (!expectNextFrame("Received nonempty routing frame, but no delimiter frame", false)) {
         zmq_msg_close(&routingFrame);
         return true;
     }
@@ -456,7 +449,7 @@ bool ReadWorker::processNextRequest() {
     zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE);
     //Receive the header frame
     zmq_msg_init(&headerFrame);
-    if (unlikely(!receiveMsgHandleError(&headerFrame, "Receive header frame in read worker thread", "\x31\x01\xFF\xFF", true))) {
+    if (unlikely(!receiveMsgHandleError(&headerFrame, "Receive header frame in read worker thread", true))) {
         return true;
     }
     assert(isHeaderFrame(&headerFrame));

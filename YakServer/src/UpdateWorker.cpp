@@ -53,9 +53,10 @@ bool UpdateWorker::processNextMessage() {
      *  2) the msg does not contain an envelope (--> received from PULL, SUB etc.)
      * Case 2) also handles cases where the main router did not request a reply.
      */
-    zmq_msg_t haveReplyAddrFrame, routingFrame, delimiterFrame, headerFrame;
+    zmq_msg_t haveReplyAddrFrame, routingFrame, delimiterFrame;
     zmq_msg_init(&haveReplyAddrFrame);
-    if(!receiveMsgHandleError(&haveReplyAddrFrame, "Have reply addr frame", nullptr, false)) {
+    requestExpectedSize = 3;
+    if(!receiveMsgHandleError(&haveReplyAddrFrame, "Have reply addr frame", false)) {
         return true;
     }
     //Empty frame means: Stop immediately
@@ -67,7 +68,7 @@ bool UpdateWorker::processNextMessage() {
     char haveReplyAddrFrameContent = ((char*) zmq_msg_data(&haveReplyAddrFrame))[0];
     zmq_msg_close(&haveReplyAddrFrame);
     //If it's not a stop msg frame, we expect a header frame
-    if(!expectNextFrame("Expecting frame after reply addr frame", false, nullptr)) {
+    if(!expectNextFrame("Expecting frame after reply addr frame", false)) {
         return true;
     }
     //OK, it's a processable message, not a stop message
@@ -93,7 +94,8 @@ bool UpdateWorker::processNextMessage() {
     }
     //The router ensures the header frame is correct, so a (crashing) assert works here
     zmq_msg_init(&headerFrame);
-    if (unlikely(!receiveMsgHandleError(&headerFrame, "Receive header frame in update worker thread", "\x31\x01\xFF", haveReplyAddr))) {
+    errorResponse = "\x31\x01\xFF\xFF";
+    if (unlikely(!receiveMsgHandleError(&headerFrame, "Receive header frame in update worker thread", haveReplyAddr))) {
         return true;
     }
     //The header-ness of the header frame shall be checked by the main router
@@ -116,19 +118,19 @@ bool UpdateWorker::processNextMessage() {
      * argument is true.
      */
     if (likely(requestType == PutRequest)) {
-        handlePutRequest(&headerFrame, haveReplyAddr);
+        handlePutRequest(haveReplyAddr);
     } else if (requestType == DeleteRequest) {
-        handleDeleteRequest(&headerFrame, haveReplyAddr);
+        handleDeleteRequest(haveReplyAddr);
     } else if (requestType == OpenTableRequest) {
-        handleTableOpenRequest(&headerFrame, haveReplyAddr);
+        handleTableOpenRequest(haveReplyAddr);
     } else if (requestType == CloseTableRequest) {
-        handleTableCloseRequest(&headerFrame, haveReplyAddr);
+        handleTableCloseRequest(haveReplyAddr);
     } else if (requestType == CompactTableRequest) {
-        handleCompactRequest(&headerFrame, haveReplyAddr);
+        handleCompactRequest(haveReplyAddr);
     } else if (requestType == TruncateTableRequest) {
-        handleTableTruncateRequest(&headerFrame, haveReplyAddr);
+        handleTableTruncateRequest(haveReplyAddr);
     } else if (requestType == DeleteRangeRequest) {
-        handleDeleteRangeRequest(&headerFrame, haveReplyAddr);
+        handleDeleteRangeRequest(haveReplyAddr);
     } else {
         logger.error(std::string("Internal routing error: request type ")
                 + std::to_string(requestType) + " routed to update worker thread!");
@@ -144,7 +146,7 @@ bool UpdateWorker::processNextMessage() {
     return true;
 }
 
-void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+void UpdateWorker::handlePutRequest(bool generateResponse) {
     /**
      * IMPORTANT: We stopped using batches because they are *incredibly*
      * inefficient! They just append to a std::string on each operation.
@@ -158,18 +160,18 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
      * This needs to be passed to functions generating the response
      * header.
      */
-    static const char* errorResponse = "\x31\x01\x20\x01";
+    errorResponse = "\x31\x01\x20\x01";
     static const char* ackResponse = "\x31\x01\x20\x00";
-    assert(isHeaderFrame(headerFrame));
+    assert(isHeaderFrame(&headerFrame));
     //Process the flags
-    uint8_t flags = getWriteFlags(headerFrame);
+    uint8_t flags = getWriteFlags(&headerFrame);
     bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
     //Convert options to LevelDB
     rocksdb::WriteOptions writeOptions;
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse, headerFrame, 4)) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse)) {
         return;
     }
     //Get the table
@@ -186,16 +188,15 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
         zmq_msg_init(&valueFrame);
         //The next two frames contain key and value
         if (unlikely(!receiveMsgHandleError(&keyFrame,
-                "Receive put key frame", errorResponse, generateResponse, headerFrame, 4))) {
+                "Receive put key frame", errorResponse))) {
             break;
         }
         //Check if there is a key but no value
         if (!expectNextFrame("Protocol error: Found key frame, but no value frame. They must occur in pairs!",
-                             generateResponse, "\x31\x01\x20\x01", headerFrame)) {
+                             generateResponse)) {
             return;
         }
-        if (unlikely(!receiveMsgHandleError(&valueFrame,
-                "Receive put value frame", errorResponse, generateResponse, headerFrame, 4))) {
+        if (unlikely(!receiveMsgHandleError(&valueFrame, "Receive put value frame", generateResponse))) {
             break;
         }
         //Check if we have more frames
@@ -216,8 +217,7 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
             rocksdb::Status status = db->Write(writeOptions, &batch);
             if (!checkLevelDBStatus(status,
                     "Database error while processing update request: ",
-                    generateResponse,
-                    errorResponse, headerFrame, 4)) {
+                    generateResponse)) {
                 return;
             }
             batch.Clear();
@@ -232,37 +232,34 @@ void UpdateWorker::handlePutRequest(zmq_msg_t* headerFrame, bool generateRespons
     }
     //Write last batch part
     rocksdb::Status status = db->Write(writeOptions, &batch);
-    if (!checkLevelDBStatus(status,
-            "Database error while processing update request: ",
-            generateResponse,
-            errorResponse,
-            headerFrame, 4)) {
+    if (!checkLevelDBStatus(status, "Database error while processing update request: ", generateResponse)) {
         return;
     }
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendResponseHeader(headerFrame, ackResponse, 0, 4);
+        sendResponseHeader(ackResponse, 0, 4);
     }
 }
 
-void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+void UpdateWorker::handleDeleteRequest(bool generateResponse) {
     /*
     * NOTE regarding request IDs: The request has 4 bytes, instead of the default 3.
     * This needs to be passed to functions generating the response
     * header.
     */
-    static const char* errorResponse = "\x31\x01\x21\x01";
+    errorResponse = "\x31\x01\x21\x01";
     static const char* ackResponse = "\x31\x01\x21\x00";
+    requestExpectedSize = 4;
     //Process the flags
-    uint8_t flags = getWriteFlags(headerFrame);
+    uint8_t flags = getWriteFlags(&headerFrame);
     bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
     //Convert options to LevelDB
     rocksdb::WriteOptions writeOptions;
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse, headerFrame, 4)) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse)) {
         return;
     }
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
@@ -274,8 +271,7 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     while (haveMoreData) {
         zmq_msg_init(&keyFrame);
         //The next two frames contain key and value
-        if (unlikely(!receiveMsgHandleError(&keyFrame,
-                "Receive deletion key frame", errorResponse, generateResponse, headerFrame, 4))) {
+        if (unlikely(!receiveMsgHandleError(&keyFrame, "Receive deletion key frame", generateResponse))) {
             return;
         }
         //Convert to LevelDB
@@ -289,15 +285,13 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
     //Commit the batch
     rocksdb::Status status = db->Write(writeOptions, &batch);
     //If something went wrong, send an error response
-    if (!checkLevelDBStatus(status,
-            "Database error while processing delete request: ",
-            generateResponse, errorResponse, headerFrame, 4)) {
+    if (!checkLevelDBStatus(status, "Database error while processing delete request: ", generateResponse)) {
         return;
     }
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendResponseHeader(headerFrame, ackResponse, 0, 4);
+        sendResponseHeader(ackResponse, 0, 4);
     }
 }
 
@@ -315,17 +309,17 @@ void UpdateWorker::handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResp
  * @param helper
  * @param headerFrame
  */
-void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateResponse) {
-    static const char* errorResponse = "\x31\x01\x03\x01";
+void UpdateWorker::handleCompactRequest(bool generateResponse) {
     static const char* ackResponse = "\x31\x01\x03\x00";
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, "\x31\x01\x03\x10", headerFrame)) {
+    errorResponse = "\x31\x01\x03\x10";
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse)) {
         return;
     }
+    errorResponse = "\x31\x01\x03\x01";
     //Check if there is a range frames
-    if (!expectNextFrame("Only table ID frame found in compact request, range missing",
-            generateResponse, errorResponse, headerFrame)) {
+    if (!expectNextFrame("Only table ID frame found in compact request, range missing", generateResponse)) {
         return;
     }
     //Get the table
@@ -333,9 +327,7 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
     //Parse the from-to range
     std::string rangeStartStr;
     std::string rangeEndStr;
-    parseRangeFrames(rangeStartStr, rangeEndStr,
-            "Compact request compact range parsing",
-            errorResponse, generateResponse, headerFrame);
+    parseRangeFrames(rangeStartStr, rangeEndStr, "Compact request compact range parsing", errorResponse);
     bool haveRangeStart = !(rangeStartStr.empty());
     bool haveRangeEnd = !(rangeEndStr.empty());
     //Do the compaction (takes LONG, so log it before)
@@ -347,32 +339,31 @@ void UpdateWorker::handleCompactRequest(zmq_msg_t* headerFrame, bool generateRes
     logger.trace("Finished compacting table " + std::to_string(tableId));
     //Create the response if neccessary
     if (generateResponse) {
-        sendResponseHeader(headerFrame, ackResponse);
+        sendResponseHeader(ackResponse);
     }
 }
 
-void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+void UpdateWorker::handleDeleteRangeRequest(bool generateResponse) {
     /*
     * NOTE regarding request IDs: The request has 4 bytes, instead of the default 3.
     * This needs to be passed to functions generating the response
     * header.
     */
-    static const char* errorResponse = "\x31\x01\x22\x01";
+    errorResponse = "\x31\x01\x22\x01";
     static const char* ackResponse = "\x31\x01\x22\x00";
     //Process the flags
-    uint8_t flags = getWriteFlags(headerFrame);
+    uint8_t flags = getWriteFlags(&headerFrame);
     bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
     //Convert options to LevelDB
     rocksdb::WriteOptions writeOptions;
     writeOptions.sync = fullsync;
     //Parse table ID
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse, errorResponse, headerFrame, 4)) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse)) {
         return;
     }
     //Check if there is a range frames
-    if (!expectNextFrame("Only table ID frame found in delete rangee request, ĺimit frame missing",
-            generateResponse, errorResponse, headerFrame, 4)) {
+    if (!expectNextFrame("Only table ID frame found in delete rangee request, ĺimit frame missing", generateResponse)) {
         return;
     }
     //Parse limit frame. For now we just assume UINT64_MAX is close enough to infinite
@@ -380,12 +371,12 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     if (!parseUint64FrameOrAssumeDefault(scanLimit,
                 std::numeric_limits<uint64_t>::max(),
                 "Receive scan limit frame",
-                true, errorResponse, headerFrame, 4)) {
+                true)) {
         return;
     }
     //Check if there is a range frames
     if (!expectNextFrame("Only table ID frame found in delete range request, range missing",
-            generateResponse, errorResponse, headerFrame, 4)) {
+            generateResponse)) {
         return;
     }
     //Get the table
@@ -394,8 +385,7 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     std::string rangeStartStr;
     std::string rangeEndStr;
     parseRangeFrames(rangeStartStr,
-            rangeEndStr, "Compact request compact range parsing",
-            errorResponse, generateResponse, headerFrame, 3);
+            rangeEndStr, "Parsing delete range request key range frames");
     bool haveRangeStart = !(rangeStartStr.empty());
     bool haveRangeEnd = !(rangeEndStr.empty());
     //Convert the str to a slice, to compare the iterator slice in-place
@@ -432,9 +422,7 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
         batch.Delete(key);
     }
     //Check if any error occured during iteration
-    if (!checkLevelDBStatus(it->status(),
-                "LevelDB error while processing delete request",
-                true, errorResponse,headerFrame, 4)) {
+    if (!checkLevelDBStatus(it->status(), "LevelDB error while processing delete request", true)) {
         delete it;
         return;
     }
@@ -443,24 +431,22 @@ void UpdateWorker::handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generat
     status = db->Write(writeOptions, &batch);
     //If something went wrong, send an error response
     if (!checkLevelDBStatus(status,
-            "Database error while processing delete request: ",
-            generateResponse,
-            errorResponse, headerFrame, 4)) {
+            "Database error while processing delete request: ", generateResponse)) {
         return;
     }
     //Create the response if neccessary
     if (generateResponse) {
-        sendResponseHeader(headerFrame, ackResponse, 0, 4);
+        sendResponseHeader(ackResponse, 0, 4);
     }
 }
 
-void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateResponse) {
+void UpdateWorker::handleTableOpenRequest(bool generateResponse) {
     /*
     * NOTE regarding request IDs: The request has 4 bytes, instead of the default 3.
     * This needs to be passed to functions generating the response
     * header.
     */
-    static const char* errorResponse = "\x31\x01\x01\x01";
+    errorResponse = "\x31\x01\x01\x01";
     static const char* ackResponse = "\x31\x01\x01\x00";
     /*
      * This method performs frame correctness check, the table open server
@@ -468,15 +454,12 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
      */
     //Extract numeric parameters
     uint32_t tableId;
-    if (!parseUint32Frame(tableId,
-            "Table ID frame",
-            generateResponse,
-            errorResponse, headerFrame, 4)) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse)) {
         return;
     }
     //Extract other parameters
     std::map<std::string, std::string> parameters;
-    if(!receiveMap(parameters, "Receive table open parameter map", errorResponse, true, headerFrame, 4)) {
+    if(!receiveMap(parameters, "Receive table open parameter map", true)) {
         return;
     }
     //
@@ -487,16 +470,15 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
     //Rewrite the header frame for the response
     //Create the response if neccessary
     if (generateResponse) {
-        sendResponseHeader(headerFrame, ackResponse, 0, 4);
+        sendResponseHeader(ackResponse, 0, 4);
     }
 }
 
-void UpdateWorker::handleTableCloseRequest(zmq_msg_t* headerFrame, bool generateResponse) {
-    static const char* errorResponse = "\x31\x01\x02\x01";
+void UpdateWorker::handleTableCloseRequest(bool generateResponse) {
+    errorResponse = "\x31\x01\x02\x01";
     static const char* ackResponse = "\x31\x01\x02\x00";
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse,
-            errorResponse)) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse)) {
         return;
     }
     //Close the table
@@ -507,19 +489,18 @@ void UpdateWorker::handleTableCloseRequest(zmq_msg_t* headerFrame, bool generate
     }
 }
 
-void UpdateWorker::handleTableTruncateRequest(zmq_msg_t* headerFrame, bool generateResponse) {
-    static const char* errorResponse = "\x31\x01\x04\x01";
+void UpdateWorker::handleTableTruncateRequest(bool generateResponse) {
+    errorResponse = "\x31\x01\x04\x01";
     static const char* ackResponse = "\x31\x01\x04\x00";
     uint32_t tableId;
-    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse,
-            errorResponse)) {
+    if (!parseUint32Frame(tableId, "Table ID frame", generateResponse)) {
         return;
     }
     //Close the table
     tableOpenHelper.truncateTable(tableId);
     //Create the response
     if (generateResponse) {
-        sendResponseHeader(headerFrame, ackResponse);
+        sendResponseHeader(ackResponse);
     }
 }
 

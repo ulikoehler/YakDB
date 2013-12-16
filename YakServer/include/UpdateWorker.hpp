@@ -56,14 +56,14 @@ public:
 private:
     TableOpenHelper tableOpenHelper;
     Tablespace& tablespace;
-    void handlePutRequest(zmq_msg_t* headerFrame, bool generateResponse);
-    void handleDeleteRequest(zmq_msg_t* headerFrame, bool generateResponse);
-    void handleDeleteRangeRequest(zmq_msg_t* headerFrame, bool generateResponse);
-    void handleLimitedDeleteRangeRequest(zmq_msg_t* headerFrame, bool generateResponse);
-    void handleCompactRequest(zmq_msg_t* headerFrame, bool generateResponse);
-    void handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateResponse);
-    void handleTableCloseRequest(zmq_msg_t* headerFrame, bool generateResponse);
-    void handleTableTruncateRequest(zmq_msg_t* headerFrame, bool generateResponse);
+    void handlePutRequest(bool generateResponse);
+    void handleDeleteRequest(bool generateResponse);
+    void handleDeleteRangeRequest(bool generateResponse);
+    void handleLimitedDeleteRangeRequest(bool generateResponse);
+    void handleCompactRequest(bool generateResponse);
+    void handleTableOpenRequest(bool generateResponse);
+    void handleTableCloseRequest(bool generateResponse);
+    void handleTableTruncateRequest(bool generateResponse);
 };
 
 #endif	/* UPDATEWORKER_HPP */
