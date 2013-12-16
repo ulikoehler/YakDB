@@ -62,7 +62,6 @@ bool UpdateWorker::processNextMessage() {
     //Empty frame means: Stop immediately
     if(unlikely(zmq_msg_size(&haveReplyAddrFrame) == 0)) {
         zmq_msg_close(&haveReplyAddrFrame);
-        logger.trace("Update worker thread terminating");
         return false;
     }
     char haveReplyAddrFrameContent = ((char*) zmq_msg_data(&haveReplyAddrFrame))[0];
