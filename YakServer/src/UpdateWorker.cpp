@@ -466,8 +466,6 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
      * This method performs frame correctness check, the table open server
      * serializes everything in a single struct.
      */
-    //Extract flags from header (currently ignored)
-    uint8_t flags = ((uint8_t*) zmq_msg_data(headerFrame))[3];
     //Extract numeric parameters
     uint32_t tableId;
     if (!parseUint32Frame(tableId,
@@ -476,65 +474,16 @@ void UpdateWorker::handleTableOpenRequest(zmq_msg_t* headerFrame, bool generateR
             errorResponse, headerFrame, 4)) {
         return;
     }
-    uint64_t lruCacheSize;
-    if (!parseUint64FrameOrAssumeDefault(lruCacheSize,
-            UINT64_MAX,
-            "LRU cache size frame",
-            generateResponse,
-            errorResponse, headerFrame, 4)) {
-        return;
-    }
-    uint64_t blockSize;
-    if (!parseUint64FrameOrAssumeDefault(blockSize,
-            UINT64_MAX,
-            "Table block size frame",
-            generateResponse,
-            errorResponse, headerFrame, 4)) {
-        return;
-    }
-    uint64_t writeBufferSize;
-    if (!parseUint64FrameOrAssumeDefault(writeBufferSize,
-            UINT64_MAX,
-            "Write buffer size frame",
-            generateResponse,
-            errorResponse, headerFrame, 4)) {
-        return;
-    }
-    uint64_t bloomFilterBitsPerKey;
-    if (!parseUint64FrameOrAssumeDefault(bloomFilterBitsPerKey,
-            UINT64_MAX,
-            "Bits per key bloom filter size frame",
-            generateResponse,
-            errorResponse, headerFrame, 4)) {
-        return;
-    }
-    std::string compressionCode;
-    if (!receiveStringFrame(compressionCode,
-            "Compression code frame",
-            errorResponse,
-            generateResponse,
-            headerFrame, 4)) {
-        return;
-    }
-    std::string mergeOperator;
-    if (!receiveStringFrame(mergeOperator,
-            "Merge operator frame",
-            errorResponse,
-            generateResponse,
-            headerFrame, 4)) {
+    //Extract other parameters
+    std::map<std::string, std::string> parameters;
+    if(!receiveMap(parameters, "Receive table open parameter map", errorResponse, true, headerFrame, 4)) {
         return;
     }
     //
     //Parse the flags from the header frame
     //
     //Open the table
-    tableOpenHelper.openTable(tableId,
-            lruCacheSize,
-            blockSize,
-            writeBufferSize,
-            bloomFilterBitsPerKey,
-            compressionCode,
-            mergeOperator);
+    tableOpenHelper.openTable(tableId, parameters);
     //Rewrite the header frame for the response
     //Create the response if neccessary
     if (generateResponse) {

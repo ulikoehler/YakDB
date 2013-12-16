@@ -517,6 +517,11 @@ void COLD TableOpenHelper::openTable(uint32_t tableId, std::map<std::string, std
     zmq_recv(reqSocket, nullptr, 0, 0); //Blocks until reply received
 }
 
+void COLD TableOpenHelper::openTable(uint32_t tableId) {
+    std::map<std::string, std::string> parameters;
+    openTable(tableId, parameters);
+}
+
 void COLD TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {
     //Just send a message containing the table index to the opener thread
     if(sendTableOperationRequest(reqSocket, TableOperationRequestType::CloseTable, ZMQ_SNDMORE) == -1) {

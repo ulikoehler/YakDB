@@ -94,7 +94,7 @@ protected:
      */
     bool expectNextFrame(const char* errString,
             bool generateResponse,
-            const char* errorResponseCode,
+            const char* errorResponseCode = nullptr,
             zmq_msg_t* headerFrame = nullptr,
             size_t requestExpectedSize = 3);
     /**

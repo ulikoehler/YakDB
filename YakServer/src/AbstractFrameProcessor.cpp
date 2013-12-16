@@ -307,8 +307,27 @@ bool AbstractFrameProcessor::receiveMap(std::map<std::string, std::string>& targ
         bool generateResponse,
         zmq_msg_t* headerFrame,
         size_t requestExpectedSize) {
-    
-    
+    //Receive frame pairs until nothing is left
+    std::string key;
+    std::string value;
+    while(true) {
+        if(!receiveStringFrame(key, errName, errorResponse, generateResponse, headerFrame, requestExpectedSize)) {
+            return false;
+        }
+        //If there is a trailing key frame (with no value frame), d
+        if(!expectNextFrame("Expected value frame while receiving alternating key/value frame map", false)) {
+            return true;
+        }
+        if(!receiveStringFrame(value, errName, errorResponse, generateResponse, headerFrame, requestExpectedSize)) {
+            return false;
+        }
+        //Insert into result map
+        target[key] = value;
+        //Stop if there is no frame left
+        if (!socketHasMoreFrames(processorInputSocket)) {
+            return true;
+        }
+    }
 }
 
 bool AbstractFrameProcessor::sendMsgHandleError(zmq_msg_t* msg,

@@ -74,6 +74,10 @@ public:
      * @param bloomFilterBitsPerKeyFrame LevelDB bloom filter bits per key
      */
     void openTable(IndexType tableId, std::map<std::string, std::string>& parameterMap);
+    /**
+     * Open table without parameters
+     */
+    void openTable(IndexType tableId);
     void closeTable(IndexType index);
     void truncateTable(IndexType index);
     void* reqSocket; //This ZMQ socket is used to send requests
