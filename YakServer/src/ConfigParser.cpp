@@ -3,9 +3,9 @@
 #include <regex>
 #include <unistd.h>
 #include <vector>
+#include <sstream>
+#include <map>
 #include <iostream>
-#include <boost/program_options.hpp>
-#include <boost/program_options/parsers.hpp>
 #include "macros.hpp"
 #include "ConfigParser.hpp"
 #include "FileUtils.hpp"
@@ -16,6 +16,98 @@ using std::vector;
 using std::cout;
 using std::cerr;
 using std::endl;
+
+/**
+ * TODO refactor out our own commandline parser
+ */
+
+struct FlagInfo {
+    /**
+     * Initialize a CLI flag with an argument.
+     */
+    FlagInfo(const char* shortopt, const char* longopt, const std::string& defaultValue, const char* help)
+        : shortopt(shortopt), longopt(longopt), value(defaultValue), defaultValue(defaultValue), help(help), isDefault(false), hasArgument(true) {
+        }
+        
+    /**
+     * Initialize a CLI flag without argument
+     */
+    FlagInfo(const char* shortopt, const char* longopt, const std::string& defaultValue, const char* help)
+        : shortopt(shortopt), longopt(longopt), value(defaultValue), defaultValue(defaultValue), help(help), isDefault(false), hasArgument(false) {
+     
+    /**
+     * Print help for the current flag to stderr.
+     * TODO: Currently this does not handle terminal width and linebreaks correctly
+     */
+    void printToStderr() {
+        cerr << "\t" << shortopt << " [ " << longopt << "] ";
+        if(hasArgument) {
+            cerr << "(= " << defaultValue << ") ";
+        }
+        cerr << help << '\n';
+    }
+
+    std::string value;
+    std::string defaultValue;
+    const char* help;
+    /**
+     * The short commandline option, without prefixed minus sign.
+     * Example: "r" (--> "-r")
+     */
+    const char* shortopt;
+    /**
+     * The short commandline option, without prefixed double-minus sign.
+     * Example: "record" (--> "--record")
+     */
+    const char* longopt;
+    /**
+     * True if the current value is equal to the default value.
+     * False if the 
+     */
+    bool defaultOverridden;
+    /**
+     * True if this is a flag with a value. False otherwise.
+     */
+    bool hasArgument;
+}
+
+/**
+ * Our own little commandline parser
+ */
+class CommandLineParser {
+public:
+    CommandLineParser() {
+        
+    }
+    
+    void parseFlags(int argc, char** argv) {
+        //Save the program name for later usgae
+        assert(argc >= 1);
+        programName = argv[0];
+        int pos = 1;
+        while(pos < argv) {
+            //Iterate over all flags
+        }
+    }
+    
+    
+private:
+    const char* programName;
+    std::multimap<std::string, FlagInfo> optionGroupToOptions;
+}
+
+/**
+ * Split a comma-separated string into its components.
+ * Does not handle quotes at all. Any comma is treated as a delimiter
+ */
+static void split(const std::string& source, std::vector<std::string>& elems, char delimiter=',') {
+    std::stringstream ss(s);
+    std::string item;
+    while (std::getline(ss, item, delimiter)) {
+        elems.push_back(item);
+    }
+    return elems;
+}
 
 /**
  * Check if a given ZMQ endpoint is a valid TCP or IPC endpoint
@@ -102,6 +194,7 @@ static std::string safeReadlink(const std::string& filename) {
     }
 }
 
+
 COLD ConfigParser::ConfigParser(int argc, char** argv) {
     /**
      * Remember when adding options, saveConfigFile() must also be updated!
@@ -111,11 +204,18 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     repEndpoints = {"tcp://*:7100","ipc:///tmp/yakserver-rep"};
     pullEndpoints = {"tcp://*:7101","ipc:///tmp/yakserver-pull"};
     subEndpoints = {"tcp://*:7102","ipc:///tmp/yakserver-sub"};
+    
+    
     httpEndpoint = "tcp://*:7109";
     po::options_description generalOptions("General options");
     generalOptions.add_options()
         ("help,h", "Print help message")
-        ("logfile,l", po::value<string>(&logFile)->default_value(""), "The file the log will be written to")
+        ("logfile,l", po::value<string>(&logFile)->default_value(""), "")
+        
+        DEFINE_string(logfile, "", "If specified, the log will be written to stdout and this file.");
+        DEFINE_string(configfile, "", "Read configuration paramters from the given file. CLI flags always take precedence.");
+        DEFINE_string(config, "", "Read configuration paramters from the given file. CLI flags always take precedence.");
+        
         ("config,c",
             po::value<string>(&configFileName)->default_value("yak.cfg"),
             "The configuration file to use")
