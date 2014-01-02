@@ -116,6 +116,22 @@ static std::string safeReadlink(const std::string& filename) {
     }
 }
 
+class ZMQEndpointConstraint : public TCLAP::Constraint<std::string> {
+public:
+    std::string description() {
+        return "ZeroMQ endpoint constraint checker (TCP/IPC only)";
+    }
+    
+    std::string shortID() {
+        return "ZMQ Endpoint Constraint";
+    }
+    
+    bool check(const std::string& value) {
+        return checkTCPIPCEndpoint(value, true);
+    }
+}
+
+
 
 COLD ConfigParser::ConfigParser(int argc, char** argv) {
     /**
@@ -180,27 +196,48 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     ;
     //
     try {
-        TCLAP::CmdLine cmd("YakDBs", ' ', "1.0");
+        TCLAP::CmdLine cmd("YakDB", ' ', "1.0");
         TCLAP::ValueArg<std::string> logfileArg("l", "logfile", "The file to write the log to", false, "yakdb.log", "filename");
-        TCLAP::ValueArg<std::string> configArg("c", "config", "The configuration file to read from", false, "", "filename");
-        TCLAP::ValueArg<std::string> webuiArg("w", "webui", "The directory containing the static web user interface", false, "", "directory");
-        //TCLAP::ValueArg<std::string> statisticsExpungeTimeoutArg("c", "config", "The configuration file to read from", false, "", "filename");
-        TCLAP::MultiArg<std::string> reqEndpointsArg("r", "req-endpoints", "ZeroMQ endpoints for REQ requests (default: tcp://*:7100, ipc:///tmp/yakserver-rep)", false, "ZMQ endpoint");
-        TCLAP::MultiArg<std::string> pullEndpointsArg("p", "pull-endpoints", "ZeroMQ endpoints for REQ requests (default: tcp://*:7101, ipc:///tmp/yakserver-pull)", false, "ZMQ endpoint");
-        TCLAP::MultiArg<std::string> subEndpointsArg("s", "sub-endpoints", "ZeroMQ endpoints for REQ requests (default: tcp://*:7102, ipc:///tmp/yakserver-sub)", false, "ZMQ endpoint");
-        TCLAP::ValueArg<std::string> logfileArg("h", "http-endpoint", "The HTTP server port to listen on", false, "", "port");
-        TCLAP::ValueArg<std::string> logfileArg("4", "ipv4-only", "Use IPv4 sockets only (not IPv6)", false, "", "filename");
-        TCLAP::ValueArg<std::string> logfileArg("c", "config", "The configuration file to read from", false, "", "filename");
+        TCLAP::ValueArg<std::string> configArg("c", "config", "The configuration file to read from", false, "yakdb.cfg", "filename");
+        TCLAP::ValueArg<std::string> webuiArg("w", "webui", "The directory containing the static web user interface", false, "./static", "directory");
+        TCLAP::ValueArg<uint64_t> statisticsExpungeTimeoutArg("c", "config", "The configuration file to read from", false, 3600*1000, "milliseconds");
+        ZMQEndpointConstraint endpointConstraint;
+        TCLAP::MultiArg<std::string> reqEndpointsArg("r", "req-endpoints", "ZeroMQ endpoints for REQ requests (default: tcp://*:7100, ipc:///tmp/yakserver-rep)", false, endpointConstraint);
+        TCLAP::MultiArg<std::string> pullEndpointsArg("p", "pull-endpoints", "ZeroMQ endpoints for REQ requests (default: tcp://*:7101, ipc:///tmp/yakserver-pull)", false, endpointConstraint);
+        TCLAP::MultiArg<std::string> subEndpointsArg("s", "sub-endpoints", "ZeroMQ endpoints for REQ requests (default: tcp://*:7102, ipc:///tmp/yakserver-sub)", false, endpointConstraint);
+        TCLAP::ValueArg<std::string> httpEndpointArg("h", "http-endpoint", "The HTTP server port to listen on", false, "", "port");
+        TCLAP::SwitchArg ipv4OnlyArg("4", "ipv4-only", "Use IPv4 sockets only (disables IPv6)", cmd, false);
+        
+        TCLAP::ValueArg<std::string> externalHWMArg("e", "external-hwm", "External socket High Watermark", false, "", "messages");
+        TCLAP::ValueArg<std::string> internalHWMArg("i", "internal-hwm", "Internal socket ", false, "", "filename");
+        
+        TCLAP::ValueArg<std::string> tableDirectoryArg("t", "table-directory", "The directory where the table data is stored", false, "", "directory");
+        
+        TCLAP::ValueArg<std::string> compressionModeArg("m", "compression-mode", "The default compression mode (none, bzip2, zlib or snappy)", false, "snappy", "compression mode");
+        //Add arguments
+        cmd.add(logfileArg);
+        cmd.add(configArg);
+        cmd.add(webuiArg);
+        cmd.add(reqEndpointsArg);
+        cmd.add(pullEndpointsArg);
+        cmd.add(subEndpointsArg);
+        cmd.add(httpEndpointArg);
+        cmd.add(externalHWMArg);
+        cmd.add(internalHWMArg);
+        cmd.add(tableDirectoryArg);
+        cmd.add(compressionModeArg);
+        //Parse the commandline args
+        cmd.parse(argc, argv);
+        //Copy arguments to class instance
+        this->logFile = logfileArg.getValue();
+        this->configFileName = configArg.getValue();
+        this->staticFilePath = webuiArg.getValue(); 
+        statisticsExpungeTimeout = 3600*1000;
+        
+        repEndpoints
     } catch (TCLAP::ArgException &e) {
         std::cerr << "Error: " << e.error() << " for arg " << e.argId() << std::endl; 
     }
-    //Create the main options group
-    po::options_description desc("Options");
-    desc.add(generalOptions).add(socketOptions).add(tableOptions);
-    
-    po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::notify(vm);
     //Parse the config file
     bool processedConfigFile = false;
     if(fexists(configFileName)) {
