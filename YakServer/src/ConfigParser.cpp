@@ -136,20 +136,22 @@ static rocksdb::CompressionType compressionTypeFromString(const std::string& val
 bool parseBool(const std::string& value) {
     std::string ciValue = to_lower_copy(value);
     bool isClearlyTrue = (
-        ciValue == "true"
-         || ciValue == "1"
-         || ciValue == "yes"
+            ciValue == "true"
+             || ciValue == "1"
+             || ciValue == "yes"
         );
     bool isClearlyFalse = (
-        ciValue == "false"
-         || ciValue == "0"
-         || ciValue == "no"
+            ciValue == "false"
+             || ciValue == "0"
+             || ciValue == "no"
         );
     if(!(isClearlyFalse || isClearlyTrue)) {
-        cerr << "\x1B[33m[Warn] Can't recognize boolean in config line '"
+        cerr << "\x1B[33m[Warn] Can't recognize boolean value '"
              << value
              << "' -- treating as false (please use true/false!)" << endl;
+        return true;
     }
+    return isClearlyTrue;
 }
 
 COLD ConfigParser::ConfigParser(int argc, char** argv) {
@@ -172,7 +174,7 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     //Statistics options
     statisticsExpungeTimeout = stoull(cfg["Statistics.statistics-expunge-timeout"]);
     //ZMQ options
-    //TODO Using space with token_compress=on seems a bit hackish. Could it cause errors?
+    //FIXME Using space with token_compress=on seems a bit hackish. Could it cause errors?
     split(repEndpoints, cfg["ZMQ.rep-endpoints"], is_any_of(", "), token_compress_on);
     split(pullEndpoints, cfg["ZMQ.pull-endpoints"], is_any_of(", "), token_compress_on);
     split(subEndpoints, cfg["ZMQ.sub-endpoints"], is_any_of(", "), token_compress_on);
