@@ -330,7 +330,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
             sentHeader = true;
         }
         if (haveLastValueMsg) {
-            if (unlikely(!sendMsgHandleError(&valueMsg, ZMQ_SNDMORE, "ZMQ error while sending read reply (not last)", true))) {
+            if (unlikely(!sendMsgHandleError(&valueMsg, ZMQ_SNDMORE, "ZMQ error while sending scan reply (not last)", true))) {
                 delete it;
                 return;
             }
@@ -350,6 +350,167 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     //Send the previous value msg, if any
     if (haveLastValueMsg) {
         if (unlikely(!sendMsgHandleError(&valueMsg, 0, "ZMQ error while sending last scan reply", true))) {
+            delete it;
+            return;
+        }
+    }
+    //If the scanned range is empty, the header has not been sent yet
+    if (!sentHeader) {
+        sendResponseHeader(ackResponse, 0);
+    }
+    //Check if any error occured during iteration
+    if (!checkLevelDBStatus(it->status(),
+            "LevelDB error while scanning",
+            true)) {
+        delete it;
+        return;
+    }
+    delete it;
+}
+
+/*
+ * NOTE: This is FULLY EQUIVALENT to the SCAN request, except it does not return values.
+ */
+void ReadWorker::handleListRequest(zmq_msg_t* headerFrame) {
+    //FIXME Dedup with scan request
+    errorResponse = "\x31\x01\x14\x01";
+    static const char* ackResponse = "\x31\x01\x14\x00";
+    requestExpectedSize = 4;
+    //Parse scan flags
+    if (!expectMinimumFrameSize(headerFrame, 4, "list request header frame", true)) {
+        return;
+    }
+    uint8_t scanFlags = ((char*)zmq_msg_data(headerFrame))[3];
+    bool invertScanDirection = (scanFlags & ScanFlagInvertDirection) != 0;
+    //Parse table ID
+    uint32_t tableId;
+    if (!parseUint32Frame(tableId, "Table ID frame in list request", true)) {
+        return;
+    }
+    //Check if there is a range frame at all
+    if (!expectNextFrame("Only table ID frame found in list request, range missing", true)) {
+        return;
+    }
+    //Get the table to read from
+    rocksdb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
+    //Parse limit frame. For now we just assume UINT64_MAX is close enough to infinite
+    uint64_t listLimit;
+    if (!parseUint64FrameOrAssumeDefault(listLimit,
+                std::numeric_limits<uint64_t>::max(),
+                "Receive list limit frame",
+                true)) {
+        return;
+    }
+    //Parse the from-to range
+    std::string rangeStartStr;
+    std::string rangeEndStr;
+    if (!parseRangeFrames(rangeStartStr, rangeEndStr, "List request scan range parsing", true)) {
+        return;
+    }
+    bool haveRangeStart = !(rangeStartStr.empty());
+    bool haveRangeEnd = !(rangeEndStr.empty());
+    //Parse the filter frames
+    std::string keyFilterStr = "";
+    std::string valueFilterStr = "";
+    if(!expectNextFrame("Expected key filter frame", true)) {
+        return;
+    }
+    if(!receiveStringFrame(keyFilterStr, "Error while receiveing key filter string", true)) {
+        return;
+    }
+    if(!expectNextFrame("Expected value filter frame", true)) {
+        return;
+    }
+    if(!receiveStringFrame(valueFilterStr, "Error while receiveing key filter string", true)) {
+        return;
+    }
+    if(!expectNextFrame("Expected skip frame", true)) {
+        return;
+    }
+    //Parse number of records to skip
+    uint64_t scanSkipCount = 0;
+    if (!parseUint64FrameOrAssumeDefault(scanSkipCount, 0 /* default */, 
+                "Receive list skip frame", true)) {
+        return;
+    }
+    //Create the boyer moore searchers (unexpensive for empty strings)
+    bool haveKeyFilter = !(keyFilterStr.empty());
+    bool haveValueFilter = !(valueFilterStr.empty());
+    BoyerMooreHorspoolSearcher keyFilter(keyFilterStr);
+    BoyerMooreHorspoolSearcher valueFilter(valueFilterStr);
+    //Convert the str to a slice, to compare the iterator slice in-place
+    rocksdb::Slice rangeEndSlice(rangeEndStr);
+    //Do the compaction (takes LONG)
+    //Create the response object
+    rocksdb::ReadOptions readOptions;
+    rocksdb::Status status;
+    //Create the iterator
+    rocksdb::Iterator* it = db->NewIterator(readOptions);
+    if (haveRangeStart) {
+        it->Seek(rangeStartStr);
+    } else if(invertScanDirection) {
+        it->SeekToLast();
+    } else { //Non-inverted scan
+        it->SeekToFirst();
+    }
+    //If the range is empty, the header needs to be sent w/out MORE,
+    // so we can't send it right away
+    bool sentHeader = false;
+    //Iterate over all key-values in the range
+    zmq_msg_t keyMsg;
+    bool haveLastKeyMsg = false; //Needed to send only last frame without SNDMORE
+    for (; it->Valid(); (invertScanDirection ? it->Prev() : it->Next())) {
+        rocksdb::Slice key = it->key();
+        const char* keyData = key.data();
+        size_t keySize = key.size();
+        //Check list limit
+        if (listLimit <= 0) {
+            break;
+        }
+        listLimit--;
+        //Check if we have to stop here
+        int compareResult = (haveRangeEnd ? key.compare(rangeEndSlice) : 0);
+        if (haveRangeEnd
+                && (!invertScanDirection || compareResult <= 0)
+                && (invertScanDirection  || compareResult >= 0)) {
+            break;
+        }
+        rocksdb::Slice value = it->value();
+        const char* valueData = value.data();
+        size_t valueSize = value.size();
+        //Check key / value filters, if any
+        if(haveKeyFilter && keyFilter.find(keyData, keySize) == -1) {
+            listLimit++; //Revert decrement from above
+            continue; //Next key/value, if any
+        }
+        if(haveValueFilter && valueFilter.find(valueData, valueSize) == -1) {
+            listLimit++; //Revert decrement from above
+            continue; //Next key/value, if any
+        }
+        //Check if the frame needs to be skipped
+        if(scanSkipCount > 0) {
+            scanSkipCount--;
+            continue;
+        }
+        //Send the previous value msg, if any
+        if (!sentHeader) {
+            sendResponseHeader(ackResponse, ZMQ_SNDMORE);
+            sentHeader = true;
+        }
+        if (haveLastKeyMsg) {
+            if (unlikely(!sendMsgHandleError(&keyMsg, ZMQ_SNDMORE, "ZMQ error while sending list reply (not last)", true))) {
+                delete it;
+                return;
+            }
+        }
+        //Convert the slices into msgs and send them
+        haveLastKeyMsg = true;
+        zmq_msg_init_size(&keyMsg, keySize);
+        memcpy(zmq_msg_data(&keyMsg), keyData, keySize);
+    }
+    //Send the previous value msg, if any
+    if (haveLastKeyMsg) {
+        if (unlikely(!sendMsgHandleError(&keyMsg, 0, "ZMQ error while sending last list reply", true))) {
             delete it;
             return;
         }

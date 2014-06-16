@@ -50,6 +50,7 @@ private:
     void handleExistsRequest(zmq_msg_t* headerFrame);
     void handleReadRequest(zmq_msg_t* headerFrame);
     void handleScanRequest(zmq_msg_t* headerFrame);
+    void handleListRequest(zmq_msg_t* headerFrame);
     void handleLimitedScanRequest(zmq_msg_t* headerFrame);
     void handleCountRequest(zmq_msg_t* headerFrame);
 };
