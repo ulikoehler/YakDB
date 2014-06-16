@@ -358,6 +358,33 @@ Response codes:
 * 0x00 Success (--> frame 1 contains first value)
 * 0x10 Error (--> frame 1 contains error description cstring)
 
+##### List request
+
+Equivalent to the scan request, but only returns keys, not values.
+
+See the scan request documentation for further reference
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x14 Request type (list request)][1 byte scan flags]
+* Frame 1: 32-bit unsigned table number
+* Frame 2: 64-bit unsigned limit. If this is zero-sized, no limit is imposed
+* Frame 3: Start key (inclusive). If this has zero length, the count starts at the first key
+* Frame 4: End key (exclusive). If this has zero length, the count ends at the last key
+* Frame 5: Key substring filter (frame shall be zero-sized if no filter shall be applied)
+* Frame 6: Value substring filter (frame shall be zero-sized if no filter shall be applied)
+* Frame 7: 64-bit unsigned skip count (Zero-length frame --> 0. Specifies how many records are skipped.)
+
+##### List response:
+
+The list response returns the list range as alternating key/value frames
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x14 Response type (list response)][1-byte Response code]
+* Frame 1-n: Next key
+
+Response codes:
+
+* 0x00 Success (--> frame 1 contains first value)
+* 0x10 Error (--> frame 1 contains error description cstring)
+
 -------------------------------
 
 ## Write requests
