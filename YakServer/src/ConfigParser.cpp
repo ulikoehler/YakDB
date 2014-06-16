@@ -6,10 +6,12 @@
 #include <sstream>
 #include <map>
 #include <iostream>
+#include <boost/algorithm/string.hpp>
 #include "macros.hpp"
 #include "ConfigParser.hpp"
 #include "FileUtils.hpp"
 
+using namespace boost;
 using std::string;
 using std::vector;
 using std::cout;
@@ -17,74 +19,12 @@ using std::cerr;
 using std::endl;
 
 /**
- * Split a comma-separated string into its components.
- * Does not handle quotes at all. Any comma is treated as a delimiter
- */
-static void split(const std::string& source, std::vector<std::string>& elems, char delimiter=',') {
-    std::stringstream ss(s);
-    std::string item;
-    while (std::getline(ss, item, delimiter)) {
-        elems.push_back(item);
-    }
-    return elems;
-}
-
-/**
- * Check if a given ZMQ endpoint is a valid TCP or IPC endpoint
- */
-static bool COLD checkTCPIPCEndpoint(const string& endpoint, bool allowIPC = true) {
-    //Check if the parameter is valid
-    bool isTCP = endpoint.find("tcp://") == 0;
-    bool isIPC = endpoint.find("ipc://") == 0 && allowIPC;
-    if(!isTCP && !isIPC) {
-        cout << "Endpoint " << endpoint << " is not a valid TCP" << (allowIPC ? " or IPC": "") << " endpoint!" << endl;
-        return false;
-    }
-    return true;
-}
-
-void COLD ConfigParser::saveConfigFile() {
-    std::ofstream fout("yak.cfg");
-    fout << "statistics-expunge-timeout=" << statisticsExpungeTimeout << '\n';
-    fout << "static-file-path=" << staticFilePath << '\n';
-    if(!logFile.empty()) {
-        fout << "logfile=" << logFile << '\n';
-    }
-    for(string endpoint : repEndpoints) {
-        fout << "rep-endpoint=" << endpoint << '\n';
-    }
-    for(string endpoint : pullEndpoints) {
-        fout << "pull-endpoint=" << endpoint << '\n';
-    }
-    for(string endpoint : subEndpoints) {
-        fout << "sub-endpoint=" << endpoint << '\n';
-    }
-    fout << "http-endpoint=" << httpEndpoint << '\n';
-    if(ipv4Only) {
-        fout << "ipv4-only" << '\n';
-    }
-    fout << "lru-cache-size=" << defaultLRUCacheSize << '\n';
-    fout << "table-block-size=" << defaultTableBlockSize << '\n';
-    fout << "write-buffer-size=" << defaultWriteBufferSize << '\n';
-    fout << "bloom-filter-bits-per-key=" << defaultBloomFilterBitsPerKey << '\n';
-    fout << "internal-hwm=" << internalHWM << '\n';
-    fout << "external-hwm=" << externalHWM << '\n';
-    if(!compressionEnabledPerDefault) {
-        fout << "disable-compression=true" << '\n';
-    }
-    fout << "table-dir=" << tableSaveFolder << '\n';
-    fout.close();
-}
-
-uint64_t ConfigParser::getStatisticsExpungeTimeout() {
-    return statisticsExpungeTimeout;
-}
-
-/**
  * A buffer-overflow-safe readlink() wrapper for C++.
  * @return A string containing the readlink()ed filename, or
  *         an empty string with errno being set to the appropriate error.
  *         See the readlink() man(2) for errno details.
+ *
+ * See http://techoverflow.net/blog/2013/12/31/buffer-overflow-safe-readlink-in-c-/
  */
 static std::string safeReadlink(const std::string& filename) {
     size_t bufferSize = 255;
@@ -114,163 +54,123 @@ static std::string safeReadlink(const std::string& filename) {
     }
 }
 
-class ZMQEndpointConstraint : public TCLAP::Constraint<std::string> {
-public:
-    std::string description() {
-        return "ZeroMQ endpoint constraint checker (TCP/IPC only)";
+static std::map<std::string, std::string> readConfigFile(const char* filename) {
+    std::map<std::string, std::string> config;
+    std::ifstream fin(filename);
+    std::string line;
+    std::string currentSection = "General";
+    while(std::getline(is, str)) {
+        trim(line);
+        //Ignore empty lines (and lines with only whitespace)
+        if(line.size() == 0) {
+            continue;
+        }
+        //Ignore comment-only lines
+        if(line[0] == '#') {
+            continue;
+        }
+        //Parse section header
+        if(line[0] == '[') {
+            //There must not be a line like "[foobar"
+            if(line[line.size() - 1] != ']') {
+
+            }
+            //OK, it's a correct section header
+            currentSection = line.substr(1, line.size() - 2); //[foo] -> foo
+            continue;
+        }
+        //It must be a normal config line.
+        //Check if it is of the form "key=value"
+        //Note that "key=" is explicitly allowed and treated as empty value.
+        size_t equalsSignPosition = line.find_first_of('=');
+        if(equalsSignPosition == string::npos //No equals sign at all, e.g. "foobar"
+            || equalsSignPosition == 0 //No key, e.g. "=foo" or "="
+            ) {
+            cerr << "\x1B[33m[Warn] Illegal config file line '"
+                 << line
+                 << "' -- ignoring this line!" << endl;
+            continue;
+        }
+        //If this is reached, we seem to have a sane config line.
+        //Parse key and value and add them to the config map.
+        std::string key = currentSection + "." + line.substr(0, equalsSignPosition);
+        config[key] = line.substr(equalsSignPosition + 1);
     }
-    
-    std::string shortID() {
-        return "ZMQ Endpoint Constraint";
-    }
-    
-    bool check(const std::string& value) {
-        return checkTCPIPCEndpoint(value, true);
+    return config;
+}
+
+static void printUsageAndExit() {
+    cerr << "Usage: " << argv[0]
+         << " <config file>\nUse default_config.cfg if in doubt.\n"
+    exit(1);
+}
+
+/*
+ * Parse a bool in a case-insensitive manner, also recognizing
+ * 1/0 and yes/no for compatibility.
+ *
+ * Any unclear value is recognized as false and logged.
+ */
+bool parseBool(const std::string& value) {
+    std::string ciValue = to_lower_copy(value);
+    bool isClearlyTrue = (
+        ciValue == "true"
+         || ciValue == "1"
+         || ciValue == "yes"
+        );
+    bool isClearlyFalse = (
+        ciValue == "false"
+         || ciValue == "0"
+         || ciValue == "no"
+        );
+    if(!(isClearlyFalse || isClearlyTrue)) {
+        cerr << "\x1B[33m[Warn] Can't recognize boolean in config line '"
+             << line
+             << "' -- treating as false (please use true/false!)" << endl;
     }
 }
 
-
-
 COLD ConfigParser::ConfigParser(int argc, char** argv) {
-    /**
-     * Remember when adding options, saveConfigFile() must also be updated!
-     */
-    // Declare the supported options.
-    string configFileName;
-    repEndpoints = {"tcp://*:7100","ipc:///tmp/yakserver-rep"};
-    pullEndpoints = {"tcp://*:7101","ipc:///tmp/yakserver-pull"};
-    subEndpoints = {"tcp://*:7102","ipc:///tmp/yakserver-sub"};
-    
-    
-    httpEndpoint = "tcp://*:7109";
-    po::options_description generalOptions("General options");
-    generalOptions.add_options()
-        ("help,h", "Print help message")
-        ("logfile,l", po::value<string>(&logFile)->default_value(""), "")
-        ("config,c",
-            po::value<string>(&configFileName)->default_value("yak.cfg"),
-            "The configuration file to use")
-        ("static-file-path",
-            po::value<string>(&staticFilePath)->default_value("./static"),
-            "The static file directory for HTML files")
-        ("statistics-expunge-timeout",
-            po::value<uint64_t>(&statisticsExpungeTimeout)->default_value(3600*1000)/*1 hour default*/, 
-            "The time in milliseconds statistics will be saved for retrieval after a job has finished.");
-    po::options_description socketOptions("Socket options");
-    socketOptions.add_options()
-        ("req-endpoints,r", 
-            po::value<vector<string> >(&repEndpoints),
-            "The endpoints the REP backend will bind to.\nDefaults to tcp://*:7100, ipc:///tmp/yakserver-rep")
-        ("pull-endpoint,p", po::value<vector<string> >(&pullEndpoints),
-            "The endpoints the PULL backend will bind to.\nDefaults to tcp://*:7101, ipc:///tmp/yakserver-pull")
-        ("sub-endpoint,s", po::value<vector<string> >(&subEndpoints),
-            "The endpoints the SUB backend will bind to.\nDefaults to tcp://*:7102, ipc:///tmp/yakserver-sub")
-        ("http-endpoint,e", po::value<string>(&httpEndpoint),
-            "The endpoint the internal HTTP server will listen on. Defaults to tcp://*:7109")
-        ("ipv4-only,4","By default the application uses IPv6 sockets to bind to both IPv6 and IPv4. This option tells the application not to use IPv6 capable sockets.")
-        ("external-hwm",
-            po::value<int>(&externalHWM)->default_value(250),
-            "Set the ZMQ High-watermark for external sockets")
-        ("internal-hwm",
-            po::value<int>(&internalHWM)->default_value(250),
-            "Set the ZMQ High-watermark for internal sockets")
-    ;
-    po::options_description tableOptions("Table options");
-    tableOptions.add_options()
-        ("lru-cache-size",
-            po::value<uint64_t>(&defaultLRUCacheSize)->default_value(1024 * 1024 * 16),
-            "Set the default LRU cache size in bytes. Overriden by table-specific options.")
-        ("table-block-size",
-            po::value<uint64_t>(&defaultTableBlockSize)->default_value(256*1024),
-            "Set the default table block size in bytes. Overriden by table-specific options.")
-        ("write-buffer-size",
-            po::value<uint64_t>(&defaultWriteBufferSize)->default_value(1024 * 1024 * 64),
-            "Set the default write buffer size in bytes. Overriden by table-specific options.")
-        ("bloom-filter-bits-per-key",
-            po::value<uint64_t>(&defaultBloomFilterBitsPerKey)->default_value(0),
-            "Set the default bits per key for the bloom filter. Set to 0 to disable bloom filter. Overriden by table-specific options.")
-        ("disable-compression,d","By default table compression is enabled for all unconfigured tables. If this option is used, table compression is disabled by default. Overridden by table-specific options.")
-        ("table-dir,t", po::value<string>(&tableSaveFolder)->default_value("./tables"), "The folder were the database tables should be saved to.")
-    ;
-    //
-    try {
-        TCLAP::CmdLine cmd("YakDB", ' ', "1.0");
-        TCLAP::ValueArg<std::string> logfileArg("l", "logfile", "The file to write the log to", false, "yakdb.log", "filename");
-        TCLAP::ValueArg<std::string> configArg("c", "config", "The configuration file to read from", false, "yakdb.cfg", "filename");
-        TCLAP::ValueArg<std::string> webuiArg("w", "webui", "The directory containing the static web user interface", false, "./static", "directory");
-        TCLAP::ValueArg<uint64_t> statisticsExpungeTimeoutArg("c", "config", "The configuration file to read from", false, 3600*1000, "milliseconds");
-        ZMQEndpointConstraint endpointConstraint;
-        TCLAP::MultiArg<std::string> reqEndpointsArg("r", "req-endpoints", "ZeroMQ endpoints for REQ requests (default: tcp://*:7100, ipc:///tmp/yakserver-rep)", false, endpointConstraint);
-        TCLAP::MultiArg<std::string> pullEndpointsArg("p", "pull-endpoints", "ZeroMQ endpoints for REQ requests (default: tcp://*:7101, ipc:///tmp/yakserver-pull)", false, endpointConstraint);
-        TCLAP::MultiArg<std::string> subEndpointsArg("s", "sub-endpoints", "ZeroMQ endpoints for REQ requests (default: tcp://*:7102, ipc:///tmp/yakserver-sub)", false, endpointConstraint);
-        TCLAP::ValueArg<std::string> httpEndpointArg("h", "http-endpoint", "The HTTP server port to listen on", false, "", "port");
-        TCLAP::SwitchArg ipv4OnlyArg("4", "ipv4-only", "Use IPv4 sockets only (disables IPv6)", cmd, false);
-        
-        TCLAP::ValueArg<std::string> externalHWMArg("e", "external-hwm", "External socket High Watermark", false, "", "messages");
-        TCLAP::ValueArg<std::string> internalHWMArg("i", "internal-hwm", "Internal socket ", false, "", "filename");
-        
-        TCLAP::ValueArg<std::string> tableDirectoryArg("t", "table-directory", "The directory where the table data is stored", false, "", "directory");
-        
-        TCLAP::ValueArg<std::string> compressionModeArg("m", "compression-mode", "The default compression mode (none, bzip2, zlib or snappy)", false, "snappy", "compression mode");
-        //Add arguments
-        cmd.add(logfileArg);
-        cmd.add(configArg);
-        cmd.add(webuiArg);
-        cmd.add(reqEndpointsArg);
-        cmd.add(pullEndpointsArg);
-        cmd.add(subEndpointsArg);
-        cmd.add(httpEndpointArg);
-        cmd.add(externalHWMArg);
-        cmd.add(internalHWMArg);
-        cmd.add(tableDirectoryArg);
-        cmd.add(compressionModeArg);
-        //Parse the commandline args
-        cmd.parse(argc, argv);
-        //Copy arguments to class instance
-        this->logFile = logfileArg.getValue();
-        this->configFileName = configArg.getValue();
-        this->staticFilePath = webuiArg.getValue(); 
-        statisticsExpungeTimeout = 3600*1000;
-        
-        repEndpoints
-    } catch (TCLAP::ArgException &e) {
-        std::cerr << "Error: " << e.error() << " for arg " << e.argId() << std::endl; 
+    //Handle not enough arguments
+    if(argc < 2) {
+        printUsageAndExit();
+    }
+    //Handle --help or -h
+    if(strcmp(argv[1], "--help") == 0
+        || strcmp(argv[1], "-h") == 0) {
+        printUsageAndExit();
     }
     //Parse the config file
-    bool processedConfigFile = false;
-    if(fexists(configFileName)) {
-        processedConfigFile = true;
-        po::store(po::parse_config_file<char>(configFileName.c_str(), desc, true), vm);
-    }
-    po::notify(vm);
-    //Check if --help is given
-    if (vm.count("help")) {
-        cout << desc << endl;
-        exit(1);
-    }
-    //Check the endpoints
-    for(string endpoint : repEndpoints) {
-        if(!checkTCPIPCEndpoint(endpoint)) {
-            cout << desc << endl;
-            exit(1);
-        }
-    }
-    for(string endpoint : pullEndpoints) {
-        if(!checkTCPIPCEndpoint(endpoint)) {
-            cout << desc << endl;
-            exit(1);
-        }
-    }
-    for(string endpoint : subEndpoints) {
-        if(!checkTCPIPCEndpoint(endpoint)) {
-            cout << desc << endl;
-            exit(1);
-        }
-    }
-    if(!checkTCPIPCEndpoint(httpEndpoint, false)) {
-        cout << desc << endl;
-        exit(1);
-    }
+    std::map<std::string, std::string> cfg = readConfigFile(argv[1]);
+    /*
+     * 
+     */
+    //Log options
+    logFile = cfg["Logging.log-file"];
+    //Statistics options
+    statisticsExpungeTimeout = cfg["Statistics.statistics-expunge-timeout"];
+    //ZMQ options
+    //TODO Using space with token_compress=on seems a bit hackish. Could it cause errors?
+    split(repEndpoints, cfg["ZMQ.rep-endpoints"], is_any_of(", "), token_compress_on);
+    split(pullEndpoints, cfg["ZMQ.pull-endpoints"], is_any_of(", "), token_compress_on);
+    split(subEndpoints, cfg["ZMQ.sub-endpoints"], is_any_of(", "), token_compress_on);
+    bool zmqIPv4Only = parseBool(cfg["ZMQ.ipv4-only"]);
+    externalRCVHWM = stoi(cfg["ZMQ.external-rcv-hwm"]);
+    externalSNDHWM = stoi(cfg["ZMQ.external-snd-hwm"]);;
+    internalRCVHWM = stoi(cfg["ZMQ.internal-rcv-hwm"]);;
+    internalSNDHWM = stoi(cfg["ZMQ.internal-snd-hwm"]);;
+    //HTTP options
+    httpEndpoint = cfg["HTTP.endpoint"];
+    staticFilePath = cfg["HTTP.static-file-path"];
+    httpIPv4Only = parseBool(cfg["HTTP.ipv4-only"]);
+    //Table options
+    uint64_t defaultLRUCacheSize;
+    uint64_t defaultTableBlockSize;
+    uint64_t defaultWriteBufferSize;
+    uint64_t defaultBloomFilterBitsPerKey;
+    bool compressionEnabledPerDefault;
+    std::string tableSaveFolder;
+
     //Check directories & ensure symlinks are resolved properly
     // and they exist and are readable
     string originalStaticFilePath = staticFilePath;
@@ -292,9 +192,6 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     } else if(staticFilePath.back() != '/') {
         staticFilePath += "/";
     }
-    //Get bool-ish options
-    this->ipv4Only = (vm.count("ipv4-only") > 0);
-    this->compressionEnabledPerDefault = (vm.count("disable-compression") > 0);
     //Write the config data to the config file unless there are no arguments
     if(argc > 1 || (processedConfigFile && configFileName != "yak.cfg")) {
         saveConfigFile();

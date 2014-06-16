@@ -32,25 +32,31 @@ public:
     bool isCompressionEnabledPerDefault();
     int getInternalHWM();
     int getExternalHWM();
-private:
+
+    //Log options
     std::string logFile;
-    std::string tableSaveFolder;
+    //Statistics options
     uint64_t statisticsExpungeTimeout;
-    //Socket options
+    //ZMQ options
     std::vector<std::string> repEndpoints;
     std::vector<std::string> pullEndpoints;
     std::vector<std::string> subEndpoints;
+    bool zmqIPv4Only;
+    int externalRCVHWM;
+    int externalSNDHWM;
+    int internalRCVHWM;
+    int internalSNDHWM;
+    //HTTP options
     std::string httpEndpoint;
     std::string staticFilePath;
-    bool ipv4Only;
-    int externalHWM;
-    int internalHWM;
+    bool httpIPv4Only;
     //Table options
     uint64_t defaultLRUCacheSize;
     uint64_t defaultTableBlockSize;
     uint64_t defaultWriteBufferSize;
     uint64_t defaultBloomFilterBitsPerKey;
     bool compressionEnabledPerDefault;
+    std::string tableSaveFolder;
 };
 
 #endif //CONFIGPARSER_HPP
