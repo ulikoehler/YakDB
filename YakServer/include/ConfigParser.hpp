@@ -34,4 +34,12 @@ public:
     std::string tableSaveFolder;
 };
 
+/**
+ * Parse a compression code (see default_config.cfg for details) into a RocksDB code.
+ * @param val The code to parse, e.g. "SNAPPY"
+ */
+rocksdb::CompressionType compressionModeFromString(const std::string& val);
+std::string compressionModeToString (rocksdb::CompressionType compression);
+
+
 #endif //CONFIGPARSER_HPP

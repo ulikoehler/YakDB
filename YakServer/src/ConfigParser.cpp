@@ -106,7 +106,7 @@ static void printUsageAndExit(char** argv) {
     exit(1);
 }
 
-static rocksdb::CompressionType compressionTypeFromString(const std::string& val) {
+rocksdb::CompressionType compressionModeFromString(const std::string& val) {
     if(val == "NONE") {
         return rocksdb::kNoCompression;
     } else if (val == "SNAPPY") {
@@ -125,6 +125,24 @@ static rocksdb::CompressionType compressionTypeFromString(const std::string& val
          << val
          << "' -- using default (SNAPPY)!" << endl;
     return rocksdb::kSnappyCompression;
+}
+
+std::string compressionModeToString(rocksdb::CompressionType compression) {
+    switch(compression) {
+        case rocksdb::kNoCompression:
+            return "NONE";
+        case rocksdb::kSnappyCompression:
+            return "SNAPPY";
+        case rocksdb::kZlibCompression:
+            return "ZLIB";
+        case rocksdb::kBZip2Compression:
+            return "BZIP2";
+        case rocksdb::kLZ4Compression:
+            return "LZ4";
+        case rocksdb::kLZ4HCCompression:
+            return "LZ4HC";
+        default: return "UNKNOWN";
+    }
 }
 
 /*
@@ -192,7 +210,7 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     defaultTableBlockSize = std::stoull(cfg["RocksDB.table-block-size"]);
     defaultWriteBufferSize = std::stoull(cfg["RocksDB.write-buffer-size"]);
     defaultBloomFilterBitsPerKey = std::stoull(cfg["RocksDB.bloom-filter-bits-per-key"]);
-    defaultCompression = compressionTypeFromString(cfg["RocksDB.compression"]);
+    defaultCompression = compressionModeFromString(cfg["RocksDB.compression"]);
     tableSaveFolder = cfg["RocksDB.table-dir"];
     //Check directories & ensure symlinks are resolved properly
     // and they exist and are readable
