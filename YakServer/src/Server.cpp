@@ -197,6 +197,11 @@ void HOT KeyValueServer::handleRequestResponse() {
         //Dispose non-reused messages
         zmq_msg_close(&headerFrame);
     } else if(requestType & 0x40) { //Any data processing request
+        /**
+         * Data processing requests are simply redirected to the async job router
+         * controller, as processing them in the main router might stall message
+         * processing during expensive lookups.
+         */
         void* workerSocket = asyncJobRouterController.routerSocket;
         if(zmq_msg_send(&addrFrame, workerSocket, ZMQ_SNDMORE) == -1) {
             logMessageSendError("Data processing request address frame", logger);
@@ -298,14 +303,14 @@ tableOpenServer(ctx, configParserParam, tables.getDatabases()),
 updateWorkerController(ctx, tables, configParserParam),
 readWorkerController(ctx, tables),
 asyncJobRouterController(ctx, tables),
-httpServer(ctx, configParserParam.getHTTPEndpoint(), configParserParam.getStaticFilePath()),
+httpServer(ctx, configParserParam.httpEndpoint, configParserParam.staticFilePath),
 logger(ctx, "Request router"),
 configParser(configParserParam)
  {
     //Start the log server and configure logsinks
     logServer.addLogSink(new StderrLogSink());
-    if(!configParser.getLogFile().empty()) {
-        logServer.addLogSink(new FileLogSink(configParser.getLogFile()));
+    if(!configParser.logFile.empty()) {
+        logServer.addLogSink(new FileLogSink(configParser.logFile));
     }
     BufferLogSink* logBuffer = new BufferLogSink(32);
     logServer.addLogSink(logBuffer);
@@ -314,22 +319,26 @@ configParser(configParserParam)
      * Initialize and bind the external sockets
      */
     //Print HWM, if not default
-    if(configParser.getExternalHWM() != 250) {
-        logger.trace("Using external HWM of " + std::to_string(configParser.getExternalHWM()));
+    if(configParser.externalRCVHWM != 250 || configParser.externalSNDHWM != 250) {
+        logger.trace("Using external SND/RCV HWM of "
+            + std::to_string(configParser.externalSNDHWM) + "/"
+            + std::to_string(configParser.externalRCVHWM));
     }
-    if(configParser.getInternalHWM() != 250) {
-        logger.trace("Using internal HWM of " + std::to_string(configParser.getInternalHWM()));
+    if(configParser.internalRCVHWM != 250 || configParser.internalSNDHWM != 250) {
+        logger.trace("Using internal SND/RCV HWM of "
+            + std::to_string(configParser.internalSNDHWM) + "/"
+            + std::to_string(configParser.internalRCVHWM));
     }
     /**
      * REP / ROUTER
      */
     externalRepSocket = zmq_socket(ctx, ZMQ_ROUTER);
-    zmq_set_hwm(externalRepSocket, configParser.getExternalHWM());
-    if(!configParser.isIPv4Only()) {
+    setHWM(externalRepSocket, configParser.externalRCVHWM, configParser.externalSNDHWM, logger);
+    if(!configParser.zmqIPv4Only) {
         logger.trace("Using IPv6-capable sockets");
         zmq_set_ipv6(externalRepSocket, true);
     }
-    for(const std::string& endpoint : configParser.getREPEndpoints()) {
+    for(const std::string& endpoint : configParser.repEndpoints) {
         logger.debug("Binding REP socket to " + endpoint);
         zmq_bind(externalRepSocket, endpoint.c_str());
     }
@@ -338,16 +347,18 @@ configParser(configParserParam)
      * PULL
      */
     externalPullSocket = zmq_socket(ctx, ZMQ_PULL);
-    zmq_set_hwm(externalPullSocket, configParser.getExternalHWM());
-    if(!configParser.isIPv4Only()) {
+    setHWM(externalPullSocket, configParser.externalRCVHWM, configParser.externalSNDHWM, logger);
+    if(!configParser.zmqIPv4Only) {
         zmq_set_ipv6(externalPullSocket, true);
     }
-    for(const std::string& endpoint : configParser.getPULLEndpoints()) {
+    for(const std::string& endpoint : configParser.pullEndpoints) {
         logger.debug("Binding PULL socket to " + endpoint);
         zmq_bind(externalPullSocket, endpoint.c_str());
     }
     //Response proxy socket to route asynchronous responses
-    responseProxySocket = zmq_socket_new_bind_hwm(ctx, ZMQ_PULL, externalRequestProxyEndpoint, configParser.getExternalHWM());
+    responseProxySocket = zmq_socket_new_bind_hwm(ctx, ZMQ_PULL,
+        externalRequestProxyEndpoint, configParser.externalRCVHWM,
+        configParser.externalSNDHWM, logger);
     //Now start the update and read workers
     //(before starting the worker threads the response sockets need to be bound)
     updateWorkerController.start();

@@ -159,31 +159,31 @@ struct PACKED TableOpenParameters  {
         } else {
             //Use a small LRU cache per default, because OS cache doesn't cache uncompressed data
             // , so it's really slow in random-access-mode for uncompressed data
-            options.block_cache = rocksdb::NewLRUCache(configParser.getDefaultTableBlockSize());
+            options.block_cache = rocksdb::NewLRUCache(configParser.defaultTableBlockSize);
         }
         if (tableBlockSize != std::numeric_limits<uint64_t>::max()) {
             options.block_size = tableBlockSize;
         } else { //Default table block size (= more than RocksDB default)
             //Factory default 256k, RocksDB default = 4k
-            options.block_size = configParser.getDefaultTableBlockSize(); 
+            options.block_size = configParser.defaultTableBlockSize; 
         }
         if (writeBufferSize != std::numeric_limits<uint64_t>::max()) {
             options.write_buffer_size = writeBufferSize;
         } else {
             //To counteract slow writes on slow HDDs, we now use a WB per default
             //The default is tuned not to use too much buffer memory at once
-            options.write_buffer_size = configParser.getDefaultWriteBufferSize(); //64 Mibibytes
+            options.write_buffer_size = configParser.defaultWriteBufferSize; //64 Mibibytes
         }
         if (bloomFilterBitsPerKey != std::numeric_limits<uint64_t>::max()) {
             //0 --> disable
-            if(lruCacheSize > 0) {
+            if(bloomFilterBitsPerKey > 0) {
                 options.filter_policy = rocksdb::NewBloomFilterPolicy(bloomFilterBitsPerKey);
             }
         } else {
-            if(configParser.getDefaultBloomFilterBitsPerKey() > 0) {
+            if(configParser.defaultBloomFilterBitsPerKey > 0) {
                 options.filter_policy
                         = rocksdb::NewBloomFilterPolicy(
-                            configParser.getDefaultBloomFilterBitsPerKey());
+                            configParser.defaultBloomFilterBitsPerKey);
             }
         }
         options.create_if_missing = true;

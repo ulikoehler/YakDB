@@ -30,6 +30,7 @@ private:
     Tablespace& tablespace;
     size_t numThreads; //size of this->threads
     void* context;
+    Logger logger;
     ConfigParser& configParser;
 };
 

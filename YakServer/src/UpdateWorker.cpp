@@ -28,7 +28,8 @@ AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Update worker"),
 tableOpenHelper(ctx),
 tablespace(tablespace) {
     //Set HWM
-    zmq_set_hwm(processorInputSocket, configParser.getInternalHWM());
+    setHWM(processorInputSocket, configParser.internalRCVHWM,
+            configParser.internalRCVHWM, logger);
     //Connect the socket that is used to proxy requests to the external req/rep socket
     if(zmq_connect(processorOutputSocket, externalRequestProxyEndpoint) == -1) {
         logOperationError("Connect Update worker processor output socket", logger);
@@ -522,10 +523,13 @@ UpdateWorkerController::UpdateWorkerController(void* context, Tablespace& tables
 : tablespace(tablespace),
 numThreads(3),
 context(context),
+logger(context, "Update worker controller"),
 configParser(configParserArg)
  {
     //Initialize the push socket
-    workerPushSocket = zmq_socket_new_bind_hwm(context, ZMQ_PUSH, updateWorkerThreadAddr, configParser.getInternalHWM());
+    workerPushSocket = zmq_socket_new_bind_hwm(context, ZMQ_PUSH,
+        updateWorkerThreadAddr, configParser.internalRCVHWM,
+        configParser.internalRCVHWM, logger);
 }
 
 void UpdateWorkerController::start() {

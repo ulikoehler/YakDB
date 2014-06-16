@@ -94,9 +94,15 @@ void* zmq_socket_new_bind(void* context, int type, const char* endpoint) {
     return sock;
 }
 
-void zmq_set_hwm(void* socket, int hwm) {
-    int rc = zmq_setsockopt (socket, ZMQ_SNDHWM, &hwm, sizeof (int));
-    assert(rc != -1);
+void setHWM(void* socket, int rcvhwm, int sndhwm, Logger& logger) {
+    if(zmq_setsockopt(socket, ZMQ_SNDHWM, &sndhwm, sizeof (int)) == -1) {
+        logger.error("Error while setting external send HWM: "
+                     + std::string(zmq_strerror(errno)));
+    }
+    if(zmq_setsockopt(socket, ZMQ_RCVHWM, &rcvhwm, sizeof (int)) == -1) {
+        logger.error("Error while setting external receive HWM: "
+                     + std::string(zmq_strerror(errno)));
+    }
 }
 
 void zmq_set_ipv6(void* socket, bool isIPv6Enabled) {
@@ -105,14 +111,14 @@ void zmq_set_ipv6(void* socket, bool isIPv6Enabled) {
     assert(rc != -1);
 }
 
-void* zmq_socket_new_bind_hwm(void* context, int type, const char* endpoint, int hwm) {
+void* zmq_socket_new_bind_hwm(void* context, int type, const char* endpoint, int rcvhwm, int sndhwm, Logger& logger) {
     assert(context);
     assert(endpoint);
     void* sock = zmq_socket(context, type);
     if(unlikely(!sock)) {
         return NULL;
     }
-    zmq_set_hwm(sock, hwm);
+    setHWM(sock, rcvhwm, sndhwm, logger);
     if(unlikely(zmq_bind(sock, endpoint) == -1)) {
         zmq_close(sock);
         return NULL;
@@ -120,14 +126,14 @@ void* zmq_socket_new_bind_hwm(void* context, int type, const char* endpoint, int
     return sock;
 }
 
-void* zmq_socket_new_connect_hwm(void* context, int type, const char* endpoint, int hwm) {
+void* zmq_socket_new_connect_hwm(void* context, int type, const char* endpoint, int rcvhwm, int sndhwm, Logger& logger) {
     assert(context);
     assert(endpoint);
     void* sock = zmq_socket(context, type);
     if(unlikely(!sock)) {
         return NULL;
     }
-    zmq_set_hwm(sock, hwm);
+    setHWM(sock, rcvhwm, sndhwm, logger);
     if(unlikely(zmq_connect(sock, endpoint) == -1)) {
         zmq_close(sock);
         return NULL;

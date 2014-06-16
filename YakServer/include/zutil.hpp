@@ -360,16 +360,21 @@ void* zmq_socket_new_bind(void* context, int type, const char* endpoint);
  * Create and connect a ZeroMQ socket in a single step
  * @return 
  */
-void* zmq_socket_new_bind_hwm(void* context, int type, const char* endpoint, int hwm);
+void* zmq_socket_new_bind_hwm(void* context,
+    int type, const char* endpoint,
+    int rcvhwm, int sndhwm, Logger& logger);
 
 /**
  * Create and bind a ZeroMQ socket in a single step
  * @return 
  */
-void* zmq_socket_new_connect_hwm(void* context, int type, const char* endpoint, int hwm);
+void* zmq_socket_new_connect_hwm(void* context,
+    int type, const char* endpoint,
+    int rcvhwm, int sndhwm, Logger& logger);
 
-void zmq_set_hwm(void* socket, int hwm);
 void zmq_set_ipv6(void* socket, bool enableIPv6);
+
+void setHWM(void* socket, int rcvhwm, int sndhwm, Logger& logger);
 
 #endif	/* ZUTIL_HPP */
 
