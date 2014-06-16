@@ -55,7 +55,7 @@ public:
     uint64_t defaultTableBlockSize;
     uint64_t defaultWriteBufferSize;
     uint64_t defaultBloomFilterBitsPerKey;
-    bool compressionEnabledPerDefault;
+    rocksdb::CompressionType defaultCompression;
     std::string tableSaveFolder;
 };
 

@@ -5,6 +5,7 @@
 #include <vector>
 #include <sstream>
 #include <map>
+#include <rocksdb/options.h>
 #include <iostream>
 #include <boost/algorithm/string.hpp>
 #include "macros.hpp"
@@ -59,7 +60,7 @@ static std::map<std::string, std::string> readConfigFile(const char* filename) {
     std::ifstream fin(filename);
     std::string line;
     std::string currentSection = "General";
-    while(std::getline(is, str)) {
+    while(std::getline(fin, line)) {
         trim(line);
         //Ignore empty lines (and lines with only whitespace)
         if(line.size() == 0) {
@@ -99,10 +100,31 @@ static std::map<std::string, std::string> readConfigFile(const char* filename) {
     return config;
 }
 
-static void printUsageAndExit() {
+static void printUsageAndExit(char** argv) {
     cerr << "Usage: " << argv[0]
-         << " <config file>\nUse default_config.cfg if in doubt.\n"
+         << " <config file>\nUse default_config.cfg if in doubt.\n";
     exit(1);
+}
+
+static rocksdb::CompressionType compressionTypeFromString(const std::string& val) {
+    if(val == "NONE") {
+        return rocksdb::kNoCompression;
+    } else if (val == "SNAPPY") {
+        return rocksdb::kSnappyCompression;
+    } else if (val == "ZLIB") {
+        return rocksdb::kZlibCompression;
+    } else if (val == "BZIP2") {
+        return rocksdb::kBZip2Compression;
+    } else if (val == "LZ4") {
+        return rocksdb::kLZ4Compression;
+    } else if (val == "LZ4HC") {
+        return rocksdb::kLZ4HCCompression;
+    }
+    //Else: Unknown --> Log and use default
+    cerr << "\x1B[33m[Warn] Unknown compression '"
+         << val
+         << "' -- using default (SNAPPY)!" << endl;
+    return rocksdb::kSnappyCompression;
 }
 
 /*
@@ -125,7 +147,7 @@ bool parseBool(const std::string& value) {
         );
     if(!(isClearlyFalse || isClearlyTrue)) {
         cerr << "\x1B[33m[Warn] Can't recognize boolean in config line '"
-             << line
+             << value
              << "' -- treating as false (please use true/false!)" << endl;
     }
 }
@@ -133,12 +155,12 @@ bool parseBool(const std::string& value) {
 COLD ConfigParser::ConfigParser(int argc, char** argv) {
     //Handle not enough arguments
     if(argc < 2) {
-        printUsageAndExit();
+        printUsageAndExit(argv);
     }
     //Handle --help or -h
     if(strcmp(argv[1], "--help") == 0
         || strcmp(argv[1], "-h") == 0) {
-        printUsageAndExit();
+        printUsageAndExit(argv);
     }
     //Parse the config file
     std::map<std::string, std::string> cfg = readConfigFile(argv[1]);
@@ -148,29 +170,28 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     //Log options
     logFile = cfg["Logging.log-file"];
     //Statistics options
-    statisticsExpungeTimeout = cfg["Statistics.statistics-expunge-timeout"];
+    statisticsExpungeTimeout = stoull(cfg["Statistics.statistics-expunge-timeout"]);
     //ZMQ options
     //TODO Using space with token_compress=on seems a bit hackish. Could it cause errors?
     split(repEndpoints, cfg["ZMQ.rep-endpoints"], is_any_of(", "), token_compress_on);
     split(pullEndpoints, cfg["ZMQ.pull-endpoints"], is_any_of(", "), token_compress_on);
     split(subEndpoints, cfg["ZMQ.sub-endpoints"], is_any_of(", "), token_compress_on);
-    bool zmqIPv4Only = parseBool(cfg["ZMQ.ipv4-only"]);
-    externalRCVHWM = stoi(cfg["ZMQ.external-rcv-hwm"]);
-    externalSNDHWM = stoi(cfg["ZMQ.external-snd-hwm"]);;
-    internalRCVHWM = stoi(cfg["ZMQ.internal-rcv-hwm"]);;
-    internalSNDHWM = stoi(cfg["ZMQ.internal-snd-hwm"]);;
+    zmqIPv4Only = parseBool(cfg["ZMQ.ipv4-only"]);
+    externalRCVHWM = std::stoi(cfg["ZMQ.external-rcv-hwm"]);
+    externalSNDHWM = std::stoi(cfg["ZMQ.external-snd-hwm"]);;
+    internalRCVHWM = std::stoi(cfg["ZMQ.internal-rcv-hwm"]);;
+    internalSNDHWM = std::stoi(cfg["ZMQ.internal-snd-hwm"]);;
     //HTTP options
     httpEndpoint = cfg["HTTP.endpoint"];
     staticFilePath = cfg["HTTP.static-file-path"];
     httpIPv4Only = parseBool(cfg["HTTP.ipv4-only"]);
     //Table options
-    uint64_t defaultLRUCacheSize;
-    uint64_t defaultTableBlockSize;
-    uint64_t defaultWriteBufferSize;
-    uint64_t defaultBloomFilterBitsPerKey;
-    bool compressionEnabledPerDefault;
-    std::string tableSaveFolder;
-
+    defaultLRUCacheSize = std::stoull(cfg["RocksDB.lru-cache-size"]);
+    defaultTableBlockSize = std::stoull(cfg["RocksDB.table-block-size"]);
+    defaultWriteBufferSize = std::stoull(cfg["RocksDB.write-buffer-size"]);
+    defaultBloomFilterBitsPerKey = std::stoull(cfg["RocksDB.bloom-filter-bits-per-key"]);
+    defaultCompression = compressionTypeFromString(cfg["RocksDB.compression"]);
+    tableSaveFolder = cfg["RocksDB.table-dir"];
     //Check directories & ensure symlinks are resolved properly
     // and they exist and are readable
     string originalStaticFilePath = staticFilePath;
@@ -192,69 +213,4 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     } else if(staticFilePath.back() != '/') {
         staticFilePath += "/";
     }
-    //Write the config data to the config file unless there are no arguments
-    if(argc > 1 || (processedConfigFile && configFileName != "yak.cfg")) {
-        saveConfigFile();
-    }
-}
-
-const std::string& ConfigParser::getLogFile() {
-    return logFile;
-}
-
-const std::string& ConfigParser::getTableSaveFolderPath() {
-    return tableSaveFolder;
-}
-
-const std::vector<std::string>& ConfigParser::getREPEndpoints() {
-    return repEndpoints;
-}
-
-const std::vector<std::string>& ConfigParser::getPULLEndpoints() {
-    return pullEndpoints;
-}
-
-const std::vector<std::string>& ConfigParser::getSUBEndpoints() {
-    return subEndpoints;
-}
-
-const bool ConfigParser::isIPv4Only() {
-    return ipv4Only;
-}
-
-
-const std::string& ConfigParser::getHTTPEndpoint() {
-    return httpEndpoint;
-}
-
-uint64_t ConfigParser::getDefaultLRUCacheSize() {
-    return defaultLRUCacheSize;
-}
-
-uint64_t ConfigParser::getDefaultTableBlockSize() {
-    return defaultTableBlockSize;
-}
-
-uint64_t ConfigParser::getDefaultWriteBufferSize() {
-    return defaultWriteBufferSize;
-}
-
-uint64_t ConfigParser::getDefaultBloomFilterBitsPerKey() {
-    return defaultBloomFilterBitsPerKey;
-}
-
-bool ConfigParser::isCompressionEnabledPerDefault() {
-    return compressionEnabledPerDefault;
-}
-
-int ConfigParser::getInternalHWM() {
-    return internalHWM;
-}
-
-int ConfigParser::getExternalHWM() {
-    return externalHWM;
-}
-
-std::string ConfigParser::getStaticFilePath() {
-    return staticFilePath;
 }
