@@ -6,12 +6,10 @@
 #include <sstream>
 #include <map>
 #include <iostream>
-#include <tclap/CmdLine.h>
 #include "macros.hpp"
 #include "ConfigParser.hpp"
 #include "FileUtils.hpp"
 
-namespace po = boost::program_options;
 using std::string;
 using std::vector;
 using std::cout;
