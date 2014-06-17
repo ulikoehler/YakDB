@@ -11,7 +11,7 @@ class KeyValueIterator(object):
     
     The iterator yields tuples (key, value).
     """
-    def __init__(self, conn, tableNo=1, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, chunkSize=1000):
+    def __init__(self, conn, tableNo=1, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
         """
         Initialize a new key-value iterator
         @param startKey the first node to scan
@@ -26,6 +26,8 @@ class KeyValueIterator(object):
         self.keyFilter = keyFilter
         self.valueFilter = valueFilter
         self.chunkSize = chunkSize
+        self.skip = skip
+        self.invert = invert
         self.buf = deque()
     def __iter__(self):
         return self
@@ -33,7 +35,7 @@ class KeyValueIterator(object):
         """
         Load the next chunk of key-value pairs into the buffer
         """
-        scanRes = self.conn.scan(self.tableNo, startKey=self.nextStartKey, endKey=self.endKey, limit=self.chunkSize, keyFilter=self.keyFilter, valueFilter=self.valueFilter)
+        scanRes = self.conn.scan(self.tableNo, startKey=self.nextStartKey, endKey=self.endKey, limit=self.chunkSize, keyFilter=self.keyFilter, valueFilter=self.valueFilter, skip=self.skip, invert=self.invert)
         #Stop if there's nothing left to scan
         if len(scanRes) is 0:
             raise StopIteration
@@ -42,7 +44,55 @@ class KeyValueIterator(object):
             self.buf.append(dataTuple)
         #Get the key to use as start key on chunk load
         lastIdentifier = (scanRes.keys()[-1])
-        self.nextStartKey= YakDBUtils.incrementKey(lastIdentifier)
+        self.nextStartKey = YakDBUtils.incrementKey(lastIdentifier)
+    def next(self):
+        """
+        Get the next key-value pair
+        """
+        if len(self.buf) == 0:
+            self.__loadNextChunk() #raises StopIteration if needed
+        return self.buf.popleft()
+
+
+class KeyIterator(object):
+    """
+    An iterator that uses a list request to iterate over keys
+    
+    The iterator yields keys only.
+    """
+    def __init__(self, conn, tableNo=1, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
+        """
+        Initialize a new key iterator.
+        The parameters are equivalent to those of KeyValueIterator.
+        See KeyValueIterator docs for further reference.
+        """
+        self.conn = conn
+        self.tableNo = tableNo
+        self.limit = limit
+        self.nextStartKey = startKey
+        self.endKey = endKey
+        self.limit = limit
+        self.keyFilter = keyFilter
+        self.valueFilter = valueFilter
+        self.chunkSize = chunkSize
+        self.skip = skip
+        self.invert = invert
+        self.buf = deque()
+    def __iter__(self):
+        return self
+    def __loadNextChunk(self):
+        """
+        Load the next chunk of key-value pairs into the buffer
+        """
+        listRes = self.conn.list(self.tableNo, startKey=self.nextStartKey, endKey=self.endKey, limit=self.chunkSize, keyFilter=self.keyFilter, valueFilter=self.valueFilter, skip=self.skip, invert=self.invert)
+        #Stop if there's nothing left to scan
+        if len(listRes) is 0:
+            raise StopIteration
+        for key in listRes:
+            self.buf.append(key)
+        #Get the key to use as start key on chunk load
+        lastIdentifier = (listRes[-1])
+        self.nextStartKey = YakDBUtils.incrementKey(lastIdentifier)
     def next(self):
         """
         Get the next key-value pair

@@ -194,7 +194,7 @@ class Connection(YakDBConnectionBase):
         @param keyFilter If this is non-None, the server filters for keys containing (exactly) this substring
         @param valueFilter If this is non-None, the server filters for values containing (exactly) this substring
         @param skip The number of records to skip at the beginning. Filter mismatches do not count.
-        @param invert Set this to true to invert the scan direction
+        @param invert Set this to True to invert the scan direction
         @param mapData If this is set to False, a list of tuples is returned instead of a directory
         @return A dictionary of the returned key/value pairs
         """
@@ -228,6 +228,38 @@ class Connection(YakDBConnectionBase):
             return YakDBConnectionBase._mapScanToTupleList(dataParts)
         else:
             return YakDBConnectionBase._mapScanToDict(dataParts)
+
+    def list(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, mapData=False, requestId=""):
+        """
+        Synchronous list. Fully equivalent to scan, but only returns keys.
+        See scan documentation for further reference.
+        """
+        #Check parameters and create binary-string only key list
+        YakDBConnectionBase._checkParameterType(skip, int, "skip")
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
+        YakDBConnectionBase._checkParameterType(limit, int, "limit",  allowNone=True)
+        #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send("\x31\x01\x14" + ("\x01" if invert else "\x00") + requestId, zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(tableNo)
+        #Send limit frame
+        self._sendBinary64(limit)
+        #Send range. "" --> empty frame --> start/end of table
+        self._sendRange(startKey,  endKey, more=True)
+        #Send key filter parameters
+        self.socket.send("" if keyFilter is None else keyFilter, zmq.SNDMORE)
+        #Send value filter parameters
+        self.socket.send("" if valueFilter is None else valueFilter, zmq.SNDMORE)
+        #Send skip number
+        self._sendBinary64(skip, more=False)
+        #Wait for reply
+        msgParts = self.socket.recv_multipart(copy=True)
+        YakDBConnectionBase._checkHeaderFrame(msgParts, '\x14') #Remap the returned key/value pairs to a dict
+        dataParts = msgParts[1:]
+        return dataParts
     def deleteRange(self, tableNo, startKey, endKey, limit=None):
         """
         Deletes a range of keys in the database

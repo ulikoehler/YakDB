@@ -9,6 +9,7 @@ import os
 import os.path
 import YakDB
 import YakDB.Dump
+from YakDB.Iterators import KeyIterator
 
 def info(db, args):
     print(db.serverInfo())
@@ -92,6 +93,27 @@ def scan(db, args):
     skip = args.skip
     #Data is remapped into dictionary-form in connection class
     print(db.scan(tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, skip=skip, invert=invert, mapData=mapData))
+
+def doList(db, args):
+    tableNo = args.tableNo
+    #Override -t with positional argument, if any
+    if args.table is not None:
+        tableNo = args.table
+    fromKey = args.fromKey
+    toKey = args.toKey
+    limit = args.scanLimit
+    keyFilter = args.keyFilter
+    valueFilter = args.valueFilter
+    invert = args.invertDirection
+    mapData = args.mapData
+    skip = args.skip
+    #Lazily iterate over the key list
+    it = KeyIterator(db, tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, skip=skip, invert=invert)
+    for key in it:
+        #This won't really work for newline-containing keys,
+        # but we don't recommend them anyway.
+        print key
+
 
 def dump(db, args):
     tableNo = args.tableNo
@@ -338,6 +360,55 @@ def yakCLI():
             action="store",
             help="The tables to scan. Overrides -t option.")    
     parserScan.set_defaults(func=scan)
+    #List
+    parserList = subparsers.add_parser("list", description="List keys in a specified range in the table and return all key-value-pairs in that range")
+    parserList.add_argument('--from',
+            action="store",
+            dest="fromKey",
+            default=None,
+            help="The key to start listing at (inclusive), default: Start of table")
+    parserList.add_argument('--to',
+            action="store",
+            dest="toKey",
+            default=None,
+            help="The key to stop listing at (exclusive), default: end of table")
+    parserList.add_argument('-k','--key-filter',
+            action="store",
+            dest="keyFilter",
+            default=None,
+            help="The server-side key filter. Ignored KV pairs don't count when calculating the limit.")
+    parserList.add_argument('-v','--value-filter',
+            action="store",
+            dest="valueFilter",
+            default=None,
+            help="The server-side value filter. Ignored KV pairs don't count when calculating the limit.")
+    parserList.add_argument('-l','--limit',
+            action="store",
+            dest="scanLimit",
+            type=int,
+            default=None,
+            help="The maximum number of keys to scan")
+    parserList.add_argument('-s','--skip',
+            type=int,
+            nargs='?',
+            default=0,
+            action="store",
+            help="How many records to skip. Only filter-passing records count as skipped.")
+    parserList.add_argument('-i','--invert-direction',
+            action="store_true",
+            dest="invertDirection",
+            default=False,
+            help="Invert the scan direction")
+    parserList.add_argument('-m','--map-data',
+            action="store_true",
+            dest="mapData",
+            help="Return a dict of values instead of a list of tuples")
+    parserList.add_argument('table',
+            type=int,
+            nargs='?',
+            action="store",
+            help="The table to list. Overrides -t option.")    
+    parserList.set_defaults(func=doList)
     #Count
     parserCount = subparsers.add_parser("count", description="Count how many keys exist in a specified range of the table")
     parserCount.add_argument('--from',
