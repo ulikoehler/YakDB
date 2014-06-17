@@ -16,6 +16,7 @@
 #include "http/URLParser.hpp"
 #include "endpoints.hpp"
 #include "BoyerMoore.hpp"
+#include "FileUtils.hpp"
 #include "zutil.hpp"
 
 #define controlEndpoint "inproc://http/control"
@@ -23,16 +24,6 @@
 using std::string;
 using std::map;
 
-static size_t getFilesize(const char* filename) {
-    struct stat st;
-    stat(filename, &st);
-    return st.st_size;   
-}
-
-static bool fileExists(const char* file) {
-    struct stat buf;
-    return (stat(file, &buf) == 0);
-}
 
 /**
  * Represents a readonly static file instance which has been mmapped

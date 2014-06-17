@@ -10,9 +10,8 @@
 #include "FileUtils.hpp"
 #include <cstdio>
 
-
 COLD SequentialIDGenerator::SequentialIDGenerator(const std::string& file) : filename(file), nextId(), noFilePersistence(false) {
-    if (fexists(file)) {
+    if (fileExists(file)) {
         //For maximum compatibility and the least possible binsize
         // use C IO here instead of fstreams etc.
         FILE* fin = fopen(file.c_str(), "r");

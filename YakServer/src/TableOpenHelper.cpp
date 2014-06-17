@@ -179,7 +179,7 @@ struct PACKED TableOpenParameters  {
      */
     void COLD readTableConfigFile(const std::string& tableDir) {
         std::string cfgFileName = tableDir + ".cfg";
-        if(fexists(cfgFileName)) {
+        if(fileExists(cfgFileName)) {
             string line;
             ifstream fin(cfgFileName.c_str());
             while(fin.good()) {
