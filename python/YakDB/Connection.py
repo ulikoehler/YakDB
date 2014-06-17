@@ -468,7 +468,7 @@ class Connection(YakDBConnectionBase):
         #Send header frame
         self.socket.send("\x31\x01\x03", zmq.SNDMORE)
         #Send the table number frame
-        self._sendBinary32(tableNo, more=true)
+        self._sendBinary32(tableNo, more=True)
         self._sendRange(startKey,  endKey)
         msgParts = self.socket.recv_multipart(copy=True)
         YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x03')
