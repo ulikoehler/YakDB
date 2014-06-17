@@ -93,7 +93,8 @@ void HOT KeyValueServer::handleRequestResponse() {
     if (requestType == RequestType::ReadRequest
             || requestType == RequestType::CountRequest
             || requestType == RequestType::ExistsRequest
-            || requestType == RequestType::ScanRequest) {
+            || requestType == RequestType::ScanRequest
+            || requestType == RequestType::ListRequest) {
         //Forward the message to the read worker controller, the response is sent asynchronously
         void* dstSocket = readWorkerController.workerPushSocket;
         zmq_msg_send(&addrFrame, dstSocket, ZMQ_SNDMORE);

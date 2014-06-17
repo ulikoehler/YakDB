@@ -625,6 +625,8 @@ bool ReadWorker::processNextRequest() {
         handleExistsRequest(&headerFrame);
     } else if (requestType == ScanRequest) {
         handleScanRequest(&headerFrame);
+    } else if (requestType == ListRequest) {
+        handleListRequest(&headerFrame);
     } else {
         std::string errstr = "Internal routing error: request type " + std::to_string((int) requestType) + " routed to read worker thread!";
         logger.error(errstr);
