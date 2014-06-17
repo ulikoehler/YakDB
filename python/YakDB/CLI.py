@@ -9,7 +9,7 @@ import os
 import os.path
 import YakDB
 import YakDB.Dump
-from YakDB.Iterators import KeyIterator
+from YakDB.Iterators import KeyIterator, KeyValueIterator
 
 def info(db, args):
     print(db.serverInfo())
@@ -89,10 +89,11 @@ def scan(db, args):
     keyFilter = args.keyFilter
     valueFilter = args.valueFilter
     invert = args.invertDirection
-    mapData = args.mapData
     skip = args.skip
-    #Data is remapped into dictionary-form in connection class
-    print(db.scan(tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, skip=skip, invert=invert, mapData=mapData))
+    #Lazily iterate over key value tuples
+    it = KeyValueIterator(db, tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, skip=skip, invert=invert)
+    for key, value in it:
+        print key + ", " + value
 
 def doList(db, args):
     tableNo = args.tableNo
@@ -105,7 +106,6 @@ def doList(db, args):
     keyFilter = args.keyFilter
     valueFilter = args.valueFilter
     invert = args.invertDirection
-    mapData = args.mapData
     skip = args.skip
     #Lazily iterate over the key list
     it = KeyIterator(db, tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, skip=skip, invert=invert)
@@ -350,10 +350,6 @@ def yakCLI():
             dest="invertDirection",
             default=False,
             help="Invert the scan direction")
-    parserScan.add_argument('-m','--map-data',
-            action="store_true",
-            dest="mapData",
-            help="Return a dict of values instead of a list of tuples")
     parserScan.add_argument('table',
             type=int,
             nargs='?',
@@ -399,10 +395,6 @@ def yakCLI():
             dest="invertDirection",
             default=False,
             help="Invert the scan direction")
-    parserList.add_argument('-m','--map-data',
-            action="store_true",
-            dest="mapData",
-            help="Return a dict of values instead of a list of tuples")
     parserList.add_argument('table',
             type=int,
             nargs='?',
