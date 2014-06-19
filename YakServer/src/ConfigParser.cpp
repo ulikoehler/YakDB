@@ -173,17 +173,25 @@ bool parseBool(const std::string& value) {
 }
 
 COLD ConfigParser::ConfigParser(int argc, char** argv) {
-    //Handle not enough arguments
-    if(argc < 2) {
-        printUsageAndExit(argv);
-    }
     //Handle --help or -h
     if(strcmp(argv[1], "--help") == 0
         || strcmp(argv[1], "-h") == 0) {
         printUsageAndExit(argv);
     }
+    const char* configFile = nullptr;
+    //Handle not enough arguments
+    if(argc < 2) {
+        //try to use global config
+        if(fileExists("/etc/yakdb/yakdb.cfg")) {
+            configFile = "/etc/yakdb/yakdb.cfg";
+        } else if(fileExists("yakdb.cfg")) {
+            configFile = "yakdb.cfg";
+        } else {
+            printUsageAndExit(argv);
+        }
+    }
     //Parse the config file
-    std::map<std::string, std::string> cfg = readConfigFile(argv[1]);
+    std::map<std::string, std::string> cfg = readConfigFile(configFile);
     /*
      * 
      */
