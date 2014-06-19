@@ -105,7 +105,7 @@ static std::map<std::string, std::string> readConfigFile(const char* filename) {
 
 static void printUsageAndExit(char** argv) {
     cerr << "Usage: " << argv[0]
-         << " <config file>\nUse default_config.cfg if in doubt.\n";
+         << " <config file>\nUse default yakdb.cfg if in doubt.\n";
     exit(1);
 }
 
@@ -177,8 +177,9 @@ bool parseBool(const std::string& value) {
 
 COLD ConfigParser::ConfigParser(int argc, char** argv) {
     //Handle --help or -h
-    if(strcmp(argv[1], "--help") == 0
-        || strcmp(argv[1], "-h") == 0) {
+    if(argc >= 2 &&
+        (strcmp(argv[1], "--help") == 0
+            || strcmp(argv[1], "-h") == 0)) {
         printUsageAndExit(argv);
     }
     const char* configFile = nullptr;
@@ -187,18 +188,23 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
         //try to use global config
         if(fileExists("/etc/yakdb/yakdb.cfg")) {
             configFile = "/etc/yakdb/yakdb.cfg";
-        } else if(fileExists("yakdb.cfg")) {
-            configFile = "yakdb.cfg";
+            cout << "Using config " << configFile << endl;
+        } else if(fileExists("./yakdb.cfg")) {
+            configFile = "./yakdb.cfg";
+            cout << "Using config " << configFile << endl;
         } else {
             printUsageAndExit(argv);
         }
+    } else {
+        configFile = argv[1];
     }
     //Parse the config file
+    assert(configFile); //If this fails, argv is not parsed correctly
     std::map<std::string, std::string> cfg = readConfigFile(configFile);
     //Log options
     logFile = cfg["Logging.log-file"];
     //Statistics options
-    statisticsExpungeTimeout = stoull(cfg["Statistics.statistics-expunge-timeout"]);
+    statisticsExpungeTimeout = stoull(cfg["Statistics.expunge-timeout"]);
     //ZMQ options
     //FIXME Using space with token_compress=on seems a bit hackish. Could it cause errors?
     split(repEndpoints, cfg["ZMQ.rep-endpoints"], is_any_of(", "), token_compress_on);
