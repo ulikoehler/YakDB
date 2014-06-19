@@ -59,11 +59,11 @@ static std::map<std::string, std::string> readConfigFile(const char* filename) {
     std::map<std::string, std::string> config;
     std::ifstream fin(filename);
     std::string line;
-    std::string currentSection = "General";
+    std::string currentSection = "";
     while(std::getline(fin, line)) {
         trim(line);
         //Ignore empty lines (and lines with only whitespace)
-        if(line.size() == 0) {
+        if(line.empty()) {
             continue;
         }
         //Ignore comment-only lines
@@ -94,7 +94,10 @@ static std::map<std::string, std::string> readConfigFile(const char* filename) {
         }
         //If this is reached, we seem to have a sane config line.
         //Parse key and value and add them to the config map.
-        std::string key = currentSection + "." + line.substr(0, equalsSignPosition);
+        //If the KV pair is not inside a section, we'll just use the key.
+        std::string key = currentSection.empty() 
+                            ? line.substr(0, equalsSignPosition)
+                            : currentSection + "." + line.substr(0, equalsSignPosition);
         config[key] = line.substr(equalsSignPosition + 1);
     }
     return config;
@@ -192,9 +195,6 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     }
     //Parse the config file
     std::map<std::string, std::string> cfg = readConfigFile(configFile);
-    /*
-     * 
-     */
     //Log options
     logFile = cfg["Logging.log-file"];
     //Statistics options
