@@ -226,6 +226,10 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     defaultBloomFilterBitsPerKey = std::stoull(cfg["RocksDB.bloom-filter-bits-per-key"]);
     defaultCompression = compressionModeFromString(cfg["RocksDB.compression"]);
     tableSaveFolder = cfg["RocksDB.table-dir"];
+    //Normalize table save folder to be slash-terminated
+    if(tableSaveFolder[tableSaveFolder.size() - 1] != '/') { //if last char is not slash
+        tableSaveFolder += "/";
+    }
     //Check directories & ensure symlinks are resolved properly
     // and they exist and are readable
     string originalStaticFilePath = staticFilePath;

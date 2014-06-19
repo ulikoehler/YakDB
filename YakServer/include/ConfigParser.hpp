@@ -8,6 +8,14 @@ class ConfigParser {
 public:
     ConfigParser(int argc, char** argv);
 
+    /*
+     * Config options accessible as fields.
+     * To simplify the code and to avoid possible performance issues,
+     * we avoid using getters for any single property.
+     *
+     * However this means one needs to take special care not to modify
+     * those collections unless desired.
+     */
     //Log options
     std::string logFile;
     //Statistics options
@@ -31,6 +39,7 @@ public:
     uint64_t defaultWriteBufferSize;
     uint64_t defaultBloomFilterBitsPerKey;
     rocksdb::CompressionType defaultCompression;
+    //Save folder, normalized to have a slash at the end.
     std::string tableSaveFolder;
 };
 

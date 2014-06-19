@@ -62,20 +62,14 @@ class TableOpenHelper {
 public:
     typedef uint32_t IndexType;
     //Constructor
-    TableOpenHelper(void* context);
+    TableOpenHelper(void* context, ConfigParser& cfg);
     ~TableOpenHelper();
     /**
-     * Any parameter that is set to the numeric_limits<T>::max() limit,
-     * is assumed default.
-     * @param tableIdFrame: Frame of size 4, must not be empty
-     * @param lruCacheSizeFrame LevelDB Block LRU cache size in bytes
-     * @param tableBlockSizeFrame LevelDB bloc size in bytes
-     * @param writeBufferSizeFrame LevelDB write buffer in bytes
-     * @param bloomFilterBitsPerKeyFrame LevelDB bloom filter bits per key
+     * Open a table using a socket from which parameters are read
      */
-    void openTable(IndexType tableId, std::map<std::string, std::string>& parameterMap);
+    void openTable(IndexType tableId, void* srcSock);
     /**
-     * Open table without parameters
+     * Open table without any parameters
      */
     void openTable(IndexType tableId);
     void closeTable(IndexType index);
@@ -83,6 +77,7 @@ public:
     void* reqSocket; //This ZMQ socket is used to send requests
 private:
     void* context;
+    ConfigParser& cfg;
     Logger logger;
 };
 

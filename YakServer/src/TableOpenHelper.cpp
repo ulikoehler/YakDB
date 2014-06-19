@@ -95,14 +95,15 @@ struct PACKED TableOpenParameters  {
     uint64_t writeBufferSize; //UINT64_MAX --> Not set
     uint64_t bloomFilterBitsPerKey; //UINT64_MAX --> Not set
     rocksdb::CompressionType compression; //INT8_MAX --> Not set
-    std::shared_ptr<rocksdb::MergeOperator> mergeOperator;
+    std::string mergeOperatorCode; //Empty -> Not set
     
     TableOpenParameters() :
         lruCacheSize(std::numeric_limits<uint64_t>::max()),
         tableBlockSize(std::numeric_limits<uint64_t>::max()),
         writeBufferSize(std::numeric_limits<uint64_t>::max()),
         bloomFilterBitsPerKey(std::numeric_limits<uint64_t>::max()),
-        compression(rocksdb::kSnappyCompression) {
+        compression(rocksdb::kSnappyCompression),
+        mergeOperatorCode() {
         }
         
     void parseFromParameterMap(std::map<std::string, std::string>& parameters) {
@@ -120,6 +121,7 @@ struct PACKED TableOpenParameters  {
         }
         if(parameters.count("CompressionMode")) {
             compression = compressionModeFromString(parameters["CompressionMode"]);
+            cout << "CC: " << compression << endl;
         }
         if(parameters.count("MergeOperator")) {
             mergeOperator = createMergeOperator(parameters["MergeOperator"]);
@@ -186,8 +188,8 @@ struct PACKED TableOpenParameters  {
                 fin >> line;
                 size_t sepIndex = line.find_first_of('=');
                 assert(sepIndex != string::npos);
-                string key = line.substr(0, sepIndex);
-                string value = line.substr(sepIndex+1);
+                std::string key = line.substr(0, sepIndex);
+                std::string value = line.substr(sepIndex+1);
                 if(key == "LRUCacheSize") {
                     lruCacheSize = stoull(value);
                 } else if(key == "Blocksize") {
@@ -364,11 +366,11 @@ void TableOpenServer::tableOpenWorkerThread() {
                 delete db;
             }
             /**
-             * Truncate, based on the assumption LevelDB only creates files,
+             * Truncate, based on the assumption RocksDB only creates files,
              * but no subdirectories.
              * 
              * We don't want to introduce a boost::filesystem dependency here,
-             * so essentially rmr has been implemented by ourselves.
+             * so this essentially rm -rf, with no support for nested dirs.
              */
             DIR *dir;
             string dirname = "tables/" + std::to_string(tableIndex);
@@ -379,7 +381,7 @@ void TableOpenServer::tableOpenWorkerThread() {
                     if (strcmp(".", ent->d_name) == 0 || strcmp("..", ent->d_name) == 0) {
                         continue;
                     }
-                    string fullFileName = dirname + "/" + std::string(ent->d_name);
+                    std::string fullFileName = dirname + "/" + std::string(ent->d_name);
                     logger.trace("Truncating DB: Deleting " + fullFileName);
                     unlink(fullFileName.c_str());
                 }
@@ -463,30 +465,36 @@ void COLD TableOpenServer::terminate() {
     logger.terminate();
 }
 
-COLD TableOpenHelper::TableOpenHelper(void* context) : context(context), logger(context, "Table open client") {
-    this->context = context;
+COLD TableOpenHelper::TableOpenHelper(void* context, ConfigParser& cfg) :
+    context(context), cfg(cfg), logger(context, "Table open client") {
     reqSocket = zmq_socket_new_connect(context, ZMQ_REQ, tableOpenEndpoint);
     if (unlikely(!reqSocket)) {
         logger.critical("Table open client REQ socket initialization failed: " + std::string(zmq_strerror(errno)));
     }
 }
 
-void COLD TableOpenHelper::openTable(uint32_t tableId, std::map<std::string, std::string>& parameterMap) {
-    TableOpenParameters parameters;
-    parameters.parseFromParameterMap(parameterMap);
+void COLD TableOpenHelper::openTable(uint32_t tableId, void* paramSrcSock) {
+    //Note that the socket could be NULL <=> no parameters
     //Just send a message containing the table index to the opener thread
     if(sendTableOperationRequest(reqSocket, TableOperationRequestType::OpenTable, ZMQ_SNDMORE) == -1) {
         logMessageSendError("table open message", logger);
     }
-    sendBinary(tableId, reqSocket, logger, "Table ID", ZMQ_SNDMORE);
-    sendFrame(&parameters, sizeof (TableOpenParameters), reqSocket, logger, "Table open parameters");
+    //Determine if there are ANY key/value parameters to be sent
+    bool haveParameters = !paramSrcSock || socketHasMoreFrames(paramSrcSock);
+    //Send table no -- last frame if there are no parameters
+    sendBinary(tableId, reqSocket, logger, "Table ID", haveParameters ? ZMQ_SNDMORE : 0);
+    //Send parameters if there is any socket to proxy them from
+    if(haveParameters) {
+        if(unlikely(zmq_proxy_single(paramSrcSock, reqSocket) == -1)) {
+            logger.critical("Table open client parameter transfer failed: " + std::string(zmq_strerror(errno)));
+        }
+    }
     //Wait for the reply (reply content is ignored)
     zmq_recv(reqSocket, nullptr, 0, 0); //Blocks until reply received
 }
 
 void COLD TableOpenHelper::openTable(uint32_t tableId) {
-    std::map<std::string, std::string> parameters;
-    openTable(tableId, parameters);
+    openTable(tableId, nullptr);
 }
 
 void COLD TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {
