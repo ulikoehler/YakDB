@@ -16,6 +16,7 @@
 #include <vector>
 #include "Logger.hpp"
 #include "ConfigParser.hpp"
+#include "AbstractFrameProcessor.hpp"
 
 #ifndef UINT64_MAX
 #define UINT64_MAX (std::numeric_limits<uint64_t>::max())
@@ -27,7 +28,7 @@
  * 
  * This class shall be instantiated exactly once or the behaviour will be undefined.
  */
-class TableOpenServer {
+class TableOpenServer : private AbstractFrameProcessor {
 public:
     TableOpenServer(void* ctx,
                     ConfigParser& configParser, 
@@ -40,11 +41,8 @@ public:
     void terminate();
     void tableOpenWorkerThread();
 private:
-    void* context;
     std::thread* workerThread;
-    Logger logger;
     ConfigParser& configParser;
-    void* repSocket;
     std::vector<rocksdb::DB*>& databases;
 };
 
@@ -67,11 +65,7 @@ public:
     /**
      * Open a table using a socket from which parameters are read
      */
-    void openTable(IndexType tableId, void* srcSock);
-    /**
-     * Open table without any parameters
-     */
-    void openTable(IndexType tableId);
+    void openTable(IndexType tableId, void* srcSock=nullptr);
     void closeTable(IndexType index);
     void truncateTable(IndexType index);
     void* reqSocket; //This ZMQ socket is used to send requests

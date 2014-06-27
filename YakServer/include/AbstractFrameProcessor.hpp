@@ -14,15 +14,26 @@
 #include <rocksdb/status.h>
 
 /**
- * An abstract class that provides basic parsing
- * and checking methods
- * to subclasses
+ * An abstract class that provides basic parsing and checking methods
+ * to subclasses. It represent a black-box entity that reads frames, processes them
+ * and crafts answers
  */
 class AbstractFrameProcessor {
 public:
+    /**
+     * Initialize a new AbstractFrameProcessor instance
+     * using two different sockets for input and output.
+     */
     AbstractFrameProcessor(void* ctx,
             int inputSocketType,
             int outputSocketType,
+            const std::string& loggerName);
+    /**
+     * Initialize a new AbstractFrameProcessor instance
+     * using a single socket for input and output.
+     */
+    AbstractFrameProcessor(void* ctx,
+            int socketType,
             const std::string& loggerName);
     ~AbstractFrameProcessor();
 protected:
@@ -32,7 +43,7 @@ protected:
     Logger logger;
     /**
      * Parse a table ID frame, as little endian 32 bit unsigned integer in one frame.
-     * Automatically receives the frame from replyProxySocket.
+     * Automatically receives the frame from processorInputSocket.
      * Automatically checks if there is a frame available
      * Input is read from processorInputSocket,
      * output is read from processorOutputSocket.
@@ -40,21 +51,50 @@ protected:
      * @param generateResponse Set this to true if an error message shall be sent on error
      * @return True on success, false if an error has been handled and the caller shall stop processing.
      */
-    bool parseUint32Frame(uint32_t& tableIdDst,
+    bool parseUint32Frame(uint32_t& dst,
             const char* frameDesc,
             bool generateResponse);
     /**
      * Parse a 64-bit little-endian unsigned integer in one frame.
-     * Automatically receives the frame from workPullSocket.
+     * Automatically receives the frame from processorInputSocket.
      * Automatically checks if there is a frame available.
      * @param tableIdDst Where the table ID shall be placed
      * @param frameDesc A string describing the frame, for meaningful debug messages
      * @param generateResponse Set this to true if an error message shall be sent on error.
      * @return True on success, false if an error has been handled and the caller shall stop processing.
      */
-    bool parseUint64Frame(uint64_t& tableIdDst,
+    bool parseUint64Frame(uint64_t& dst,
             const char* frameDesc,
             bool generateResponse);
+    /**
+     * Parse a 8 bit unsigned integer in frame.
+     * Automatically checks if there is a frame available
+     * Input is read from processorInputSocket,
+     * output is read from processorOutputSocket.
+     * @param tableIdDst Where the table ID shall be placed
+     * @param generateResponse Set this to true if an error message shall be sent on error
+     * @return True on success, false if an error has been handled and the caller shall stop processing.
+     */
+    bool parseUint8Frame(uint8_t& tableIdDst,
+            const char* frameDesc,
+            bool generateResponse);
+    /**
+     * Parse a binary frame of known length
+     * Automatically checks if there is a frame available
+     * Input is read from processorInputSocket,
+     * output is read from processorOutputSocket.
+     * @param dst Pointer where the result is placed
+     * @param size The size of binary data to receives
+     * @param generateResponse Set this to true if an error message shall be sent on error
+     * @param defaultValue If this is NOT nullptr and the received frame is zero-sized,
+     *          the value pointed to by this pointer is copied to dst (size bytes must be available)
+     * @return True on success, false if an error has been encountered
+     */
+    bool parseBinaryFrame(void* dst,
+            size_t size,
+            const char* frameDesc,
+            bool generateResponse,
+            void* defaultValue = nullptr);
     /**
      * Equivalent to parseUint64Frame(), but assumes a given default
      * value if the frame is empty.
@@ -196,10 +236,10 @@ protected:
      * 
      * Never reads a message part if the RCVMORE flag is not set on the socket.
      * 
-     * This method has a builtin error limit that prevents it from going
+     * This function. has a builtin error limit that prevents it from going
      * to infinite loop because of repeated errors.
      * 
-     * Automatically logs errors if neccessary
+     * Automatically logs errors if neccessary.
      */
     void disposeRemainingMsgParts();
     /**
@@ -231,6 +271,36 @@ protected:
      * This is used to determine the length of the request ID to send back.
      */
     size_t requestExpectedSize;
+    /**
+     * Bind the input socket and log any errors.
+     * @return false in case of error, true otherwise
+     */
+    bool bindInputSocket(const char* target);
+    /**
+     * Bind the output socket and log any errors.
+     * @return false in case of error, true otherwise
+     */
+    bool bindOutputSocket(const char* target);
+    /**
+     * Connect the output socket and log any errors.
+     * @return false in case of error, true otherwise
+     */
+    bool connectInputSocket(const char* target);
+    /**
+     * Connect the output socket and log any errors.
+     * @return false in case of error, true otherwise
+     */
+    bool connectOutputSocket(const char* target);
+    /**
+     * Connect the given socket and log any errors.
+     * @return false in case of error, true otherwise
+     */
+    bool connectSocket(void* sock, const char* target);
+    /**
+     * Bind the given socket and log any errors.
+     * @return false in case of error, true otherwise
+     */
+    bool bindSocket(void* sock, const char* target);
 public:
     static bool sendResponseHeader(void* socket,
         Logger& logger,

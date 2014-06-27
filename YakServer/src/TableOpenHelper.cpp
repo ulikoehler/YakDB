@@ -245,14 +245,16 @@ void TableOpenServer::tableOpenWorkerThread() {
     zmq_msg_init(&frame);
     //Main worker event loop
     while (true) {
+        cout << "waiting...." << endl;
         //Receive the header frame == request type
-        if(unlikely(zmq_msg_recv(&frame, repSocket, 0) == -1)) {
+        if(unlikely(zmq_msg_recv(&frame, processorInputSocket, 0) == -1)) {
             if(yak_interrupted) {
                 break;
             } else if(errno == EFSM) {
                 //A previous error might have screwed the send/receive order.
                 //Receiving failed, so we need to send to restore it.
-                if (unlikely(zmq_send_const(repSocket, "\x11", 1, 0) == -1)) {
+                logger.warn("Internal FSM error, recovering by sending error frame");
+                if (unlikely(zmq_send_const(processorInputSocket, "\x11", 1, 0) == -1)) {
                     logMessageSendError("FSM restore state message (error recovery)", logger);
                 }
             } else {
@@ -260,35 +262,50 @@ void TableOpenServer::tableOpenWorkerThread() {
                 continue;
             }
         }
-        
-        CHECK_SIZE(frame, sizeof(TableOperationRequestType));
-        TableOperationRequestType requestType
-            = extractBinary<TableOperationRequestType>(&frame);
+        //Parse the request type frame
+        TableOperationRequestType requestType;
+        if(!parseUint8Frame(requestType, "table open request type frame", false)) {
+            //The requester waits for a reply. This MIGHT lead to crashes,
+            // but we prefer fail-fast here. Any crash that can be caused by
+            // external sources is considered a bug.
+            disposeRemainingMsgParts();
+            zmq_send_const(processorInputSocket, nullptr, 0, 0);
+            continue;
+        }
+        //Handle stop server requests
         if(unlikely(requestType == TableOperationRequestType::StopServer)) {
             //The STOP sender waits for a reply. Send an empty one.
-            zmq_send_const(repSocket, nullptr, 0, 0);
+            //NOTE: processorInputSocket and processorOutputSocket are the same!
+            disposeRemainingMsgParts();
+            zmq_send_const(processorInputSocket, nullptr, 0, 0);
             break;
         }
-        CHECK_MORE_FRAMES(frame, repSocket, "message type frame");
         //Receive table number frame
-        RECEIVE_CHECK_ERROR(frame, repSocket, "table id frame");
-        CHECK_SIZE(frame, sizeof(uint32_t));
-        uint32_t tableIndex = extractBinary<uint32_t>(&frame);
+        uint32_t tableIndex;
+        if(!parseUint32Frame(tableIndex, "table id frame", false)) {
+                //See above for detailed comment on err handling here
+            disposeRemainingMsgParts();
+            zmq_send_const(processorInputSocket, nullptr, 0, 0);
+            continue;
+        }
         //Do the operation, depending on the request type
         if (requestType == TableOperationRequestType::OpenTable) { //Open table
             bool ok = true; //Set to false if error occurs
-            CHECK_MORE_FRAMES(frame, repSocket, "table id frame");
-            RECEIVE_CHECK_ERROR(frame, repSocket, "table open parameters frame");
-            CHECK_SIZE(frame, sizeof(TableOpenParameters));
-            CHECK_NO_MORE_FRAMES(frame, repSocket, "table parameters frame");
             //Extract parameters
-            TableOpenParameters parameters;
-            memcpy(&parameters, zmq_msg_data(&frame), sizeof(TableOpenParameters));
+            TableOpenParameters parameters; //Initialize with defaults == unset
+            map<string, string> parameterMap;
+            if(!receiveMap(parameterMap, "table open parameter map", false)) {
+                //See above for detailed comment on err handling here
+                disposeRemainingMsgParts();
+                zmq_send_const(processorInputSocket, nullptr, 0, 0);
+                continue;
+            }
+            parameters.parseFromParameterMap(parameterMap);
             //Resize tablespace if neccessary
             if (databases.size() <= tableIndex) {
-                databases.reserve(tableIndex + 16); //Avoid too large vectors
+                databases.reserve(tableIndex + 16); //Avoid scaling superlineary
             }
-            //Create the table only if it hasn't been created yet, else just ignore the request
+            //Open the table only if it hasn't been opened yet, else just ignore the request
             if (databases[tableIndex] == nullptr) {
                 std::string tableDir = "tables/" + std::to_string(tableIndex);
                 //Override default values with the last values from the table config file, if any
@@ -305,7 +322,7 @@ void TableOpenServer::tableOpenWorkerThread() {
                     logger.error(errorDescription);
                     //Send error reply
                     std::string errorReplyString = "\x10" + errorDescription;
-                    if (unlikely(zmq_send(repSocket, errorReplyString.data(), errorReplyString.size(), 0) == -1)) {
+                    if (unlikely(zmq_send(processorInputSocket, errorReplyString.data(), errorReplyString.size(), 0) == -1)) {
                         logMessageSendError("table open error reply", logger);
                     }
                 }
@@ -313,26 +330,26 @@ void TableOpenServer::tableOpenWorkerThread() {
                 parameters.writeToFile(tableDir);
                 //Send ACK reply
                 if(ok) {
-                    if (unlikely(zmq_send_const(repSocket, "\x00", 1, 0) == -1)) {
+                    if (unlikely(zmq_send_const(processorInputSocket, "\x00", 1, 0) == -1)) {
                     logMessageSendError("table open (success) reply", logger);
                     }
                 }
             } else {
                 //Send "no action needed" reply
-                if (unlikely(zmq_send_const(repSocket, "\x01", 1, 0) == -1)) {
+                if (unlikely(zmq_send_const(processorInputSocket, "\x01", 1, 0) == -1)) {
                     logMessageSendError("table open (no action needed) reply", logger);
                 }
             }
         } else if (requestType == TableOperationRequestType::CloseTable) { //Close table
             if (databases.size() <= tableIndex || databases[tableIndex] == nullptr) {
-                if (unlikely(zmq_send_const(repSocket, "\x01", 1, 0) == -1)) {
+                if (unlikely(zmq_send_const(processorInputSocket, "\x01", 1, 0) == -1)) {
                     logMessageSendError("table close reply", logger);
                 }
             } else {
                 rocksdb::DB* db = databases[tableIndex];
                 databases[tableIndex] = nullptr; //Erase map entry as early as possible
                 delete db;
-                if (unlikely(zmq_send_const(repSocket, "\x00", 1, 0) == -1)) {
+                if (unlikely(zmq_send_const(processorInputSocket, "\x00", 1, 0) == -1)) {
                     logMessageSendError("table close (success) reply", logger);
                 }
             }
@@ -377,13 +394,13 @@ void TableOpenServer::tableOpenWorkerThread() {
             //Errors (e.g. for nonexistent dirs) do not exist
             rmdir(dirname.c_str());
             logger.debug("Truncated table in " + dirname);
-            if (unlikely(zmq_send_const(repSocket, "\x00", 1, 0) == -1)) {
+            if (unlikely(zmq_send_const(processorInputSocket, "\x00", 1, 0) == -1)) {
                 logMessageSendError("table truncate (success) reply", logger);
             }
         } else {
             logger.error("Internal protocol error: Table open server received unkown request type: " + std::to_string((uint8_t)requestType));
             //Reply with 'unknown protocol' error code
-            if (unlikely(zmq_send_const(repSocket, "\x11", 1, 0) == -1)) {
+            if (unlikely(zmq_send_const(processorInputSocket, "\x11", 1, 0) == -1)) {
                 logMessageSendError("request type unknown reply", logger);
             }
         }
@@ -393,21 +410,22 @@ void TableOpenServer::tableOpenWorkerThread() {
     //if(!yak_interrupted) {
     logger.debug("Stopping table open server");
     //}
-    //We received an exit msg, cleanup
-    zmq_close(repSocket);
+    //We received an exit msg, cleanupzmq_bind(
+    zmq_close(processorInputSocket);
 }
 
 COLD TableOpenServer::TableOpenServer(void* context, 
                     ConfigParser& configParserParam,
                     std::vector<rocksdb::DB*>& databasesParam)
-: context(context),
-logger(context, "Table open server"),
+: AbstractFrameProcessor(ctx, ZMQ_REP, "Table open server"),
 configParser(configParserParam),
-repSocket(zmq_socket_new_bind(context, ZMQ_REP, tableOpenEndpoint)),
 databases(databasesParam) {
+    //Bind socket to internal endpoint
+    if(zmq_bind(processorInputSocket, tableOpenEndpoint) == -1) {
+    }
     //We need to bind the inproc transport synchronously in the main thread because zmq_connect required that the endpoint has already been bound
-    assert(repSocket);
-    //NOTE: The child thread will now own repSocket. It will destroy it on exit!
+    assert(processorInputSocket);
+    //NOTE: The child thread will now own processorInputSocket. It will destroy it on exit!
     workerThread = new std::thread(std::mem_fun(&TableOpenServer::tableOpenWorkerThread), this);
 }
 
@@ -457,10 +475,11 @@ void COLD TableOpenHelper::openTable(uint32_t tableId, void* paramSrcSock) {
     //Note that the socket could be NULL <=> no parameters
     //Just send a message containing the table index to the opener thread
     if(sendTableOperationRequest(reqSocket, TableOperationRequestType::OpenTable, ZMQ_SNDMORE) == -1) {
-        logMessageSendError("table open message", logger);
+        logMessageSendError("table open header message", logger);
     }
     //Determine if there are ANY key/value parameters to be sent
-    bool haveParameters = !paramSrcSock || socketHasMoreFrames(paramSrcSock);
+    bool haveParameters = paramSrcSock != nullptr && socketHasMoreFrames(paramSrcSock);
+    cout << haveParameters << endl;
     //Send table no -- last frame if there are no parameters
     sendBinary(tableId, reqSocket, logger, "Table ID", haveParameters ? ZMQ_SNDMORE : 0);
     //Send parameters if there is any socket to proxy them from
@@ -471,10 +490,6 @@ void COLD TableOpenHelper::openTable(uint32_t tableId, void* paramSrcSock) {
     }
     //Wait for the reply (reply content is ignored)
     zmq_recv(reqSocket, nullptr, 0, 0); //Blocks until reply received
-}
-
-void COLD TableOpenHelper::openTable(uint32_t tableId) {
-    openTable(tableId, nullptr);
 }
 
 void COLD TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {

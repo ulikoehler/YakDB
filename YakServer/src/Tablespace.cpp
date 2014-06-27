@@ -45,7 +45,8 @@ Tablespace::TableType Tablespace::getTable(IndexType index, TableOpenHelper& ope
     if (databases[index] == nullptr || index >= databases.size()) {
         openHelper.openTable(index);
     }
-    return databases[index];
+    Tablespace::TableType ret = databases[index];
+    assert(ret); //If this fails, the database could not be opened properly
 }
 
 void Tablespace::closeTable(IndexType index) {
