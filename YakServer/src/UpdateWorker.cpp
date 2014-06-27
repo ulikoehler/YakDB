@@ -466,7 +466,6 @@ void UpdateWorker::handleTableOpenRequest(bool generateResponse) {
     //
     //Parse the flags from the header frame
     //
-    //Rewrite the header frame for the response
     //Create the response if neccessary
     if (generateResponse) {
         sendResponseHeader(ackResponse, 0, 4);
