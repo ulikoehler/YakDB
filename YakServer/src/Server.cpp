@@ -295,14 +295,14 @@ void HOT KeyValueServer::handlePushPull() {
 KeyValueServer::KeyValueServer(ConfigParser& configParserParam) :
 ctx(zmq_ctx_new()),
 logServer(ctx, LogLevel::Trace, true), //Autostart log server
-tables(),
+tables(configParserParam),
 externalRepSocket(nullptr),
 externalSubSocket(nullptr),
 externalPullSocket(nullptr),
 responseProxySocket(nullptr),
 tableOpenServer(ctx, configParserParam, tables.getDatabases()),
 updateWorkerController(ctx, tables, configParserParam),
-readWorkerController(ctx, tables),
+readWorkerController(ctx, tables, configParserParam),
 asyncJobRouterController(ctx, tables),
 httpServer(ctx, configParserParam.httpEndpoint, configParserParam.staticFilePath),
 logger(ctx, "Request router"),

@@ -69,26 +69,6 @@
 
 using namespace std;
 
-
-/**
- * Create a merge operator instance by code 
- */
-static inline std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(const std::string& mergeOperatorCode) {
-    assert(!mergeOperatorCode.empty());
-    if(mergeOperatorCode == "INT64ADD") {
-        return std::make_shared<Int64AddOperator>();
-    } else if(mergeOperatorCode == "DMUL") {
-        return std::make_shared<DMulOperator>();
-    } else if(mergeOperatorCode == "APPEND") {
-        return std::make_shared<AppendOperator>();
-    } else if(mergeOperatorCode == "REPLACE") { //Also handles REPLACE
-        return std::make_shared<ReplaceOperator>();
-    } else {
-        cerr << "Warning: Invalid merge operator code: " << mergeOperatorCode << endl;
-        return std::make_shared<ReplaceOperator>();
-    }
-}
-
 struct PACKED TableOpenParameters  {
     uint64_t lruCacheSize; //UINT64_MAX --> Not set
     uint64_t tableBlockSize; //UINT64_MAX --> Not set
@@ -124,7 +104,7 @@ struct PACKED TableOpenParameters  {
             cout << "CC: " << compression << endl;
         }
         if(parameters.count("MergeOperator")) {
-            mergeOperator = createMergeOperator(parameters["MergeOperator"]);
+            mergeOperatorCode = parameters["MergeOperator"];
         }
     }
         
@@ -171,7 +151,7 @@ struct PACKED TableOpenParameters  {
         //Compression. Default: Snappy
         options.compression = (rocksdb::CompressionType) compression;
         //Merge operator
-        options.merge_operator = mergeOperator;
+        options.merge_operator = createMergeOperator(mergeOperatorCode);
         return options;
     }
     

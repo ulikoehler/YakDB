@@ -24,7 +24,7 @@ public:
     typedef rocksdb::DB* TableType;
     typedef typename std::vector<TableType> TableCollectionType;
 
-    Tablespace(IndexType defaultTablespaceSize = 128);
+    Tablespace(ConfigParser& cfg, IndexType defaultTablespaceSize = 128);
     Tablespace(const Tablespace& other) = delete;
     
     ~Tablespace();
@@ -97,6 +97,7 @@ private:
      */
     TableCollectionType databases; //Indexed by table num
     uint32_t databasesSize;
+    ConfigParser& cfg;
 };
 
 #endif	/* TABLESPACE_HPP */

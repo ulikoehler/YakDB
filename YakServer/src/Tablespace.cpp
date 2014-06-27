@@ -7,7 +7,8 @@
 
 #include "Tablespace.hpp"
 
-Tablespace::Tablespace(IndexType defaultTablespaceSize) : databases(defaultTablespaceSize) {
+Tablespace::Tablespace(ConfigParser& cfg, IndexType defaultTablespaceSize)
+    : databases(defaultTablespaceSize), cfg(cfg) {
     //Initialize the table array with 16 tables.
     //This avoids early re-allocation
     databasesSize = defaultTablespaceSize;
@@ -31,7 +32,7 @@ void Tablespace::cleanup() {
 
 
 Tablespace::TableType Tablespace::getTable(IndexType index, void* ctx) {
-    TableOpenHelper helper(ctx);
+    TableOpenHelper helper(ctx, cfg);
     return getTable(index, helper);
 }
 

@@ -25,7 +25,7 @@ using namespace std;
 
 UpdateWorker::UpdateWorker(void* ctx, Tablespace& tablespace, ConfigParser& configParser) :
 AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Update worker"),
-tableOpenHelper(ctx),
+tableOpenHelper(ctx, configParser),
 tablespace(tablespace) {
     //Set HWM
     setHWM(processorInputSocket, configParser.internalRCVHWM,
@@ -457,7 +457,8 @@ void UpdateWorker::handleTableOpenRequest(bool generateResponse) {
     if (!parseUint32Frame(tableId, "Table ID frame", generateResponse)) {
         return;
     }
-    //Extract other parameters
+    //Open the table (consuming the remaining frames as parameter map)
+    tableOpenHelper.openTable(tableId, processorInputSocket);
     std::map<std::string, std::string> parameters;
     if(!receiveMap(parameters, "Receive table open parameter map", true)) {
         return;
@@ -465,8 +466,6 @@ void UpdateWorker::handleTableOpenRequest(bool generateResponse) {
     //
     //Parse the flags from the header frame
     //
-    //Open the table
-    tableOpenHelper.openTable(tableId, parameters);
     //Rewrite the header frame for the response
     //Create the response if neccessary
     if (generateResponse) {

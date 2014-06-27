@@ -65,4 +65,10 @@ class ReplaceOperator : public rocksdb::AssociativeMergeOperator {
     virtual const char* Name() const override;
 };
 
+/**
+ * Create a merge operator instance by merge operator code
+ */
+std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(
+    const std::string& mergeOperatorCode);
+
 #endif //__MERGE_OPERATORS_HPP

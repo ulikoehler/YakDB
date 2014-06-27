@@ -1,6 +1,7 @@
 #include "MergeOperators.hpp"
 #include "macros.hpp"
 
+#include <iostream>
 #include <rocksdb/env.h>
 
 bool Int64AddOperator::Merge(
@@ -111,4 +112,21 @@ bool ReplaceOperator::Merge(
 
 const char* ReplaceOperator::Name() const {
     return "ReplaceOperator";
+}
+
+std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(
+    const std::string& mergeOperatorCode) {
+    assert(!mergeOperatorCode.empty());
+    if(mergeOperatorCode == "INT64ADD") {
+        return std::make_shared<Int64AddOperator>();
+    } else if(mergeOperatorCode == "DMUL") {
+        return std::make_shared<DMulOperator>();
+    } else if(mergeOperatorCode == "APPEND") {
+        return std::make_shared<AppendOperator>();
+    } else if(mergeOperatorCode == "REPLACE") { //Also handles REPLACE
+        return std::make_shared<ReplaceOperator>();
+    } else {
+        std::cerr << "Warning: Invalid merge operator code: " << mergeOperatorCode << std::endl;
+        return std::make_shared<ReplaceOperator>();
+    }
 }

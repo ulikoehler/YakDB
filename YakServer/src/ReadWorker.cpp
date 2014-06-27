@@ -21,9 +21,9 @@
 /**
  * The main function for the read worker thread.
  */
-static void readWorkerThreadFunction(void* ctx, Tablespace& tablespace) {
+static void readWorkerThreadFunction(void* ctx, Tablespace& tablespace, ConfigParser& cfg) {
     setCurrentThreadName("Yak read worker");
-    ReadWorker readWorker(ctx, tablespace);
+    ReadWorker readWorker(ctx, tablespace, cfg);
     //Process requests until stop msg is encountered
     while (readWorker.processNextRequest()) {
     }
@@ -31,7 +31,8 @@ static void readWorkerThreadFunction(void* ctx, Tablespace& tablespace) {
 
 using namespace std;
 
-ReadWorkerController::ReadWorkerController(void* context, Tablespace& tablespace) :  tablespace(tablespace), numThreads(3), context(context) {
+ReadWorkerController::ReadWorkerController(void* context, Tablespace& tablespace, ConfigParser& cfg)
+    :  tablespace(tablespace), numThreads(3), context(context), cfg(cfg) {
     //Initialize the push socket
     workerPushSocket = zmq_socket_new_bind(context, ZMQ_PUSH, readWorkerThreadAddr);
 }
@@ -39,7 +40,9 @@ ReadWorkerController::ReadWorkerController(void* context, Tablespace& tablespace
 void ReadWorkerController::start() {
     threads = new std::thread*[numThreads];
     for (int i = 0; i < numThreads; i++) {
-        threads[i] = new std::thread(readWorkerThreadFunction, context, std::ref(tablespace));
+        threads[i] = new std::thread(readWorkerThreadFunction,
+                                     context, std::ref(tablespace),
+                                     std::ref(cfg));
     }
 }
 
@@ -69,10 +72,10 @@ ReadWorkerController::~ReadWorkerController() {
     delete[] threads;
 }
 
-ReadWorker::ReadWorker(void* ctx, Tablespace& tablespace) :
+ReadWorker::ReadWorker(void* ctx, Tablespace& tablespace, ConfigParser& cfg) :
 AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Read worker"),
 tablespace(tablespace),
-tableOpenHelper(ctx) {
+tableOpenHelper(ctx, cfg) {
     //Connect the socket that is used to proxy requests to the external req/rep socket
     zmq_connect(processorOutputSocket, externalRequestProxyEndpoint);
     //Connect the socket that is used by the send() member function

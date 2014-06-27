@@ -15,7 +15,9 @@
 
 class ReadWorkerController {
 public:
-    ReadWorkerController(void* context, Tablespace& tablespace);
+    ReadWorkerController(void* context,
+                         Tablespace& tablespace,
+                         ConfigParser& cfg);
     ~ReadWorkerController();
     /**
      * Start the worker threads
@@ -31,6 +33,7 @@ private:
     Tablespace& tablespace;
     size_t numThreads; //size of this->threads
     void* context;
+    ConfigParser& cfg;
 };
 
 /**
@@ -41,7 +44,8 @@ private:
  */
 class ReadWorker : private AbstractFrameProcessor {
 public:
-    ReadWorker(void* ctx, Tablespace& tablespace);
+    ReadWorker(void* ctx, Tablespace& tablespace,
+               ConfigParser& cfg);
     ~ReadWorker();
     bool processNextRequest();
 private:
