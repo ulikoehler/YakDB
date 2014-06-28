@@ -40,7 +40,7 @@ public:
     uint64_t defaultBloomFilterBitsPerKey;
     rocksdb::CompressionType defaultCompression;
     std::string defaultMergeOperator;
-    //Save folder, normalized to have a slash at the end.
+    //Save folder, normalized to have a terminal slash.
     std::string tableSaveFolder;
 };
 

@@ -265,7 +265,7 @@ void TableOpenServer::tableOpenWorkerThread() {
             }
             //Open the table only if it hasn't been opened yet, else just ignore the request
             if (databases[tableIndex] == nullptr) {
-                std::string tableDir = "tables/" + std::to_string(tableIndex);
+                std::string tableDir = configParser.tableSaveFolder + std::to_string(tableIndex);
                 //Override default values with the last values from the table config file, if any
                 parameters.readTableConfigFile(tableDir);
                 //Override default + config with custom open parameters, if any
@@ -333,7 +333,7 @@ void TableOpenServer::tableOpenWorkerThread() {
              * so this essentially rm -rf, with no support for nested dirs.
              */
             DIR *dir;
-            string dirname = "tables/" + std::to_string(tableIndex);
+            string dirname = configParser.tableSaveFolder + std::to_string(tableIndex);
             struct dirent *ent;
             if ((dir = opendir(dirname.c_str())) != nullptr) {
                 while ((ent = readdir(dir)) != nullptr) {
