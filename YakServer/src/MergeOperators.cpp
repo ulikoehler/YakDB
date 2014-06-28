@@ -116,8 +116,10 @@ const char* ReplaceOperator::Name() const {
 
 std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(
     const std::string& mergeOperatorCode) {
-    assert(!mergeOperatorCode.empty());
-    if(mergeOperatorCode == "INT64ADD") {
+    if(mergeOperatorCode.empty()) {
+        //empty --> default
+        return std::make_shared<ReplaceOperator>();
+    } else if(mergeOperatorCode == "INT64ADD") {
         return std::make_shared<Int64AddOperator>();
     } else if(mergeOperatorCode == "DMUL") {
         return std::make_shared<DMulOperator>();

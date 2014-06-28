@@ -59,8 +59,9 @@ bool AbstractFrameProcessor::parseBinaryFrame(void* dst,
         size_t size,
         const char* frameDesc,
         bool generateResponse,
+        bool acceptFirstFrame,
         void* defaultValue) {
-    if (unlikely(!socketHasMoreFrames(processorInputSocket))) {
+    if (!acceptFirstFrame && unlikely(!socketHasMoreFrames(processorInputSocket))) {
         std::string errstr = "Trying to read a " +
                 std::to_string(size) + "-byte frame ("
                 + std::string(frameDesc) + "), but no frame was available";
@@ -215,6 +216,10 @@ bool AbstractFrameProcessor::receiveStringFrame(std::string& frame,
 bool AbstractFrameProcessor::receiveMap(std::map<std::string, std::string>& target,
         const char* errName,
         bool generateResponse) {
+    //Maybe there are no key/value frames at all!?!?
+    if(!socketHasMoreFrames(processorInputSocket)) {
+        return true;
+    }
     //Receive frame pairs until nothing is left
     std::string key;
     std::string value;

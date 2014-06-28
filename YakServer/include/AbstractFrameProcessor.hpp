@@ -88,12 +88,14 @@ protected:
      * @param generateResponse Set this to true if an error message shall be sent on error
      * @param defaultValue If this is NOT nullptr and the received frame is zero-sized,
      *          the value pointed to by this pointer is copied to dst (size bytes must be available)
+     * @param acceptFirstFrame If this is set to true, the first frame in a message will be accepted
      * @return True on success, false if an error has been encountered
      */
     bool parseBinaryFrame(void* dst,
             size_t size,
             const char* frameDesc,
             bool generateResponse,
+            bool acceptFirstFrame = false,
             void* defaultValue = nullptr);
     /**
      * Equivalent to parseUint64Frame(), but assumes a given default
@@ -156,6 +158,7 @@ protected:
     bool receiveStringFrame(std::string& frame, const char* errName, bool generateResponse);
     /**
      * Receive a map of alternating key/value frames, until the message ends.
+     * Does not accept the first frame in a message -- it assumes RCVMORE is set on the socket
      */
     bool receiveMap(std::map<std::string, std::string>& target, const char* errName, bool generateResponse);
     /**

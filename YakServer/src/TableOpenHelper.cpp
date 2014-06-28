@@ -245,9 +245,10 @@ void TableOpenServer::tableOpenWorkerThread() {
     zmq_msg_init(&frame);
     //Main worker event loop
     while (true) {
-        cout << "waiting...." << endl;
-        //Receive the header frame == request type
-        if(unlikely(zmq_msg_recv(&frame, processorInputSocket, 0) == -1)) {
+        //Parse the request type frame
+        TableOperationRequestType requestType;
+        if(!parseBinaryFrame(&requestType, sizeof(TableOperationRequestType), "table open request type frame", false, true)) {
+            //Non-fatal errors
             if(yak_interrupted) {
                 break;
             } else if(errno == EFSM) {
@@ -257,14 +258,7 @@ void TableOpenServer::tableOpenWorkerThread() {
                 if (unlikely(zmq_send_const(processorInputSocket, "\x11", 1, 0) == -1)) {
                     logMessageSendError("FSM restore state message (error recovery)", logger);
                 }
-            } else {
-                logMessageRecvError("table operation request type", logger);
-                continue;
             }
-        }
-        //Parse the request type frame
-        TableOperationRequestType requestType;
-        if(!parseBinaryFrame(&requestType, sizeof(TableOperationRequestType), "table open request type frame", false)) {
             //The requester waits for a reply. This MIGHT lead to crashes,
             // but we prefer fail-fast here. Any crash that can be caused by
             // external sources is considered a bug.
@@ -479,7 +473,6 @@ void COLD TableOpenHelper::openTable(uint32_t tableId, void* paramSrcSock) {
     }
     //Determine if there are ANY key/value parameters to be sent
     bool haveParameters = paramSrcSock != nullptr && socketHasMoreFrames(paramSrcSock);
-    cout << haveParameters << endl;
     //Send table no -- last frame if there are no parameters
     sendBinary(tableId, reqSocket, logger, "Table ID", haveParameters ? ZMQ_SNDMORE : 0);
     //Send parameters if there is any socket to proxy them from
