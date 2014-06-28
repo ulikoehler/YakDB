@@ -8,7 +8,6 @@
 #ifndef TABLEOPENHELPER_HPP
 #define	TABLEOPENHELPER_HPP
 #include <cstdint>
-#include <limits>
 #include <map>
 #include <zmq.h>
 #include <thread>
@@ -22,26 +21,43 @@
 #define UINT64_MAX (std::numeric_limits<uint64_t>::max())
 #endif
 
-
-struct PACKED TableOpenParameters  {
-    uint64_t lruCacheSize; //UINT64_MAX --> Not set
-    uint64_t tableBlockSize; //UINT64_MAX --> Not set
-    uint64_t writeBufferSize; //UINT64_MAX --> Not set
-    uint64_t bloomFilterBitsPerKey; //UINT64_MAX --> Not set
-    rocksdb::CompressionType compression; //INT8_MAX --> Not set
-    std::string mergeOperatorCode; //Empty -> Not set
+struct TableOpenParameters  {
+    uint64_t lruCacheSize;
+    uint64_t tableBlockSize;
+    uint64_t writeBufferSize;
+    uint64_t bloomFilterBitsPerKey;
+    rocksdb::CompressionType compression;
+    std::string mergeOperatorCode;
 
     /**
-     * Construct a new instance with all parameters set to not-set value
+     * Construct a new instance with all parameters set from config
      */
-    TableOpenParameters();
+    TableOpenParameters(const ConfigParser& cfg);
 
     /**
      * Evaluate the given parameter map and replace any value in the current instance
      * with the appropiate entry in the map (if any)
      */
     void parseFromParameterMap(std::map<std::string, std::string>& parameters);
-}
+
+    /**
+     * Convert the current instance to a rocksdb optionset
+     * @param options In this reference the values are stored.
+     */
+    void getOptions(rocksdb::Options& options);
+
+    /**
+     * Read a table config file (request is ignored if file does not exist).
+     * Such a config file can be written by writeToFile()
+     */
+    void readTableConfigFile(const std::string& tableDir);
+
+    /**
+     * Write the currently set values to a config file.
+     * The file written by this can be read using readTableConfigFile()
+     */
+    void writeToFile(const std::string& tableDir);
+};
 
 
 /**

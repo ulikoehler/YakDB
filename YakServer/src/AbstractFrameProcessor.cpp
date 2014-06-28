@@ -1,7 +1,7 @@
-/* 
+/*
  * File:   AbstractFrameProcessor.cpp
  * Author: uli
- * 
+ *
  * Created on 11. Juli 2013, 03:16
  */
 
@@ -375,7 +375,7 @@ bool AbstractFrameProcessor::sendResponseHeader(void* socket,
      * strings appended to a request, for identification of async responses.
      * This code ensures that the response header contains the request ID
      * from the request, if any.
-     * 
+     *
      * If, however, the request size is equal to the response size,
      * we can simple reuse the header frame without needing to copy data around.
      */
@@ -394,7 +394,6 @@ bool AbstractFrameProcessor::sendResponseHeader(void* socket,
         //We can just replace the request with the response
         char* responseData = (char*) zmq_msg_data(headerFrame);
         memcpy(responseData, responseHeader, responseSize);
-        char* headerFrameData = (char*) zmq_msg_data(headerFrame);
         //Send the frame
         if(unlikely(zmq_msg_send(headerFrame, socket, flags) == -1)) {
             logMessageSendError("Response header", logger);

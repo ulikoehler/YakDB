@@ -39,6 +39,7 @@ public:
     uint64_t defaultWriteBufferSize;
     uint64_t defaultBloomFilterBitsPerKey;
     rocksdb::CompressionType defaultCompression;
+    std::string defaultMergeOperator;
     //Save folder, normalized to have a slash at the end.
     std::string tableSaveFolder;
 };

@@ -95,7 +95,7 @@ static std::map<std::string, std::string> readConfigFile(const char* filename) {
         //If this is reached, we seem to have a sane config line.
         //Parse key and value and add them to the config map.
         //If the KV pair is not inside a section, we'll just use the key.
-        std::string key = currentSection.empty() 
+        std::string key = currentSection.empty()
                             ? line.substr(0, equalsSignPosition)
                             : currentSection + "." + line.substr(0, equalsSignPosition);
         config[key] = line.substr(equalsSignPosition + 1);
@@ -225,6 +225,7 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     defaultWriteBufferSize = std::stoull(cfg["RocksDB.write-buffer-size"]);
     defaultBloomFilterBitsPerKey = std::stoull(cfg["RocksDB.bloom-filter-bits-per-key"]);
     defaultCompression = compressionModeFromString(cfg["RocksDB.compression"]);
+    defaultMergeOperator = cfg["RocksDB.merge-operator"];
     tableSaveFolder = cfg["RocksDB.table-dir"];
     //Normalize table save folder to be slash-terminated
     if(tableSaveFolder[tableSaveFolder.size() - 1] != '/') { //if last char is not slash

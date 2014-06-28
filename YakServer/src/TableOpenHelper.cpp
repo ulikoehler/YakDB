@@ -69,16 +69,16 @@
 
 using namespace std;
 
-TableOpenParameters::TableOpenParameters() :
-    lruCacheSize(std::numeric_limits<uint64_t>::max()),
-    tableBlockSize(std::numeric_limits<uint64_t>::max()),
-    writeBufferSize(std::numeric_limits<uint64_t>::max()),
-    bloomFilterBitsPerKey(std::numeric_limits<uint64_t>::max()),
-    compression(rocksdb::kSnappyCompression),
-    mergeOperatorCode() {
+TableOpenParameters::TableOpenParameters(const ConfigParser& cfg) :
+    lruCacheSize(cfg.defaultLRUCacheSize),
+    tableBlockSize(cfg.defaultTableBlockSize),
+    writeBufferSize(cfg.defaultWriteBufferSize),
+    bloomFilterBitsPerKey(cfg.defaultBloomFilterBitsPerKey),
+    compression(cfg.defaultCompression),
+    mergeOperatorCode(cfg.defaultMergeOperator) {
 }
 
-void TableOpenParameters::arseFromParameterMap(std::map<std::string, std::string>& parameters) {
+void TableOpenParameters::parseFromParameterMap(std::map<std::string, std::string>& parameters) {
     if(parameters.count("LRUCacheSize")) {
         lruCacheSize = stoull(parameters["LRUCacheSize"]);
     }
@@ -99,106 +99,78 @@ void TableOpenParameters::arseFromParameterMap(std::map<std::string, std::string
     }
 }
 
-    /**
-     * Convert this instance to a RocksDB table open parameter set
-     */
-    rocksdb::Options getOptions(ConfigParser& configParser) {
-        rocksdb::Options options;
-        if (lruCacheSize != std::numeric_limits<uint64_t>::max()) {
-            if(lruCacheSize > 0) { //0 --> disable
-                options.block_cache = rocksdb::NewLRUCache(lruCacheSize);
-            }
-        } else {
-            //Use a small LRU cache per default, because OS cache doesn't cache uncompressed data
-            // , so it's really slow in random-access-mode for uncompressed data
-            options.block_cache = rocksdb::NewLRUCache(configParser.defaultTableBlockSize);
-        }
-        if (tableBlockSize != std::numeric_limits<uint64_t>::max()) {
-            options.block_size = tableBlockSize;
-        } else { //Default table block size (= more than RocksDB default)
-            //Factory default 256k, RocksDB default = 4k
-            options.block_size = configParser.defaultTableBlockSize;
-        }
-        if (writeBufferSize != std::numeric_limits<uint64_t>::max()) {
-            options.write_buffer_size = writeBufferSize;
-        } else {
-            //To counteract slow writes on slow HDDs, we now use a WB per default
-            //The default is tuned not to use too much buffer memory at once
-            options.write_buffer_size = configParser.defaultWriteBufferSize; //64 Mibibytes
-        }
-        if (bloomFilterBitsPerKey != std::numeric_limits<uint64_t>::max()) {
-            //0 --> disable
-            if(bloomFilterBitsPerKey > 0) {
-                options.filter_policy = rocksdb::NewBloomFilterPolicy(bloomFilterBitsPerKey);
-            }
-        } else {
-            if(configParser.defaultBloomFilterBitsPerKey > 0) {
-                options.filter_policy
-                        = rocksdb::NewBloomFilterPolicy(
-                            configParser.defaultBloomFilterBitsPerKey);
-            }
-        }
-        options.create_if_missing = true;
-        //Compression. Default: Snappy
-        options.compression = (rocksdb::CompressionType) compression;
-        //Merge operator
-        options.merge_operator = createMergeOperator(mergeOperatorCode);
-        return options;
+void TableOpenParameters::getOptions(rocksdb::Options& options) {
+    //For all numeric options: <= 0 --> disable / use default
+    if(lruCacheSize > 0) {
+        options.block_cache = rocksdb::NewLRUCache(lruCacheSize);
     }
+    if (tableBlockSize > 0) {
+        options.block_size = tableBlockSize;
+    }
+    if (writeBufferSize > 0) {
+        options.write_buffer_size = writeBufferSize;
+    }
+    if(bloomFilterBitsPerKey > 0) {
+        options.filter_policy = rocksdb::NewBloomFilterPolicy(bloomFilterBitsPerKey);
+    }
+    if(bloomFilterBitsPerKey > 0) {
+        options.filter_policy = rocksdb::NewBloomFilterPolicy(bloomFilterBitsPerKey);
+    }
+    options.create_if_missing = true;
+    //Compression. Default: Snappy
+    options.compression = (rocksdb::CompressionType) compression;
+    //Merge operator
+    options.merge_operator = createMergeOperator(mergeOperatorCode);
+}
 
-
-    /**
-     * Read a table config file (request is ignored if file does not exist).
-     */
-    void COLD readTableConfigFile(const std::string& tableDir) {
-        std::string cfgFileName = tableDir + ".cfg";
-        if(fileExists(cfgFileName)) {
-            string line;
-            ifstream fin(cfgFileName.c_str());
-            while(fin.good()) {
-                fin >> line;
-                size_t sepIndex = line.find_first_of('=');
-                assert(sepIndex != string::npos);
-                std::string key = line.substr(0, sepIndex);
-                std::string value = line.substr(sepIndex+1);
-                if(key == "LRUCacheSize") {
-                    lruCacheSize = stoull(value);
-                } else if(key == "Blocksize") {
-                    tableBlockSize = stoull(value);
-                } else if(key == "WriteBufferSize") {
-                    writeBufferSize = stoull(value);
-                } else if(key == "BloomFilterBitsPerKey") {
-                    bloomFilterBitsPerKey = stoull(value);
-                } else if(key == "CompressionMode") {
-                    compression = compressionModeFromString(value);
-                } else {
-                    cerr << "Unknown key in table config file : " << key << " (= " << value << ")" << endl;
-                }
+void COLD TableOpenParameters::readTableConfigFile(const std::string& tableDir) {
+    std::string cfgFileName = tableDir + ".cfg";
+    if(fileExists(cfgFileName)) {
+        string line;
+        ifstream fin(cfgFileName.c_str());
+        while(fin.good()) {
+            fin >> line;
+            size_t sepIndex = line.find_first_of('=');
+            assert(sepIndex != string::npos);
+            std::string key = line.substr(0, sepIndex);
+            std::string value = line.substr(sepIndex+1);
+            if(key == "LRUCacheSize") {
+                lruCacheSize = stoull(value);
+            } else if(key == "Blocksize") {
+                tableBlockSize = stoull(value);
+            } else if(key == "WriteBufferSize") {
+                writeBufferSize = stoull(value);
+            } else if(key == "BloomFilterBitsPerKey") {
+                bloomFilterBitsPerKey = stoull(value);
+            } else if(key == "CompressionMode") {
+                compression = compressionModeFromString(value);
+            } else {
+                cerr << "Unknown key in table config file : " << key << " (= " << value << ")" << endl;
             }
-            fin.close();
         }
+        fin.close();
     }
+}
 
-    void COLD writeToFile(const std::string& tableDir) {
-        std::string cfgFileName = tableDir + ".cfg";
-        ofstream fout(cfgFileName.c_str());
-        if(lruCacheSize != std::numeric_limits<uint64_t>::max()) {
-            fout << "LRUCacheSize=" << lruCacheSize << endl;
-        }
-        if(tableBlockSize != std::numeric_limits<uint64_t>::max()) {
-            fout << "Blocksize=" << tableBlockSize << endl;
-        }
-        if(writeBufferSize != std::numeric_limits<uint64_t>::max()) {
-            fout << "WriteBufferSize=" << writeBufferSize << endl;
-        }
-        if(bloomFilterBitsPerKey != std::numeric_limits<uint64_t>::max()) {
-            fout << "BloomFilterBitsPerKey=" << bloomFilterBitsPerKey << endl;
-        }
-        fout << "CompressionMode=" << compressionModeToString(compression) << endl;
-        fout.close();
+void COLD TableOpenParameters::writeToFile(const std::string& tableDir) {
+    std::string cfgFileName = tableDir + ".cfg";
+    ofstream fout(cfgFileName.c_str());
+    if(lruCacheSize != std::numeric_limits<uint64_t>::max()) {
+        fout << "LRUCacheSize=" << lruCacheSize << endl;
     }
-};
-
+    if(tableBlockSize != std::numeric_limits<uint64_t>::max()) {
+        fout << "Blocksize=" << tableBlockSize << endl;
+    }
+    if(writeBufferSize != std::numeric_limits<uint64_t>::max()) {
+        fout << "WriteBufferSize=" << writeBufferSize << endl;
+    }
+    if(bloomFilterBitsPerKey != std::numeric_limits<uint64_t>::max()) {
+        fout << "BloomFilterBitsPerKey=" << bloomFilterBitsPerKey << endl;
+    }
+    fout << "CompressionMode=" << compressionModeToString(compression) << endl;
+    fout << "MergeOperator=" << mergeOperatorCode << endl;
+    fout.close();
+}
 
 enum class TableOperationRequestType : uint8_t {
     StopServer = 0,
@@ -277,7 +249,7 @@ void TableOpenServer::tableOpenWorkerThread() {
         if (requestType == TableOperationRequestType::OpenTable) { //Open table
             bool ok = true; //Set to false if error occurs
             //Extract parameters
-            TableOpenParameters parameters; //Initialize with defaults == unset
+            TableOpenParameters parameters(configParser); //Initialize with defaults == unset
             map<string, string> parameterMap;
             if(!receiveMap(parameterMap, "table open parameter map", false)) {
                 //See above for detailed comment on err handling here
@@ -302,7 +274,8 @@ void TableOpenServer::tableOpenWorkerThread() {
                 logger.info("Creating/opening table #" + std::to_string(tableIndex));
                 logger.trace("Opened table #" + std::to_string(tableIndex) + " with compression mode " + compressionModeToString(parameters.compression));
                 //NOTE: Any option that has not been set up until now is now used from the config default
-                rocksdb::Options options = parameters.getOptions(configParser);
+                rocksdb::Options options;
+                parameters.getOptions(options);
                 //Open the table
                 rocksdb::Status status = rocksdb::DB::Open(options, tableDir.c_str(), &databases[tableIndex]);
                 if (unlikely(!status.ok())) {
