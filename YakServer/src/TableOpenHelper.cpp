@@ -101,7 +101,6 @@ struct PACKED TableOpenParameters  {
         }
         if(parameters.count("CompressionMode")) {
             compression = compressionModeFromString(parameters["CompressionMode"]);
-            cout << "CC: " << compression << endl;
         }
         if(parameters.count("MergeOperator")) {
             mergeOperatorCode = parameters["MergeOperator"];
@@ -179,7 +178,7 @@ struct PACKED TableOpenParameters  {
                 } else if(key == "BloomFilterBitsPerKey") {
                     bloomFilterBitsPerKey = stoull(value);
                 } else if(key == "CompressionMode") {
-                    compressionModeFromString(value);
+                    compression = compressionModeFromString(value);
                 } else {
                     cerr << "Unknown key in table config file : " << key << " (= " << value << ")" << endl;
                 }
@@ -294,7 +293,8 @@ void TableOpenServer::tableOpenWorkerThread() {
                 zmq_send_const(processorInputSocket, nullptr, 0, 0);
                 continue;
             }
-            parameters.parseFromParameterMap(parameterMap);
+            //NOTE: We can't actually insert the config from parameterMap into
+            // parameters, because it needs to take precedence to the table config file
             //Resize tablespace if neccessary
             if (databases.size() <= tableIndex) {
                 databases.reserve(tableIndex + 16); //Avoid scaling superlineary
@@ -304,6 +304,9 @@ void TableOpenServer::tableOpenWorkerThread() {
                 std::string tableDir = "tables/" + std::to_string(tableIndex);
                 //Override default values with the last values from the table config file, if any
                 parameters.readTableConfigFile(tableDir);
+                //Override default + config with custom open parameters, if any
+                parameters.parseFromParameterMap(parameterMap);
+                logger.trace(compressionModeToString(parameters.compression));
                 //Process the config options
                 logger.info("Creating/opening table #" + std::to_string(tableIndex));
                 rocksdb::Options options = parameters.getOptions(configParser);
