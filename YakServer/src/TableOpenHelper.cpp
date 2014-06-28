@@ -264,7 +264,7 @@ void TableOpenServer::tableOpenWorkerThread() {
         }
         //Parse the request type frame
         TableOperationRequestType requestType;
-        if(!parseUint8Frame(requestType, "table open request type frame", false)) {
+        if(!parseBinaryFrame(&requestType, sizeof(TableOperationRequestType), "table open request type frame", false)) {
             //The requester waits for a reply. This MIGHT lead to crashes,
             // but we prefer fail-fast here. Any crash that can be caused by
             // external sources is considered a bug.
@@ -417,7 +417,7 @@ void TableOpenServer::tableOpenWorkerThread() {
 COLD TableOpenServer::TableOpenServer(void* context, 
                     ConfigParser& configParserParam,
                     std::vector<rocksdb::DB*>& databasesParam)
-: AbstractFrameProcessor(ctx, ZMQ_REP, "Table open server"),
+: AbstractFrameProcessor(context, ZMQ_REP, "Table open server"),
 configParser(configParserParam),
 databases(databasesParam) {
     //Bind socket to internal endpoint
