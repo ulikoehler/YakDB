@@ -69,43 +69,35 @@
 
 using namespace std;
 
-struct PACKED TableOpenParameters  {
-    uint64_t lruCacheSize; //UINT64_MAX --> Not set
-    uint64_t tableBlockSize; //UINT64_MAX --> Not set
-    uint64_t writeBufferSize; //UINT64_MAX --> Not set
-    uint64_t bloomFilterBitsPerKey; //UINT64_MAX --> Not set
-    rocksdb::CompressionType compression; //INT8_MAX --> Not set
-    std::string mergeOperatorCode; //Empty -> Not set
+TableOpenParameters::TableOpenParameters() :
+    lruCacheSize(std::numeric_limits<uint64_t>::max()),
+    tableBlockSize(std::numeric_limits<uint64_t>::max()),
+    writeBufferSize(std::numeric_limits<uint64_t>::max()),
+    bloomFilterBitsPerKey(std::numeric_limits<uint64_t>::max()),
+    compression(rocksdb::kSnappyCompression),
+    mergeOperatorCode() {
+}
 
-    TableOpenParameters() :
-        lruCacheSize(std::numeric_limits<uint64_t>::max()),
-        tableBlockSize(std::numeric_limits<uint64_t>::max()),
-        writeBufferSize(std::numeric_limits<uint64_t>::max()),
-        bloomFilterBitsPerKey(std::numeric_limits<uint64_t>::max()),
-        compression(rocksdb::kSnappyCompression),
-        mergeOperatorCode() {
-        }
-
-    void parseFromParameterMap(std::map<std::string, std::string>& parameters) {
-        if(parameters.count("LRUCacheSize")) {
-            lruCacheSize = stoull(parameters["LRUCacheSize"]);
-        }
-        if(parameters.count("Blocksize")) {
-            tableBlockSize = stoull(parameters["Blocksize"]);
-        }
-        if(parameters.count("WriteBufferSize")) {
-            writeBufferSize = stoull(parameters["WriteBufferSize"]);
-        }
-        if(parameters.count("BloomFilterBitsPerKey")) {
-            bloomFilterBitsPerKey = stoull(parameters["BloomFilterBitsPerKey"]);
-        }
-        if(parameters.count("CompressionMode")) {
-            compression = compressionModeFromString(parameters["CompressionMode"]);
-        }
-        if(parameters.count("MergeOperator")) {
-            mergeOperatorCode = parameters["MergeOperator"];
-        }
+void TableOpenParameters::arseFromParameterMap(std::map<std::string, std::string>& parameters) {
+    if(parameters.count("LRUCacheSize")) {
+        lruCacheSize = stoull(parameters["LRUCacheSize"]);
     }
+    if(parameters.count("Blocksize")) {
+        tableBlockSize = stoull(parameters["Blocksize"]);
+    }
+    if(parameters.count("WriteBufferSize")) {
+        writeBufferSize = stoull(parameters["WriteBufferSize"]);
+    }
+    if(parameters.count("BloomFilterBitsPerKey")) {
+        bloomFilterBitsPerKey = stoull(parameters["BloomFilterBitsPerKey"]);
+    }
+    if(parameters.count("CompressionMode")) {
+        compression = compressionModeFromString(parameters["CompressionMode"]);
+    }
+    if(parameters.count("MergeOperator")) {
+        mergeOperatorCode = parameters["MergeOperator"];
+    }
+}
 
     /**
      * Convert this instance to a RocksDB table open parameter set

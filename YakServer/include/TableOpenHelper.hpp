@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   TableOpenHelper.hpp
  * Author: uli
  *
@@ -22,16 +22,38 @@
 #define UINT64_MAX (std::numeric_limits<uint64_t>::max())
 #endif
 
+
+struct PACKED TableOpenParameters  {
+    uint64_t lruCacheSize; //UINT64_MAX --> Not set
+    uint64_t tableBlockSize; //UINT64_MAX --> Not set
+    uint64_t writeBufferSize; //UINT64_MAX --> Not set
+    uint64_t bloomFilterBitsPerKey; //UINT64_MAX --> Not set
+    rocksdb::CompressionType compression; //INT8_MAX --> Not set
+    std::string mergeOperatorCode; //Empty -> Not set
+
+    /**
+     * Construct a new instance with all parameters set to not-set value
+     */
+    TableOpenParameters();
+
+    /**
+     * Evaluate the given parameter map and replace any value in the current instance
+     * with the appropiate entry in the map (if any)
+     */
+    void parseFromParameterMap(std::map<std::string, std::string>& parameters);
+}
+
+
 /**
  * This class starts a single thread in the background that shall receive an
  * inproc message.
- * 
+ *
  * This class shall be instantiated exactly once or the behaviour will be undefined.
  */
 class TableOpenServer : private AbstractFrameProcessor {
 public:
     TableOpenServer(void* ctx,
-                    ConfigParser& configParser, 
+                    ConfigParser& configParser,
                     std::vector<rocksdb::DB*>& databases);
     ~TableOpenServer();
     /**
@@ -49,11 +71,11 @@ private:
 /**
  * This class provides lock-free concurrent table opener by using
  * a ZMQ inproc transport
- * 
+ *
  * This class provides the client. The server must be started before the client.
- * 
+ *
  * Msg format: A single sizeof(IndexType)-sized frame containing the index
- * 
+ *
  * @param context
  */
 class TableOpenHelper {
@@ -76,4 +98,3 @@ private:
 };
 
 #endif	/* TABLEOPENHELPER_HPP */
-
