@@ -111,3 +111,27 @@ int TruncateRequest::sendRequest(void* socket, uint32_t tableNum) {
 int TruncateRequest::receiveResponse(void* socket, std::string& errorString) {
     return receiveSimpleResponse(socket, errorString);
 }
+
+int TableInfoRequest::sendRequest(void* socket, uint32_t tableNo) {
+    if(zmq_send_const (socket, "\x31\x01\x06\x00", 4, ZMQ_SNDMORE) == -1) {
+        return -1;
+    }
+    //If the strings are empty, zero-length frames are generated automatically
+    return sendUint32Frame(socket, tableNum);
+}
+
+int TableInfoRequest::receiveResponse(
+    void* socket, std::string& errorString,
+    std::map<std::string, std::string>& params) {
+    //Receive header
+    if(receiveSimpleResponse(socket, errorString) == -1) {
+        return -1;
+    }
+    zmq_msg_t msg;
+    zmq_msg_init(&msg);
+    //Receive header frame
+    if(zmq_msg_recv(&msg, socket, 0) == -1) {
+        return -1;
+    }
+
+}

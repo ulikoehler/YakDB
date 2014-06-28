@@ -1,10 +1,10 @@
-/* 
+/*
  * File:   zmq_utils.hpp
  * Author: uli
- * 
+ *
  * This header contains inline utility bindings to efficiently
  * send std::strings/cstrings/binary data/const data over a ZMQ socket.
- * 
+ *
  * It is not recommended to include this header if not needed.
  *
  * Created on 1. August 2013, 19:33
@@ -113,7 +113,7 @@ static inline int receiveSimpleResponse(void* socket, std::string& errorString) 
     if (rc == -1) {
         return -1;
     }
-    //Check if there is any error frame (there *should* be one, if the third byte is != 0)
+    //Check if there is any error frame (there *should* be one, if the fourth byte is != 0)
     if (((char*) zmq_msg_data(&msg))[3] != 0) {
         if (!zmq_sockopt_get_rcvmore(socket)) {
             errorString = "No error message received from server -- Exact error cause is unknown";
@@ -167,4 +167,3 @@ static int receiveKeyValue(void* socket, std::string& keyTarget, std::string& va
 }
 
 #endif	/* ZMQ_UTILS_HPP */
-

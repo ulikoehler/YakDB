@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   MetaRequests.hpp
  * Author: uli
  *
@@ -12,7 +12,7 @@
 #include <string>
 
 /**
- * An update request that writes 
+ * An update request that writes
  */
 class ServerInfoRequest {
 public:
@@ -21,10 +21,10 @@ public:
      */
     static int sendRequest(void* socket);
     /**
-     * Receive the first server info response frame from the 
+     * Receive the first server info response frame from the
      * @param socket
      * @param flags
-     * @return 
+     * @return
      */
     static int receiveFeatureFlags(void* socket, uint64_t& flags);
     static int receiveVersion(void* socket, std::string& serverVersion);
@@ -79,8 +79,8 @@ class CompactRequest {
 
 /**
  * Truncate request that deletes any
- * 
- * This request may 
+ *
+ * This request may
  */
 class TruncateRequest {
     /**
@@ -91,5 +91,22 @@ class TruncateRequest {
     static int receiveResponse(void* socket, std::string& errorString);
 };
 
-#endif	/* METAREQUESTS_HPP */
 
+/**
+ * Table info request
+ */
+class TableInfoRequest {
+public:
+    /**
+     * Send a table info request for the given table number
+     */
+    static int sendRequest(void* socket, uint32_t tableNo);
+    /**
+     * Receive a table info response
+     * @param params In this map the received values will be placed
+     */
+    static int receiveResponse(void* socket, std::string& errorString,
+                               std::map<std::string, std::string>& params);
+};
+
+#endif	/* METAREQUESTS_HPP */
