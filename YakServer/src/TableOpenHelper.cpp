@@ -325,7 +325,7 @@ void TableOpenServer::tableOpenWorkerThread() {
                 //Send ACK reply
                 if(ok) {
                     if (unlikely(zmq_send_const(processorInputSocket, "\x00", 1, 0) == -1)) {
-                    logMessageSendError("table open (success) reply", logger);
+                        logMessageSendError("table open (success) reply", logger);
                     }
                 }
             } else {
