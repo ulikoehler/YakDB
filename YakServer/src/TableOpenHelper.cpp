@@ -1,7 +1,7 @@
-/* 
+/*
  * File:   TableOpenHelper.cpp
  * Author: uli
- * 
+ *
  * Created on 6. April 2013, 18:15
  */
 
@@ -32,7 +32,7 @@
  * Utility macros for error handling code dedup and
  * to make the code shorter.
  * These shall only be used inside a LogServer msg loop.
- * 
+ *
  * FIXME Currently these don't send replies, so the socket is not in the correct state.
  * This is being worked around by checking it in the first recv call, but
  * it would be cleaner if these macros would do it themselves.
@@ -76,7 +76,7 @@ struct PACKED TableOpenParameters  {
     uint64_t bloomFilterBitsPerKey; //UINT64_MAX --> Not set
     rocksdb::CompressionType compression; //INT8_MAX --> Not set
     std::string mergeOperatorCode; //Empty -> Not set
-    
+
     TableOpenParameters() :
         lruCacheSize(std::numeric_limits<uint64_t>::max()),
         tableBlockSize(std::numeric_limits<uint64_t>::max()),
@@ -85,7 +85,7 @@ struct PACKED TableOpenParameters  {
         compression(rocksdb::kSnappyCompression),
         mergeOperatorCode() {
         }
-        
+
     void parseFromParameterMap(std::map<std::string, std::string>& parameters) {
         if(parameters.count("LRUCacheSize")) {
             lruCacheSize = stoull(parameters["LRUCacheSize"]);
@@ -106,7 +106,7 @@ struct PACKED TableOpenParameters  {
             mergeOperatorCode = parameters["MergeOperator"];
         }
     }
-        
+
     /**
      * Convert this instance to a RocksDB table open parameter set
      */
@@ -125,7 +125,7 @@ struct PACKED TableOpenParameters  {
             options.block_size = tableBlockSize;
         } else { //Default table block size (= more than RocksDB default)
             //Factory default 256k, RocksDB default = 4k
-            options.block_size = configParser.defaultTableBlockSize; 
+            options.block_size = configParser.defaultTableBlockSize;
         }
         if (writeBufferSize != std::numeric_limits<uint64_t>::max()) {
             options.write_buffer_size = writeBufferSize;
@@ -153,8 +153,8 @@ struct PACKED TableOpenParameters  {
         options.merge_operator = createMergeOperator(mergeOperatorCode);
         return options;
     }
-    
-    
+
+
     /**
      * Read a table config file (request is ignored if file does not exist).
      */
@@ -186,7 +186,7 @@ struct PACKED TableOpenParameters  {
             fin.close();
         }
     }
-    
+
     void COLD writeToFile(const std::string& tableDir) {
         std::string cfgFileName = tableDir + ".cfg";
         ofstream fout(cfgFileName.c_str());
@@ -224,12 +224,12 @@ static int sendTableOperationRequest(void* socket, TableOperationRequestType req
 
 /**
  * Main function for table open worker thread.
- * 
- * Msg format: 
+ *
+ * Msg format:
  *      - Frame 1: Single byte: a TableOperationRequestType instance
  *      - A 4-byte frame containing the binary ID
- *      - Optional: More frames 
- * 
+ *      - Optional: More frames
+ *
  * A single-byte single-frame-message
  * is sent back after the request has been processed:
  *   Code \x00: Success, no error
@@ -351,7 +351,7 @@ void TableOpenServer::tableOpenWorkerThread() {
                     logMessageSendError("table close (success) reply", logger);
                 }
             }
-            
+
         } else if (requestType == TableOperationRequestType::TruncateTable) { //Close & truncate
             uint8_t responseCode = 0x00;
             //Close if not already closed
@@ -363,7 +363,7 @@ void TableOpenServer::tableOpenWorkerThread() {
             /**
              * Truncate, based on the assumption RocksDB only creates files,
              * but no subdirectories.
-             * 
+             *
              * We don't want to introduce a boost::filesystem dependency here,
              * so this essentially rm -rf, with no support for nested dirs.
              */
@@ -387,7 +387,7 @@ void TableOpenServer::tableOpenWorkerThread() {
                 logger.trace("Tried to truncate " + dirname + " but it does not exist");
                 responseCode = 0x01; //Sucess, deletion not neccesary
             }
-            
+
             //Now remove the table directory itself (it should be empty now)
             //Errors (e.g. for nonexistent dirs) do not exist
             rmdir(dirname.c_str());
@@ -412,7 +412,7 @@ void TableOpenServer::tableOpenWorkerThread() {
     zmq_close(processorInputSocket);
 }
 
-COLD TableOpenServer::TableOpenServer(void* context, 
+COLD TableOpenServer::TableOpenServer(void* context,
                     ConfigParser& configParserParam,
                     std::vector<rocksdb::DB*>& databasesParam)
 : AbstractFrameProcessor(context, ZMQ_REP, "Table open server"),

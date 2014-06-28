@@ -58,7 +58,7 @@ class Connection(YakDBConnectionBase):
     def put(self, tableNo, valueDict, partsync=False, fullsync=False, requestId=""):
         """
         Write a dictionary of key-value pairs to the connected servers.
-        
+
         This request can be used in REQ/REP, PUSH/PULL and PUB/SUB mode.
 
         @param tableNo The numeric, unsigned table number to write to
@@ -104,7 +104,7 @@ class Connection(YakDBConnectionBase):
     def delete(self, tableNo, keys, partsync=False, fullsync=False, requestId=""):
         """
         Delete one or multiples values, identified by their keys, from a table.
-        
+
         This request may be used in REQ/REP and PUSH/PULL mode.
 
         @param tableNo The table number to delete in
@@ -146,7 +146,7 @@ class Connection(YakDBConnectionBase):
                         integral types are automatically mapped to signed 32-bit little-endian binary,
                         floating point types are mapped to signed little-endian 64-bit IEEE754 values.
                         If you'd like to use another binary representation, use a binary string instead.
-        @param mapKeys If this is set to true, a mapping from the original keys to 
+        @param mapKeys If this is set to true, a mapping from the original keys to
                         values is performed, the return value is a dictionary key->value
                         rather than a value list. Mapping keys introduces additional overhead.
         @return A list of values, correspondent to the key order (or a dict, depends on mapKeys parameter)
@@ -364,7 +364,7 @@ class Connection(YakDBConnectionBase):
         for msgPart in msgParts[1:]:
             processedValues.append(False if msgPart == "\x00" else True)
         return processedValues
-    def openTable(self, tableNo, compression=True, lruCacheSize=None, writeBufferSize=None, tableBlocksize=None, bloomFilterBitsPerKey=None):
+    def openTable(self, tableNo, lruCacheSize=None, writeBufferSize=None, tableBlocksize=None, bloomFilterBitsPerKey=None, compression="SNAPPY", mergeOperator="REPLACE"):
         """
         Open a table.
 
@@ -389,6 +389,8 @@ class Connection(YakDBConnectionBase):
         YakDBConnectionBase._checkParameterType(tableBlocksize, int, "tableBlocksize", allowNone=True)
         YakDBConnectionBase._checkParameterType(writeBufferSize, int, "writeBufferSize", allowNone=True)
         YakDBConnectionBase._checkParameterType(bloomFilterBitsPerKey, int, "bloomFilterBitsPerKey", allowNone=True)
+        YakDBConnectionBase._checkParameterType(compression, str, "compression", allowNone=False)
+        YakDBConnectionBase._checkParameterType(mergeOperator, str, "mergeOperator", allowNone=False)
         #Check if this connection instance is setup correctly
         self._checkSingleConnection()
         self._checkRequestReply()
@@ -397,12 +399,23 @@ class Connection(YakDBConnectionBase):
         self.socket.send(headerFrame, zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
-        #Send LRU, blocksize and write buffer size
-        print "LRU cache size: " + str(lruCacheSize)
-        self._sendBinary64(lruCacheSize)
-        self._sendBinary64(tableBlocksize)
-        self._sendBinary64(writeBufferSize)
-        self._sendBinary64(bloomFilterBitsPerKey, more=False)
+        #Send parameter map
+        if lruCacheSize is not None:
+            self.socket.send("LRUCacheSize", zmq.SNDMORE)
+            self.socket.send("%d" % lruCacheSize, zmq.SNDMORE)
+        if tableBlocksize is not None:
+            self.socket.send("Blocksize", zmq.SNDMORE)
+            self.socket.send("%d" % tableBlocksize, zmq.SNDMORE)
+        if writeBufferSize  is not None:
+            self.socket.send("WriteBufferSize", zmq.SNDMORE)
+            self.socket.send("%d" % writeBufferSize, zmq.SNDMORE)
+        if bloomFilterBitsPerKey is not None:
+            self.socket.send("BloomFilterBitsPerKey", zmq.SNDMORE)
+            self.socket.send("%d" % bloomFilterBitsPerKey, zmq.SNDMORE)
+        self.socket.send("MergeOperator", zmq.SNDMORE)
+        self.socket.send(mergeOperator, zmq.SNDMORE)
+        self.socket.send("CompressionMode", zmq.SNDMORE)
+        self.socket.send(compression)
         #Receive and extract response code
         msgParts = self.socket.recv_multipart(copy=True)
         YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x01')
@@ -446,7 +459,7 @@ class Connection(YakDBConnectionBase):
         """
         Stop the YakDB server (by sending a stop request). Use with caution.
         """
-        self.socket.send("\x31\x01\x05")        
+        self.socket.send("\x31\x01\x05")
         if self.mode is zmq.REQ:
             response = self.socket.recv_multipart(copy=True)
             YakDBConnectionBase._checkHeaderFrame(response,  '\x05')
