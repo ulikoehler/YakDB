@@ -274,12 +274,12 @@ def yakCLI():
             nargs='+',
             action="store",
             help="The keys to check for existence")
-    parserExists.add_argument('-n","--numeric-boolean',
+    parserExists.add_argument('-n','--numeric-boolean',
             dest="printNumeric",
             action="store_true",
             default=False,
             help="Instead of printing True or False, print 1 or 0")
-    parserExists.add_argument('-p","--print-raw',
+    parserExists.add_argument('-p','--print-raw',
             dest="printRaw",
             action="store_true",
             default=False,
@@ -443,25 +443,24 @@ def yakCLI():
             nargs='*',
             type=int,
             action="store",
-            help="The tables to compact. Overrides -t option.")
-    parserOpenTable.add_argument('-n","--no-compression',
-            dest="noCompression",
-            action="store_false",
-            default=True,
-            help="Disable blocklevel compression. Increases database size, might increase random access speed for large datasets.")
-    parserOpenTable.add_argument('-l","--lru-cache-size',
+            help="The table ID to open")
+    parserOpenTable.add_argument('-c','--compression',
+            dest="compression",
+            default="SNAPPY",
+            help="Blocklevel compression code (NONE, SNAPPY, ZLIB, BZIP2, LZ4 or LZ4HC)")
+    parserOpenTable.add_argument('-l','--lru-cache-size',
             action="store",
             dest="lruCacheSize",
             type=int,
             default=None,
             help="The size of the LRU cache where uncompressed block data will be stored. Increasing this yields better performance for random-read-access-heavy workloads.")
-    parserOpenTable.add_argument('-w","--write-buffer-size',
+    parserOpenTable.add_argument('-w','--write-buffer-size',
             action="store",
             dest="writeBufferSize",
             type=int,
             default=None,
             help="The size of the write buffer. Increasing this yields better write performance")
-    parserOpenTable.add_argument('-b","--blocksize',
+    parserOpenTable.add_argument('-b','--blocksize',
             action="store",
             dest="blocksize",
             type=int,

@@ -133,10 +133,12 @@ Allowed key/value pairs:
 
 Supported compression modes:
 
-* BZIP2
-* ZLIB
-* SNAPPY
 * NONE
+* SNAPPY
+* ZLIB
+* BZIP2
+* LZ4
+* LZ4HC
 
 Supported merge operators:
 

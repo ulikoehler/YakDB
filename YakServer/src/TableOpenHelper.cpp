@@ -309,6 +309,7 @@ void TableOpenServer::tableOpenWorkerThread() {
                 logger.trace(compressionModeToString(parameters.compression));
                 //Process the config options
                 logger.info("Creating/opening table #" + std::to_string(tableIndex));
+                //NOTE: Any option that has not been set up until now is now used from the config default
                 rocksdb::Options options = parameters.getOptions(configParser);
                 //Open the table
                 rocksdb::Status status = rocksdb::DB::Open(options, tableDir.c_str(), &databases[tableIndex]);
