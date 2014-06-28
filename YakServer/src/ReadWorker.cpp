@@ -602,7 +602,8 @@ void ReadWorker::handleTableInfoRequest(zmq_msg_t* headerFrame) {
     //Convert to a map that we can easily send over the wire
     std::map<std::string, std::string> paramsMap;
     params.toParameterMap(paramsMap);
-    assert(!paramsMap.empty()); //TableOpenParameters should garantee the map is filled
+    //Add the info whether the table is open to the map
+    paramsMap["Open"] = (table == nullptr ? "false" : "true");
     //Send header & k/v map
     sendResponseHeader(ackResponse, ZMQ_SNDMORE);
     sendMap(paramsMap, "table info request params map", false);

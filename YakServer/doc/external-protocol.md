@@ -258,7 +258,7 @@ Response code:
     0x01: Failure (unspecified)
 
 Keys returned are:
-    - OPEN: "true" if open, "false" otherwise
+    - 'Open': "true" if open, "false" otherwise
     - Any key being allowed in the Table open request
 
 -------------------------------

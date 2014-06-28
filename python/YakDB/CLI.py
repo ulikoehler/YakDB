@@ -14,6 +14,9 @@ from YakDB.Iterators import KeyIterator, KeyValueIterator
 def info(db, args):
     print(db.serverInfo())
 
+def tableInfo(db, args):
+    print db.tableInfo(args.table)
+
 def stop(db, args):
     db.stopServer()
 
@@ -246,6 +249,14 @@ def yakCLI():
     #Info
     parserInfo = subparsers.add_parser("info", description="Request server information (features and version number)")
     parserInfo.set_defaults(func=info)
+    #Info
+    parserTableInfo = subparsers.add_parser("table-info", description="Request table information")
+    parserTableInfo.add_argument('table',
+        type=int,
+        nargs='?',
+        action="store",
+        help="The tables to get info from. Overrides -t option.")
+    parserTableInfo.set_defaults(func=tableInfo)
     #Stop
     parserStop = subparsers.add_parser("stop", description="Stop the YakDB server")
     parserStop.set_defaults(func=stop)

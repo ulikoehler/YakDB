@@ -93,7 +93,14 @@ void HOT KeyValueServer::handleRequestResponse() {
             || requestType == RequestType::CountRequest
             || requestType == RequestType::ExistsRequest
             || requestType == RequestType::ScanRequest
-            || requestType == RequestType::ListRequest) {
+            || requestType == RequestType::ListRequest
+            || requestType == RequestType::TableInfoRequest) {
+        /*
+         * NOTE: Table info requests are routed (arbitrarily) to read worker threads,
+         *  because they process information in a read-only manner and they
+         *  perform file IO and therefore would block the main router thread for too long
+         *  if the response was built in the main router like for server info requests
+         */
         //Forward the message to the read worker controller, the response is sent asynchronously
         void* dstSocket = readWorkerController.workerPushSocket;
         zmq_msg_send(&addrFrame, dstSocket, ZMQ_SNDMORE);
@@ -103,8 +110,7 @@ void HOT KeyValueServer::handleRequestResponse() {
     } else if (requestType == RequestType::OpenTableRequest
             || requestType == RequestType::CloseTableRequest
             || requestType == RequestType::CompactTableRequest
-            || requestType == RequestType::TruncateTableRequest
-            || requestType == RequestType::TableInfoRequest) {
+            || requestType == RequestType::TruncateTableRequest) {
         /**
          * Table open/close/compact/truncate requests are redirected to the table opener
          *  in the update threads in order to avoid introducing overhead

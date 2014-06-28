@@ -55,6 +55,20 @@ class Connection(YakDBConnectionBase):
                             % (ord(responseHeader[0]), ord(responseHeader[1]), ord(responseHeader[2])))
         #Return the server version string
         return replyParts[1]
+    def tableInfo(self, tableNo=1):
+        """
+        Get table info for a single table number
+        @return A dictionary of table information
+        """
+        self._checkRequestReply()
+        self._checkSingleConnection()
+        #Send request
+        self.socket.send("\x31\x01\x06", zmq.SNDMORE)
+        self._sendBinary32(tableNo, more=False)
+        #Check reply message
+        replyParts = self.socket.recv_multipart(copy=True)
+        YakDBConnectionBase._checkHeaderFrame(replyParts, '\x06')
+        return YakDBConnectionBase._mapScanToDict(replyParts[1:])
     def put(self, tableNo, valueDict, partsync=False, fullsync=False, requestId=""):
         """
         Write a dictionary of key-value pairs to the connected servers.
