@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   Tablespace.hpp
  * Author: uli
  *
@@ -16,7 +16,7 @@
 
 /**
  * Encapsulates multiple key-value tables in one interface.
- * The tables are addressed by number and 
+ * The tables are addressed by number and
  */
 class Tablespace {
 public:
@@ -26,11 +26,11 @@ public:
 
     Tablespace(ConfigParser& cfg, IndexType defaultTablespaceSize = 128);
     Tablespace(const Tablespace& other) = delete;
-    
+
     ~Tablespace();
     /**
      * Close all tables and stop the table open server.
-     * 
+     *
      * This can't be done in the destructor because it needs to be done before
      * the context is deallocated
      */
@@ -38,27 +38,35 @@ public:
 
     /**
      * Get or create a table by index.
-     * 
+     *
      * The supplied TableOpenHelper instance must only be used by the current
      * thread.
      * @param index
      * @param openHelper
-     * @return 
+     * @return
      */
     TableType getTable(IndexType index, TableOpenHelper& openHelper);
-    
+
     /**
      * Get or create a table by index.
-     * 
+     *
      * This version instantiates a temporary TableOpenHelper.
      * Initialization is relatively expensive but objects like
      * asynchronous processes that only need it once, should use
      * this method that destroys it as early as possible.
      * @param index
      * @param openHelper
-     * @return 
+     * @return
      */
     TableType getTable(IndexType index, void* ctx);
+
+
+    /*
+     * Get the pointer to a table, but don't create / open the table if it is not
+     * open yet
+     * @return A pointer to the table or nullptr if it is not open
+     */
+    TableType getTableIfOpen(IndexType index);
 
     /**
      * Close a table immediately.
@@ -76,7 +84,7 @@ public:
     inline TableCollectionType& getDatabases() {
         return databases;
     }
-    
+
     /**
      * Checks if a given table is opened.
      * This method is reentrant and thread-safe.
@@ -84,15 +92,15 @@ public:
     bool isTableOpen(IndexType index) {
         return databases[index] != nullptr;
     }
-    
-    
+
+
 private:
     /**
      * The databases vector.
      * Any method in this class has read-only access (tables may be closed by this class however)
-     * 
+     *
      * Write acess is serialized using the TableOpenHelper class.
-     * 
+     *
      * Therefore locks and double initialization are avoided.
      */
     TableCollectionType databases; //Indexed by table num
@@ -101,4 +109,3 @@ private:
 };
 
 #endif	/* TABLESPACE_HPP */
-

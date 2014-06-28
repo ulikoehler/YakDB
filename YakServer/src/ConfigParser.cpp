@@ -175,6 +175,14 @@ bool parseBool(const std::string& value) {
     return isClearlyTrue;
 }
 
+std::string ConfigParser::getTableDirectory(uint32_t tableIndex) const {
+    return tableSaveFolder + std::to_string(tableIndex);
+}
+
+std::string ConfigParser::getTableConfigFile(uint32_t tableIndex) const {
+    return getTableDirectory(tableIndex) + ".cfg";
+}
+
 COLD ConfigParser::ConfigParser(int argc, char** argv) {
     //Handle --help or -h
     if(argc >= 2 &&

@@ -1,7 +1,7 @@
-/* 
+/*
  * File:   UpdateWorker.cpp
  * Author: uli
- * 
+ *
  * Created on 23. April 2013, 10:35
  */
 
@@ -75,7 +75,8 @@ ReadWorkerController::~ReadWorkerController() {
 ReadWorker::ReadWorker(void* ctx, Tablespace& tablespace, ConfigParser& cfg) :
 AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Read worker"),
 tablespace(tablespace),
-tableOpenHelper(ctx, cfg) {
+tableOpenHelper(ctx, cfg),
+cfg(cfg) {
     //Connect the socket that is used to proxy requests to the external req/rep socket
     zmq_connect(processorOutputSocket, externalRequestProxyEndpoint);
     //Connect the socket that is used by the send() member function
@@ -264,7 +265,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
     }
     //Parse number of records to skip
     uint64_t scanSkipCount = 0;
-    if (!parseUint64FrameOrAssumeDefault(scanSkipCount, 0 /* default */, 
+    if (!parseUint64FrameOrAssumeDefault(scanSkipCount, 0 /* default */,
                 "Receive scan skip frame", true)) {
         return;
     }
@@ -432,7 +433,7 @@ void ReadWorker::handleListRequest(zmq_msg_t* headerFrame) {
     }
     //Parse number of records to skip
     uint64_t scanSkipCount = 0;
-    if (!parseUint64FrameOrAssumeDefault(scanSkipCount, 0 /* default */, 
+    if (!parseUint64FrameOrAssumeDefault(scanSkipCount, 0 /* default */,
                 "Receive list skip frame", true)) {
         return;
     }
@@ -585,6 +586,28 @@ void ReadWorker::handleCountRequest(zmq_msg_t* headerFrame) {
     sendBinary<uint64_t>(count, processorOutputSocket, logger);
 }
 
+void ReadWorker::handleTableInfoRequest(zmq_msg_t* headerFrame) {
+    errorResponse = "\x31\x01\x06\x01";
+    static const char* ackResponse = "\x31\x01\x06\x00";
+    //Parse table ID
+    uint32_t tableIndex;
+    if (!parseUint32Frame(tableIndex, "Table ID frame in count request", true)) {
+        return;
+    }
+    //Check if the table is open
+    rocksdb::DB* table = tablespace.getTableIfOpen(tableIndex);
+    //Get table open params (defaults are used if file does not exist)
+    TableOpenParameters params(cfg);
+    params.readTableConfigFile(cfg, tableIndex);
+    //Convert to a map that we can easily send over the wire
+    std::map<std::string, std::string> paramsMap;
+    params.toParameterMap(paramsMap);
+    assert(!paramsMap.empty()); //TableOpenParameters should garantee the map is filled
+    //Send header & k/v map
+    sendResponseHeader(ackResponse, ZMQ_SNDMORE);
+    sendMap(paramsMap, "table info request params map", false);
+}
+
 bool ReadWorker::processNextRequest() {
     zmq_msg_t routingFrame, delimiterFrame;
     requestExpectedSize = 3;
@@ -630,6 +653,8 @@ bool ReadWorker::processNextRequest() {
         handleScanRequest(&headerFrame);
     } else if (requestType == ListRequest) {
         handleListRequest(&headerFrame);
+    } else if (requestType == TableInfoRequest) {
+        handleTableInfoRequest(&headerFrame);
     } else {
         std::string errstr = "Internal routing error: request type " + std::to_string((int) requestType) + " routed to read worker thread!";
         logger.error(errstr);

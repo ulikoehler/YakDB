@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   protocol.hpp
  * Author: uli
  *
@@ -53,6 +53,7 @@ enum RequestType : uint8_t {
     CompactTableRequest = 0x03,
     TruncateTableRequest = 0x04,
     StopServerRequest = 0x05,
+    TableInfoRequest = 0x06,
     ReadRequest = 0x10,
     CountRequest = 0x11,
     ExistsRequest = 0x12,
@@ -95,7 +96,7 @@ enum ScanFlag : uint8_t {
 
 /**
  * Check if a given frame is a header frame.
- * 
+ *
  * For an error-reporting version of this function, check checkProtocolVersion()
  */
 static inline bool HOT isHeaderFrame(zmq_msg_t* frame) {
@@ -146,4 +147,3 @@ static inline bool isFullsync(uint8_t writeFlags) {
 }
 
 #endif	/* PROTOCOL_HPP */
-

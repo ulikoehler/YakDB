@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   UpdateWorker.hpp
  * Author: uli
  *
@@ -39,7 +39,7 @@ private:
 /**
  * A single read worker instance.
  * Represents a thread that receives read work msgs.
- * 
+ *
  * This thread assumes an envelope always prefixes a frame.
  */
 class ReadWorker : private AbstractFrameProcessor {
@@ -51,13 +51,14 @@ public:
 private:
     Tablespace& tablespace;
     TableOpenHelper tableOpenHelper;
+    ConfigParser& cfg;
     void handleExistsRequest(zmq_msg_t* headerFrame);
     void handleReadRequest(zmq_msg_t* headerFrame);
     void handleScanRequest(zmq_msg_t* headerFrame);
     void handleListRequest(zmq_msg_t* headerFrame);
     void handleLimitedScanRequest(zmq_msg_t* headerFrame);
     void handleCountRequest(zmq_msg_t* headerFrame);
+    void handleTableInfoRequest(zmq_msg_t* headerFrame);
 };
 
 #endif	/* READWORKER_HPP */
-

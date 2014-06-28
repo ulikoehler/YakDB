@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   AbstractFrameProcessor.hpp
  * Author: uli
  *
@@ -160,17 +160,29 @@ protected:
      * Receive a map of alternating key/value frames, until the message ends.
      * Does not accept the first frame in a message -- it assumes RCVMORE is set on the socket
      */
-    bool receiveMap(std::map<std::string, std::string>& target, const char* errName, bool generateResponse);
+    bool receiveMap(std::map<std::string, std::string>& target, const char* errName, bool generateResponse = false);
+    /**
+     * Send a map as a list of alternating key/value frames
+     * Does not accept the first frame in a message -- it assumes RCVMORE is set on the socket.
+     *
+     * The values inside the map are destroyed for efficiency reasons.
+     *
+     * Empty maps can't be handled correctly by this function unless more is set to true.
+     * If more is set to false (default), the application need to handle empty maps differently.
+     *
+     * @param more If set to false, the last message is sent with ZMQ_SNDMORE unset.
+     */
+    bool sendMap(std::map<std::string, std::string>& values, const char* errName, bool generateResponse = false, bool more = false);
     /**
      * Send a single message over this.processorOutputSocket
      * Automatically handles errors if neccessary.
-     * 
-     * To this function, t is not known whether this is the first frame or 
+     *
+     * To this function, t is not known whether this is the first frame or
      * the error occured somewhere in the middle of the request,
      * so sending an error report to the client (with generateResponse == true)
      * could screw up the client code, but this is the only way we can
      * properly tell the client something went wrong.
-     * 
+     *
      * @param msg A pointer to a zmq_msg_t to store it it.
      * @param flags The zmq_msg_send flags (e.g. ZMQ_SNDMORE)
      * @param errName A descriptive name of the range (e.g. "Scan request scan range") for error reporting
@@ -181,10 +193,18 @@ protected:
             int flags,
             const char* errName,
             bool generateResponse = true);
+
+    /**
+     * Same as sendMsgHandleError(), but sends a std::string
+     */
+    bool sendMsgHandleError(const std::string& msg,
+           int flags,
+           const char* errName,
+           bool generateResponse = true);
     /**
      * This function checks if the given frame has a certain size.
      * If the frame sizes match, it returns true and exits.
-     * 
+     *
      * Else, an error message is logged using the logger instance in the current class
      * and, if generateResponse is set to true, the error reponse plus the error msg
      * is sent over the output socket.
@@ -201,7 +221,7 @@ protected:
     /**
      * This function checks if the given frame has a certain size or more
      * If the frame sizes match, it returns true and exits.
-     * 
+     *
      * Else, an error message is logged using the logger instance in the current class
      * and, if generateResponse is set to true, the error reponse plus the error msg
      * is sent over the output socket.
@@ -236,12 +256,12 @@ protected:
     /**
      * If the input socket has any remaining msg parts in the current message,
      * read and dispose them.
-     * 
+     *
      * Never reads a message part if the RCVMORE flag is not set on the socket.
-     * 
+     *
      * This function. has a builtin error limit that prevents it from going
      * to infinite loop because of repeated errors.
-     * 
+     *
      * Automatically logs errors if neccessary.
      */
     void disposeRemainingMsgParts();
@@ -249,7 +269,7 @@ protected:
      * Send a response header frame. This function automatically handles request IDs.
      * The request ID from the request header is automatically copied to the response,
      * if any.
-     * 
+     *
      * If the headerFrame parameter is NULL, no request ID is generated.
      */
     bool sendResponseHeader(const char* responseHeader,
@@ -315,4 +335,3 @@ public:
 };
 
 #endif	/* ABSTRACTFRAMEPROCESSOR_HPP */
-

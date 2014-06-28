@@ -8,6 +8,16 @@ class ConfigParser {
 public:
     ConfigParser(int argc, char** argv);
 
+    /**
+     * For the given table index, get the directory where the table resides
+     */
+    std::string getTableDirectory(uint32_t tableIndex) const;
+
+    /**
+     * For the given table index, get the table config file
+     */
+    std::string getTableConfigFile(uint32_t tableIndex) const;
+
     /*
      * Config options accessible as fields.
      * To simplify the code and to avoid possible performance issues,

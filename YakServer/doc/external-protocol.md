@@ -235,6 +235,31 @@ Status codes:
     * 0x00 Success, server stopping
     * 0x01 Permission denied
 
+##### Table info request
+
+This request yields info on whether a table is opened and what are the open parameters
+currently in use
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x06 Request type (table info request)]
+* Frame 1: 4-byte unsigned integer table number
+
+
+##### Table info response
+
+The response consists of a header frame and a key/value map containing table information.
+Any frame consists of a single ASCII string.
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x06 Response type (table info response)][1 byte response code]
+* Frame 1-n (odd frames): Parameter key
+* Frame 2-n (even frames): Parameter value
+
+Response code:
+    0x00: Success
+    0x01: Failure (unspecified)
+
+Keys returned are:
+    - OPEN: "true" if open, "false" otherwise
+    - Any key being allowed in the Table open request
 
 -------------------------------
 

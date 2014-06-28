@@ -41,6 +41,12 @@ struct TableOpenParameters  {
     void parseFromParameterMap(std::map<std::string, std::string>& parameters);
 
     /**
+     * Convert this instance to a parameter map so that when using
+     * parseFromParameterMap() on said map, an equivalent instance is yielded
+     */
+    void toParameterMap(std::map<std::string, std::string>& parameters);
+
+    /**
      * Convert the current instance to a rocksdb optionset
      * @param options In this reference the values are stored.
      */
@@ -50,13 +56,13 @@ struct TableOpenParameters  {
      * Read a table config file (request is ignored if file does not exist).
      * Such a config file can be written by writeToFile()
      */
-    void readTableConfigFile(const std::string& tableDir);
+    void readTableConfigFile(const ConfigParser& cfg, uint32_t tableIndex);
 
     /**
      * Write the currently set values to a config file.
      * The file written by this can be read using readTableConfigFile()
      */
-    void writeToFile(const std::string& tableDir);
+    void writeToFile(const ConfigParser& cfg, uint32_t tableIndex);
 };
 
 

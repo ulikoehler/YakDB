@@ -243,6 +243,70 @@ bool AbstractFrameProcessor::receiveMap(std::map<std::string, std::string>& targ
     }
 }
 
+bool AbstractFrameProcessor::sendMap(std::map<std::string, std::string>& values,
+                                     const char* errName,
+                                     bool generateResponse,
+                                     bool more) {
+    /**
+     * We need to ensure the last frame is set
+     * However, inside the iterating loop we don't know if we're currently looking
+     * at the last k/v pair. Therefore we need to queue the value.
+     * The algorithm for this is similar to the one used in scan-response generation.
+     */
+    bool haveFrameLeft = false;
+    std::string queuedValue;
+    for(auto p : values) {
+        if(haveFrameLeft) {
+            //We now know that the last k/v pair was not the last one
+            if(!sendMsgHandleError(queuedValue, ZMQ_SNDMORE, errName, generateResponse)) {
+                return false;
+            }
+        }
+        //After any key, there is ALWAYS a frame (the corresponding value)
+        if(!sendMsgHandleError(p.first, ZMQ_SNDMORE, errName, generateResponse)) {
+            return false;
+        }
+        //Queue the value
+        haveFrameLeft = true;
+        queuedValue = std::move(p.second); //rvalue assignment *might* avoid copying
+    }
+    /*
+     * We might have one last queued frame. Send it using the appropriate flags.
+     * It will cause application errors if haveFrameLeft = false
+     *  because the last frame wasn't sent with ZMQ_SNDMORE. As for empty maps
+     *  this function sends no frames at all, there is no way we can avoid this
+     *  issue here.
+     *
+     * If the more flag is set to true, this is not an error because the caller will
+     *  send more frames. Else, we will fail an assertion to avoid hard-to-debug
+     *  intermixed messages. In case the assertion fails, ensure you handle empty
+     *  maps differently.
+     */
+    if(likely(haveFrameLeft)) {
+        if(!sendMsgHandleError(queuedValue, (more ? ZMQ_SNDMORE : 0), errName, generateResponse)) {
+            return false;
+        }
+    } else {
+        assert(more); //If this fails, read the block comment above;
+    }
+}
+
+bool AbstractFrameProcessor::sendMsgHandleError(const std::string& str,
+        int flags,
+        const char* errName,
+        bool generateResponse) {
+    zmq_msg_t msg;
+    if (unlikely(zmq_msg_init_size(&msg, str.size()) == -1)) {
+        std::string errstr = "Error while initializing message of size: "
+                + std::to_string(str.size()) + ": "
+                + std::string(zmq_strerror(zmq_errno()));
+        logger.error(errstr);
+        return false;
+    }
+    memcpy(zmq_msg_data(&msg), str.data(), str.size());
+    return sendMsgHandleError(&msg, flags, errName, generateResponse);
+}
+
 bool AbstractFrameProcessor::sendMsgHandleError(zmq_msg_t* msg,
         int flags,
         const char* errName,

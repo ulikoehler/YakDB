@@ -60,6 +60,15 @@ void TableOpenParameters::parseFromParameterMap(std::map<std::string, std::strin
     }
 }
 
+void COLD TableOpenParameters::toParameterMap(std::map<std::string, std::string>& parameters) {
+    parameters["LRUCacheSize"] = std::to_string(lruCacheSize);
+    parameters["Blocksize"] = std::to_string(tableBlockSize);
+    parameters["WriteBufferSize"] = std::to_string(writeBufferSize);
+    parameters["BloomFilterBitsPerKey"] = std::to_string(bloomFilterBitsPerKey);
+    parameters["CompressionMode"] = compressionModeToString(compression);
+    parameters["MergeOperator"] = mergeOperatorCode;
+}
+
 void TableOpenParameters::getOptions(rocksdb::Options& options) {
     //For all numeric options: <= 0 --> disable / use default
     if(lruCacheSize > 0) {
@@ -84,13 +93,14 @@ void TableOpenParameters::getOptions(rocksdb::Options& options) {
     options.merge_operator = createMergeOperator(mergeOperatorCode);
 }
 
-void COLD TableOpenParameters::readTableConfigFile(const std::string& tableDir) {
-    std::string cfgFileName = tableDir + ".cfg";
+void COLD TableOpenParameters::readTableConfigFile(const ConfigParser& cfg, uint32_t tableIndex) {
+    std::string cfgFileName = cfg.getTableConfigFile(tableIndex);
     if(fileExists(cfgFileName)) {
         string line;
         ifstream fin(cfgFileName.c_str());
         while(fin.good()) {
             fin >> line;
+            //Split line (at '=') into  & value
             size_t sepIndex = line.find_first_of('=');
             assert(sepIndex != string::npos);
             std::string key = line.substr(0, sepIndex);
@@ -113,23 +123,23 @@ void COLD TableOpenParameters::readTableConfigFile(const std::string& tableDir) 
     }
 }
 
-void COLD TableOpenParameters::writeToFile(const std::string& tableDir) {
-    std::string cfgFileName = tableDir + ".cfg";
+void COLD TableOpenParameters::writeToFile(const ConfigParser& cfg, uint32_t tableIndex) {
+    std::string cfgFileName = cfg.getTableConfigFile(tableIndex);
     ofstream fout(cfgFileName.c_str());
     if(lruCacheSize != std::numeric_limits<uint64_t>::max()) {
-        fout << "LRUCacheSize=" << lruCacheSize << endl;
+        fout << "LRUCacheSize=" << lruCacheSize << '\n';
     }
     if(tableBlockSize != std::numeric_limits<uint64_t>::max()) {
-        fout << "Blocksize=" << tableBlockSize << endl;
+        fout << "Blocksize=" << tableBlockSize << '\n';
     }
     if(writeBufferSize != std::numeric_limits<uint64_t>::max()) {
-        fout << "WriteBufferSize=" << writeBufferSize << endl;
+        fout << "WriteBufferSize=" << writeBufferSize << '\n';
     }
     if(bloomFilterBitsPerKey != std::numeric_limits<uint64_t>::max()) {
-        fout << "BloomFilterBitsPerKey=" << bloomFilterBitsPerKey << endl;
+        fout << "BloomFilterBitsPerKey=" << bloomFilterBitsPerKey << '\n';
     }
-    fout << "CompressionMode=" << compressionModeToString(compression) << endl;
-    fout << "MergeOperator=" << mergeOperatorCode << endl;
+    fout << "CompressionMode=" << compressionModeToString(compression) << '\n';
+    fout << "MergeOperator=" << mergeOperatorCode << '\n';
     fout.close();
 }
 
@@ -226,9 +236,9 @@ void TableOpenServer::tableOpenWorkerThread() {
             }
             //Open the table only if it hasn't been opened yet, else just ignore the request
             if (databases[tableIndex] == nullptr) {
-                std::string tableDir = configParser.tableSaveFolder + std::to_string(tableIndex);
+                std::string tableDir = configParser.getTableDirectory(tableIndex);
                 //Override default values with the last values from the table config file, if any
-                parameters.readTableConfigFile(tableDir);
+                parameters.readTableConfigFile(configParser, tableIndex);
                 //Override default + config with custom open parameters, if any
                 parameters.parseFromParameterMap(parameterMap);
                 //Process the config options
@@ -239,7 +249,14 @@ void TableOpenServer::tableOpenWorkerThread() {
                 parameters.getOptions(options);
                 //Open the table
                 rocksdb::Status status = rocksdb::DB::Open(options, tableDir.c_str(), &databases[tableIndex]);
-                if (unlikely(!status.ok())) {
+                if (likely(status.ok())) {
+                    //Write the persistent config data
+                    parameters.writeToFile(configParser, tableIndex);
+                    //Send ACK reply
+                    if (unlikely(zmq_send_const(processorInputSocket, "\x00", 1, 0) == -1)) {
+                        logMessageSendError("table open (success) reply", logger);
+                    }
+                } else { //status == not ok
                     std::string errorDescription = "Error while trying to open table #"
                         + std::to_string(tableIndex) + " in directory " + tableDir
                         + ": " + status.ToString();
@@ -250,15 +267,7 @@ void TableOpenServer::tableOpenWorkerThread() {
                         logMessageSendError("table open error reply", logger);
                     }
                 }
-                //Write the persistent config data
-                parameters.writeToFile(tableDir);
-                //Send ACK reply
-                if(ok) {
-                    if (unlikely(zmq_send_const(processorInputSocket, "\x00", 1, 0) == -1)) {
-                        logMessageSendError("table open (success) reply", logger);
-                    }
-                }
-            } else {
+            } else { // Table already open
                 //Send "no action needed" reply
                 if (unlikely(zmq_send_const(processorInputSocket, "\x01", 1, 0) == -1)) {
                     logMessageSendError("table open (no action needed) reply", logger);
@@ -294,7 +303,7 @@ void TableOpenServer::tableOpenWorkerThread() {
              * so this essentially rm -rf, with no support for nested dirs.
              */
             DIR *dir;
-            string dirname = configParser.tableSaveFolder + std::to_string(tableIndex);
+            string dirname = configParser.getTableDirectory(tableIndex);
             struct dirent *ent;
             if ((dir = opendir(dirname.c_str())) != nullptr) {
                 while ((ent = readdir(dir)) != nullptr) {

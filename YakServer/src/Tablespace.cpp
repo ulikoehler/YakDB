@@ -1,7 +1,7 @@
-/* 
+/*
  * File:   Tablespace.cpp
  * Author: uli
- * 
+ *
  * Created on 23. April 2013, 13:06
  */
 
@@ -48,6 +48,13 @@ Tablespace::TableType Tablespace::getTable(IndexType index, TableOpenHelper& ope
     Tablespace::TableType ret = databases[index];
     assert(ret != nullptr); //If this fails, the database could not be opened properly
     return ret;
+}
+
+Tablespace::TableType Tablespace::getTableIfOpen(IndexType index) {
+    if(index >= databases.size()) {
+        return nullptr;
+    }
+    return databases[index];
 }
 
 void Tablespace::closeTable(IndexType index) {

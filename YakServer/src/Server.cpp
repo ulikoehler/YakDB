@@ -20,7 +20,6 @@
 
 using namespace std;
 
-
 /**
  * Sends a protocol error message over the given socket.
  */
@@ -104,20 +103,21 @@ void HOT KeyValueServer::handleRequestResponse() {
     } else if (requestType == RequestType::OpenTableRequest
             || requestType == RequestType::CloseTableRequest
             || requestType == RequestType::CompactTableRequest
-            || requestType == RequestType::TruncateTableRequest) {
+            || requestType == RequestType::TruncateTableRequest
+            || requestType == RequestType::TableInfoRequest) {
         /**
          * Table open/close/compact/truncate requests are redirected to the table opener
          *  in the update threads in order to avoid introducing overhead
          * by starting specific threads.
-         * 
+         *
          * These requests should are not expected to arrive in high-load situations
          * but merely provide a convenience tool for interactive access.
-         * 
+         *
          * In the worst case, some work piles up for a compacting thread, but
          * as compacting is not the kind of operation you want to do while
          * heavily writing to the database anyway, this is considered
          * a non-bug and improvement only
-         * 
+         *
          * In the future, this might be avoided by different worker scheduling
          * algorithms (post office style)
          */
@@ -264,7 +264,7 @@ void HOT KeyValueServer::handlePushPull() {
             || requestType == RequestType::DeleteRequest
             || requestType == RequestType::DeleteRangeRequest)) {
         //Send the message to the update worker (--> processed async)
-        //This is simpler than the req/rep controller because no 
+        //This is simpler than the req/rep controller because no
         // response flags need to be checked
         void* workerSocket = updateWorkerController.workerPushSocket;
         //We don't have reply addr info --> \x00
@@ -421,10 +421,10 @@ void KeyValueServer::start() {
             * This block is called by the
             * poll loop to process responses
             * being sent from the worker threads.
-            * 
+            *
             * The worker threads can't directly use the main ROUTER socket because sockets may
             * only be used by one thread.
-            * 
+            *
             * By proxying the responses (non-PARTSYNC responses are sent directly by the main
             * thread before the request has been processed by the worker thread) the main ROUTER
             * socket is only be used by the main thread.
@@ -439,11 +439,10 @@ void KeyValueServer::start() {
     logger.trace("Main event loop interrupted, cleaning up...");
     /**
      * Cleanup procedure.
-     * 
+     *
      * Cleanup as much as possible before terminating the ZMQ context
      * in order to be able to log all errors
      */
-    //TODO Prevents shutdown - fix that!!
     updateWorkerController.terminateAll();
     readWorkerController.terminateAll();
     asyncJobRouterController.terminate();
