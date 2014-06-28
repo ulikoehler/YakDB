@@ -13,10 +13,10 @@ from YakDB.Iterators import KeyIterator, KeyValueIterator
 
 def info(db, args):
     print(db.serverInfo())
-    
+
 def stop(db, args):
     db.stopServer()
-    
+
 def read(db, args):
     tableNo = args.tableNo
     keys = args.keys
@@ -125,7 +125,7 @@ def dump(db, args):
     limit = args.scanLimit
     outputFile = args.outputFile
     YakDB.Dump.dumpYDF(db, outputFile, tableNo, fromKey, toKey, limit)
-    
+
 def importDump(db, args):
     tableNo = args.tableNo
     #Override -t with positional argument, if any
@@ -139,7 +139,7 @@ def importDump(db, args):
         print >>sys.stderr,"Error: Input file '%s' is not a file!" % inputFile
         sys.exit(1)
     YakDB.Dump.importYDFDump(db, inputFile, tableNo)
-    
+
 def count(db, args):
     tableNo = args.tableNo
     #Override -t with positional argument, if any
@@ -162,7 +162,8 @@ def compact(db, args):
 
 def openTable(db, args):
     tables = [args.tableNo]
-    compression = not (args.noCompression)
+    compression = args.compression
+    mergeOperator = args.mergeOperator
     lruCacheSize = args.lruCacheSize
     writeBufferSize = args.writeBufferSize
     blocksize = args.blocksize
@@ -170,7 +171,9 @@ def openTable(db, args):
     if len(args.tables) > 0:
         tables = args.tables
     for table in tables:
-        db.openTable(table, compression, lruCacheSize, writeBufferSize, blocksize, bloomFilterBitsPerKey)
+        db.openTable(self, tableNo, lruCacheSize=lruCacheSize, writeBufferSize=writeBufferSize,
+                    tableBlocksize=blocksize, bloomFilterBitsPerKey=bloomFilterBitsPerKey,
+                    compression=compression, mergeOperator=mergeOperator)
         if not args.quiet:
             print "Opening table #%d finished" % table
 
@@ -191,7 +194,7 @@ def truncateTable(db, args):
         db.truncateTable(table)
         if not args.quiet:
             print "Truncating table #%d finished" % table
-    
+
 
 def repl(db, args):
     code.InteractiveConsole(locals=globals()).interact("YakDB REPL -- Connection is available in 'db' variable")
@@ -354,7 +357,7 @@ def yakCLI():
             type=int,
             nargs='?',
             action="store",
-            help="The tables to scan. Overrides -t option.")    
+            help="The tables to scan. Overrides -t option.")
     parserScan.set_defaults(func=scan)
     #List
     parserList = subparsers.add_parser("list", description="List keys in a specified range in the table and return all key-value-pairs in that range")
@@ -399,7 +402,7 @@ def yakCLI():
             type=int,
             nargs='?',
             action="store",
-            help="The table to list. Overrides -t option.")    
+            help="The table to list. Overrides -t option.")
     parserList.set_defaults(func=doList)
     #Count
     parserCount = subparsers.add_parser("count", description="Count how many keys exist in a specified range of the table")
@@ -448,6 +451,10 @@ def yakCLI():
             dest="compression",
             default="SNAPPY",
             help="Blocklevel compression code (NONE, SNAPPY, ZLIB, BZIP2, LZ4 or LZ4HC)")
+    parserOpenTable.add_argument('-m','--merge-operator',
+            dest="mergeOperator",
+            default="REPLACE",
+            help="Merge operator (REPLACE, INT64ADD, DMUL or APPEND)")
     parserOpenTable.add_argument('-l','--lru-cache-size',
             action="store",
             dest="lruCacheSize",
@@ -523,7 +530,7 @@ def yakCLI():
             action="store",
             help="The table to dump. Overrides -t option.")
     parserDump.set_defaults(func=dump)
-    #Import 
+    #Import
     parserImport = subparsers.add_parser("import", description="Import a YDF dump")
     parserImport.add_argument('-i','--input',
             action="store",

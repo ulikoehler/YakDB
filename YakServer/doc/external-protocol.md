@@ -147,8 +147,6 @@ Supported merge operators:
 * DMUL (64-bit double IEEE754 multiply)
 * APPEND (Binary append)
 
-
-
 ##### Table Open response
 
 Sent after table has been opened
@@ -178,7 +176,7 @@ of the request, or the behaviour is undefined.
 Response codes:
 * 0x00 Table closed successfully
 * 0x10 Error while close table (implies frame 1 being existent and non-empty)
-    
+
 ##### Compact request
 
 Compact a table (clear the log and rebuild immutable table files). Could take some time.
@@ -272,7 +270,7 @@ Count the number of keys in a given range
 * Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 3: End key (inclusive). If this has zero length, the count ends at the last key
 
-If frame 2 and 3 are not present, the full key range (=entire table) is counted 
+If frame 2 and 3 are not present, the full key range (=entire table) is counted
 If only frame 2, but not frame 3 is present, frame 3 is treated as if it was zero-length.
 
 ##### Count response:
@@ -329,7 +327,7 @@ The scan ends when one of the following conditions are met:
 * Frame 7: 64-bit unsigned skip count (Zero-length frame --> 0. Specifies how many records are skipped.)
 
 The substring filter provides fast (Boyer-Moore-Horspool) server-side filtering for keys and values.
-Only 
+Only
 Filtered keys don't decrease the key-value count that is used to check the limit.
 In any case, the filters are compared in a case-sensitive way on a char-by-char basis.
 
@@ -677,4 +675,3 @@ Check the APID to get information about the copy progress.
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x60 Response type]
 * Frame 1: 64-bit APID
-
