@@ -28,45 +28,6 @@
 #include "MergeOperators.hpp"
 #include "FileUtils.hpp"
 
-/*
- * Utility macros for error handling code dedup and
- * to make the code shorter.
- * These shall only be used inside a LogServer msg loop.
- *
- * FIXME Currently these don't send replies, so the socket is not in the correct state.
- * This is being worked around by checking it in the first recv call, but
- * it would be cleaner if these macros would do it themselves.
- */
-#define CHECK_MORE_FRAMES(msg, socket, description)\
-    if(unlikely(!zmq_msg_more(&msg))) {\
-        logger.critical("Only received " + std::string(description) + ", missing further frames");\
-        continue;\
-    }
-#define CHECK_NO_MORE_FRAMES(msg, socket, description)\
-    if(unlikely(zmq_msg_more(&msg))) {\
-        logger.critical("Expected no more frames after " + std::string(description) + ", but MORE flag is set");\
-        continue;\
-    }
-#define RECEIVE_CHECK_ERROR(msg, socket, description)\
-    if(unlikely(zmq_msg_recv(&msg, socket, 0) == -1)) {\
-        if(yak_interrupted) {\
-            break;\
-        } else {\
-            logger.critical("Error while receiving "\
-                + std::string(description)+ ": " + std::string(zmq_strerror(errno)));\
-            continue;\
-        }\
-    }
-//Check binary size of a frame.
-#define CHECK_SIZE(frame, expectedSize)\
-    if(unlikely(expectedSize != zmq_msg_size(&frame))) {\
-        logger.critical(\
-            "Received log level message of invalid size: expected size "\
-            + std::to_string(expectedSize) + ", got size "\
-            + std::to_string(zmq_msg_size(&frame)));\
-        continue;\
-    }
-
 using namespace std;
 
 TableOpenParameters::TableOpenParameters(const ConfigParser& cfg) :
