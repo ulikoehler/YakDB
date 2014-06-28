@@ -306,9 +306,9 @@ void TableOpenServer::tableOpenWorkerThread() {
                 parameters.readTableConfigFile(tableDir);
                 //Override default + config with custom open parameters, if any
                 parameters.parseFromParameterMap(parameterMap);
-                logger.trace(compressionModeToString(parameters.compression));
                 //Process the config options
                 logger.info("Creating/opening table #" + std::to_string(tableIndex));
+                logger.trace("Opened table #" + std::to_string(tableIndex) + " with compression mode " + compressionModeToString(parameters.compression));
                 //NOTE: Any option that has not been set up until now is now used from the config default
                 rocksdb::Options options = parameters.getOptions(configParser);
                 //Open the table

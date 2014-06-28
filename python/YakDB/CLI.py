@@ -161,17 +161,14 @@ def compact(db, args):
             print "Compaction finished"
 
 def openTable(db, args):
-    tables = [args.tableNo]
     compression = args.compression
     mergeOperator = args.mergeOperator
     lruCacheSize = args.lruCacheSize
     writeBufferSize = args.writeBufferSize
     blocksize = args.blocksize
     bloomFilterBitsPerKey = args.bloomFilterBitsPerKey
-    if len(args.tables) > 0:
-        tables = args.tables
-    for table in tables:
-        db.openTable(self, tableNo, lruCacheSize=lruCacheSize, writeBufferSize=writeBufferSize,
+    for table in args.tables:
+        db.openTable(table, lruCacheSize=lruCacheSize, writeBufferSize=writeBufferSize,
                     tableBlocksize=blocksize, bloomFilterBitsPerKey=bloomFilterBitsPerKey,
                     compression=compression, mergeOperator=mergeOperator)
         if not args.quiet:
@@ -443,7 +440,7 @@ def yakCLI():
     #Open table
     parserOpenTable = subparsers.add_parser("open", description="Open a table.\nThis is only neccessary if you intend to use nonstandard open options.")
     parserOpenTable.add_argument('tables',
-            nargs='*',
+            nargs='+',
             type=int,
             action="store",
             help="The table ID to open")
