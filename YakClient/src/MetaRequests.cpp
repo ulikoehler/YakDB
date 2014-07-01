@@ -117,7 +117,7 @@ int TableInfoRequest::sendRequest(void* socket, uint32_t tableNo) {
         return -1;
     }
     //If the strings are empty, zero-length frames are generated automatically
-    return sendUint32Frame(socket, tableNum);
+    return sendUint32Frame(socket, tableNo);
 }
 
 int TableInfoRequest::receiveResponse(
@@ -127,11 +127,6 @@ int TableInfoRequest::receiveResponse(
     if(receiveSimpleResponse(socket, errorString) == -1) {
         return -1;
     }
-    zmq_msg_t msg;
-    zmq_msg_init(&msg);
-    //Receive header frame
-    if(zmq_msg_recv(&msg, socket, 0) == -1) {
-        return -1;
-    }
-
+    //Receive the key/value pairs
+    return receiveMap(socket, params);
 }

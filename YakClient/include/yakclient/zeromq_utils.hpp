@@ -16,12 +16,20 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <map>
 
-static int zmq_sockopt_get_rcvmore(void* socket) {
+static inline int zmq_sockopt_get_rcvmore(void* socket) {
     int rcvmore;
     size_t optlen = sizeof(int);
     zmq_getsockopt(socket, ZMQ_RCVMORE, &rcvmore, &optlen);
     return rcvmore;
+}
+
+static inline int socketHasMoreFrames(void* socket) {
+    int rcvmore;
+    size_t optlen = sizeof(int);
+    zmq_getsockopt(socket, ZMQ_RCVMORE, &rcvmore, &optlen);
+    return rcvmore == 1; 
 }
 
 /**
@@ -164,6 +172,40 @@ static int receiveKeyValue(void* socket, std::string& keyTarget, std::string& va
         return -1;
     }
     return (zmq_sockopt_get_rcvmore(socket) ? 1 : 0);
+}
+
+
+/**
+ * Receive a map of alternating key/value frames from a socket
+ * and place the k/v pairs in a std::map.
+ * If no frames are available, no action is being performed.
+ */
+static bool receiveMap(void* socket, std::map<std::string, std::string>& target) {
+    //Maybe there are no key/value frames at all!?!? This is not an error
+    if(!socketHasMoreFrames(socket)) {
+        return true;
+    }
+    //Receive frame pairs until nothing is left
+    std::string key;
+    std::string value;
+    while(true) {
+        if(receiveStringFrame(socket, key) == -1) {
+            return -1;
+        }
+        //If there is a trailing key frame (with no value frame), it's an error
+        if(socketHasMoreFrames(socket)) {
+            return -2;
+        }
+        if(receiveStringFrame(socket, value) == -1) {
+            return -3;
+        }
+        //Insert into result map
+        target[key] = value;
+        //Stop if there is no frame left
+        if (!socketHasMoreFrames(socket)) {
+            return true;
+        }
+    }
 }
 
 #endif	/* ZMQ_UTILS_HPP */
