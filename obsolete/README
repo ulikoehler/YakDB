@@ -1,0 +1,8 @@
+This directory contains source code that is not used any more
+
+Particularly it contains:
+- YakHTTPServer: A ZMQ raw socket based experimental HTTP server that has been built to aid rapid development.
+    It was based on the experimental concept of mmapping static files into memory.
+    However, its source code was quite complex and neccessarily required YakClient to be linked into YakServer. Additionally, the server was quite primitive not only from the HTTP standpoint, but it also didn't support asynchronous ZMQ requests.
+    Although it provided really good performance, we figured the minor advantages of a pure C++ HTTP server -- especially in a development -- didn't make up for the additional complexity of the source code. It might still be interesting as a teaching tool, though.
+    It has since be replaced by a python-based server integrated with the *yak* command line tool.
