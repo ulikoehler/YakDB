@@ -194,8 +194,6 @@ void YakHTTPServer::serveAPI(char* requestPathCstr) {
          *   valueSizeLimit -- Option
          */
         //Set default arguments
-        //cout << "prefix=" << queryArgs["prefix"] << endl;
-        //cout << "prefix=" << queryArgs["prefix"] << endl;
         int rc = ScanRequest::sendRequest(mainRouterSocket,
                                  std::stol(queryArgs["table"]),
                                  std::stol(queryArgs["limit"]),
