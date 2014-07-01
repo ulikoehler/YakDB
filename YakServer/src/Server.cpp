@@ -310,7 +310,6 @@ tableOpenServer(ctx, configParserParam, tables.getDatabases()),
 updateWorkerController(ctx, tables, configParserParam),
 readWorkerController(ctx, tables, configParserParam),
 asyncJobRouterController(ctx, tables),
-httpServer(ctx, configParserParam.httpEndpoint, configParserParam.staticFilePath),
 logger(ctx, "Request router"),
 configParser(configParserParam)
  {
@@ -321,7 +320,6 @@ configParser(configParserParam)
     }
     BufferLogSink* logBuffer = new BufferLogSink(32);
     logServer.addLogSink(logBuffer);
-    httpServer.setLogBuffer(logBuffer);
     /*
      * Initialize and bind the external sockets
      */
@@ -453,7 +451,6 @@ void KeyValueServer::start() {
     readWorkerController.terminateAll();
     asyncJobRouterController.terminate();
     tableOpenServer.terminate();
-    httpServer.terminate();
     tables.cleanup(); //Close & flush tables. This is NOT the table open server!
     logServer.terminate();
 }

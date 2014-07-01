@@ -39,10 +39,6 @@ public:
     int externalSNDHWM;
     int internalRCVHWM;
     int internalSNDHWM;
-    //HTTP options
-    std::string httpEndpoint;
-    std::string staticFilePath;
-    bool httpIPv4Only;
     //Table options
     uint64_t defaultLRUCacheSize;
     uint64_t defaultTableBlockSize;

@@ -223,10 +223,6 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     externalSNDHWM = std::stoi(cfg["ZMQ.external-snd-hwm"]);;
     internalRCVHWM = std::stoi(cfg["ZMQ.internal-rcv-hwm"]);;
     internalSNDHWM = std::stoi(cfg["ZMQ.internal-snd-hwm"]);;
-    //HTTP options
-    httpEndpoint = cfg["HTTP.endpoint"];
-    staticFilePath = cfg["HTTP.static-file-path"];
-    httpIPv4Only = parseBool(cfg["HTTP.ipv4-only"]);
     //Table options
     defaultLRUCacheSize = std::stoull(cfg["RocksDB.lru-cache-size"]);
     defaultTableBlockSize = std::stoull(cfg["RocksDB.table-block-size"]);
@@ -238,26 +234,5 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     //Normalize table save folder to be slash-terminated
     if(tableSaveFolder[tableSaveFolder.size() - 1] != '/') { //if last char is not slash
         tableSaveFolder += "/";
-    }
-    //Check directories & ensure symlinks are resolved properly
-    // and they exist and are readable
-    string originalStaticFilePath = staticFilePath;
-    staticFilePath = safeReadlink(staticFilePath);
-    if(unlikely(staticFilePath.size() == 0)) {
-        if(errno == ENOENT) {
-            cerr << "\x1B[33m[Warn] Static file directory '"
-                 << originalStaticFilePath
-                 << "' does not exist! The HTTP server definitely won't work.\x1B[0m" << endl;
-        } else if (errno == EACCES) {
-            cerr << "\x1B[33m[Warn] Static file directory '"
-                 << originalStaticFilePath
-                 << "' can't be used because the current user does not have the permission to read / list the directory! The HTTP server probably won't work.\x1B[0m" << endl;
-        } else {
-            cerr << "\x1B[33m[Warn] Unknown error '"
-                 << strerror(errno)
-                 << "' while trying to check the HTTP static file directory. The HTTP server probably won't work.\x1B[0m" << endl;
-        }
-    } else if(staticFilePath.back() != '/') {
-        staticFilePath += "/";
     }
 }
