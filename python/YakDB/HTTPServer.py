@@ -21,6 +21,7 @@ class YakHTTPServer(Bottle):
         Bottle.__init__(self)
         self.initRoutes()
     def initRoutes(self):
+        ### Initialize static routes
         @self.route('/')
         def indexPage():
             return static_file("index.html", root=self.staticFilePath)
