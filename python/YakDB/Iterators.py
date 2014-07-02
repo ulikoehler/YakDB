@@ -39,11 +39,11 @@ class KeyValueIterator(object):
         #Stop if there's nothing left to scan
         if len(scanRes) is 0:
             raise StopIteration
-        for key, value in scanRes.iteritems():
+        for key, value in scanRes:
             dataTuple = (key, value)
             self.buf.append(dataTuple)
         #Get the key to use as start key on chunk load
-        lastIdentifier = (scanRes.keys()[-1])
+        lastIdentifier = (scanRes[-1][0])
         self.nextStartKey = YakDBUtils.incrementKey(lastIdentifier)
     def next(self):
         """
