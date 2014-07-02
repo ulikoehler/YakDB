@@ -38,11 +38,11 @@ tablespace(tablespace) {
     if(zmq_connect(processorInputSocket, updateWorkerThreadAddr)) {
         logOperationError("Connect Update worker processor input socket", logger);
     }
-    logger.debug("Update worker thread starting");
+    logger.trace("Update worker thread starting");
 }
 
 UpdateWorker::~UpdateWorker() {
-    logger.debug("Update worker thread terminating...");
+    logger.trace("Update worker thread terminating...");
     //Sockets are cleaned up in AbstractFrameProcessor
 }
 

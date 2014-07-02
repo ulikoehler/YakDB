@@ -81,11 +81,11 @@ cfg(cfg) {
     zmq_connect(processorOutputSocket, externalRequestProxyEndpoint);
     //Connect the socket that is used by the send() member function
     zmq_connect(processorInputSocket, readWorkerThreadAddr);
-    logger.debug("Read worker thread starting");
+    logger.trace("Read worker thread starting");
 }
 
 ReadWorker::~ReadWorker() {
-    logger.debug("Read worker thread stopping...");
+    logger.trace("Read worker thread stopping...");
     //Sockets are cleaned up in AbstractFrameProcessor
 }
 
