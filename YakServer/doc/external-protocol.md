@@ -345,7 +345,7 @@ The scan ends when one of the following conditions are met:
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x13 Request type (scan request)][1 byte scan flags]
 * Frame 1: 32-bit unsigned table number
-* Frame 2: 64-bit unsigned limit. If this is zero-sized, no limit is imposed
+* Frame 2: 64-bit unsigned limit. If this frame has zero length, no limit is imposed
 * Frame 3: Start key (inclusive). If this has zero length, the count starts at the first key
 * Frame 4: End key (exclusive). If this has zero length, the count ends at the last key
 * Frame 5: Key substring filter (frame shall be zero-sized if no filter shall be applied)

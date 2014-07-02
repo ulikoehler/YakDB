@@ -331,7 +331,7 @@ void AbstractFrameProcessor::disposeRemainingMsgParts() {
     zmq_msg_t msg;
     zmq_msg_init(&msg);
     while (socketHasMoreFrames(processorInputSocket)) {
-        if (unlikely(zmq_msg_recv(&msg, processorInputSocket, 0) == -1)) {
+        if (unlikely(zmq_msg_recv(&msg, processorInputSocket, ZMQ_DONTWAIT) == -1)) {
             logger.warn("ZMQ error while trying to clear remaining messages from queue: "
                     + std::string(zmq_strerror(zmq_errno())));
             numErrors++;
@@ -340,8 +340,8 @@ void AbstractFrameProcessor::disposeRemainingMsgParts() {
                 break;
             }
         }
-        zmq_msg_close(&msg);
     }
+    zmq_msg_close(&msg);
 }
 
 bool AbstractFrameProcessor::expectExactFrameSize(zmq_msg_t* msg,
