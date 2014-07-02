@@ -239,9 +239,9 @@ class Connection(YakDBConnectionBase):
         dataParts = msgParts[1:]
         #Return appropriate data format
         if mapData:
-            return YakDBConnectionBase._mapScanToTupleList(dataParts)
-        else:
             return YakDBConnectionBase._mapScanToDict(dataParts)
+        else:
+            return YakDBConnectionBase._mapScanToTupleList(dataParts)
 
     def list(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, mapData=False, requestId=""):
         """
