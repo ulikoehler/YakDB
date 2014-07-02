@@ -107,21 +107,21 @@ bool AbstractFrameProcessor::parseBinaryFrame(void* dst,
 bool AbstractFrameProcessor::parseUint64Frame(uint64_t& dst,
         const char* frameDesc,
         bool generateResponse) {
-    return parseBinaryFrame(&dst, sizeof(uint64_t), frameDesc, generateResponse);
+    return parseBinaryFrame(&dst, sizeof(uint64_t), frameDesc, generateResponse, false);
 }
 
 bool AbstractFrameProcessor::parseUint64FrameOrAssumeDefault(uint64_t& dst,
         uint64_t defaultValue,
         const char* frameDesc,
         bool generateResponse) {
-    return parseBinaryFrame(&dst, sizeof(uint64_t), frameDesc, generateResponse, &defaultValue);
+    return parseBinaryFrame(&dst, sizeof(uint64_t), frameDesc, generateResponse, false, &defaultValue);
 }
 
 bool AbstractFrameProcessor::parseUint32FrameOrAssumeDefault(uint32_t& dst,
         uint32_t defaultValue,
         const char* frameDesc,
         bool generateResponse) {
-    return parseBinaryFrame(&dst, sizeof(uint32_t), frameDesc, generateResponse, &defaultValue);
+    return parseBinaryFrame(&dst, sizeof(uint32_t), frameDesc, generateResponse, false, &defaultValue);
 }
 
 bool AbstractFrameProcessor::expectNextFrame(const char* errString,
