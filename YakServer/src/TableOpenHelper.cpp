@@ -115,6 +115,8 @@ void COLD TableOpenParameters::readTableConfigFile(const ConfigParser& cfg, uint
                 bloomFilterBitsPerKey = stoull(value);
             } else if(key == "CompressionMode") {
                 compression = compressionModeFromString(value);
+            } else if(key == "MergeOperator") {
+                mergeOperatorCode = value;
             } else {
                 cerr << "Unknown key in table config file : " << key << " (= " << value << ")" << endl;
             }
