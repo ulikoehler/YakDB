@@ -86,6 +86,20 @@ public:
     }
 
     /**
+     * Get the maximum 0-based table index i so that t_i is currently open
+     * so there is no j > i so that t_j is open (or 0 if no table is open)
+     */
+    inline IndexType getMaximumOpenTableNumber() {
+        uint32_t ret = 0;
+        for(size_t i = 0; i < databasesSize; i++) {
+            if(databases[i] != nullptr) {
+                ret = i;
+            }
+        }
+        return ret;
+    }
+
+    /**
      * Checks if a given table is opened.
      * This method is reentrant and thread-safe.
      */
