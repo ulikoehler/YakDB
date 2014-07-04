@@ -602,6 +602,8 @@ void ReadWorker::handleTableInfoRequest(zmq_msg_t* headerFrame) {
     //Convert to a map that we can easily send over the wire
     std::map<std::string, std::string> paramsMap;
     params.toParameterMap(paramsMap);
+    //Add the requested table number
+    paramsMap["table"] = std::to_string(tableIndex);
     //Add the maximum open table number (scales linearly)
     paramsMap["MaxOpen"] = std::to_string(tablespace.getMaximumOpenTableNumber());
     //Add the info whether the table is open to the map

@@ -259,6 +259,7 @@ Response code:
 
 Keys returned are:
     - 'Open': "true" if open, "false" otherwise
+    - 'table': The requested table number
     - Any key being allowed in the Table open request
     - 'MaxOpen': The 0-based table number of the highest table that is currently open (or -1 if none are open)
 
