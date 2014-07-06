@@ -21,8 +21,6 @@ uint64_t parseUint64(const std::string& value) {
     return ret;
 }
 
-#include <iostream>
-using namespace std;
 size_t getFilesize(const char* filename) {
     struct stat st;
     if(stat(filename, &st) != 0) {
