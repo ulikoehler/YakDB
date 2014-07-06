@@ -27,7 +27,8 @@ size_t getFilesize(const char* filename) {
     }
     return st.st_size;   
 }
-
+#include <iostream>
+using namespace std;
 size_t getDirectoryFilesize(const char* dirname) {
     /**
      * Using boost::filesystem would make this task easier,
@@ -38,10 +39,15 @@ size_t getDirectoryFilesize(const char* dirname) {
     DIR* dir;
     struct dirent* ent;
     size_t filesizeSum = 0;
-    if ((dir = opendir (dirname)) != nullptr) {
+    cout << "FREC " << dirname << endl;
+    if ((dir = opendir(dirname)) != nullptr) {
         //Iterate over entries in directory
-        while ((ent = readdir (dir)) != nullptr) {
+        while ((ent = readdir(dir)) != nullptr) {
             if(ent->d_type == DT_DIR) {
+                //Skip . and .. which lead to infinite recursion
+                if (strcmp(".", ent->d_name) == 0 || strcmp("..", ent->d_name) == 0) {
+                    continue;
+                }
                 //Recurse into directory
                 filesizeSum += getDirectoryFilesize(ent->d_name);
             } else if(ent->d_type == DT_REG) {
@@ -52,7 +58,7 @@ size_t getDirectoryFilesize(const char* dirname) {
                     filesize = 0;
                 }
                 filesizeSum += filesize;
-            }
+            } //Else: Ignore
         }
         closedir (dir);
     }
