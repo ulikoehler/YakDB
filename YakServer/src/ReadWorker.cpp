@@ -17,6 +17,7 @@
 #include "endpoints.hpp"
 #include "macros.hpp"
 #include "ThreadUtil.hpp"
+#include "FileUtils.hpp"
 
 /**
  * The main function for the read worker thread.
@@ -608,6 +609,9 @@ void ReadWorker::handleTableInfoRequest(zmq_msg_t* headerFrame) {
     paramsMap["MaxOpen"] = std::to_string(tablespace.getMaximumOpenTableNumber());
     //Add the info whether the table is open to the map
     paramsMap["Open"] = (table == nullptr ? "false" : "true");
+    //Add the approximate size of the table directory
+    size_t tableDirSize = getDirectoryFilesize(cfg.getTableDirectory(tableIndex).c_str());
+    paramsMap["FileSize"] = std::to_string(tableDirSize);
     //Send header & k/v map
     sendResponseHeader(ackResponse, ZMQ_SNDMORE);
     sendMap(paramsMap, "table info request params map", false);

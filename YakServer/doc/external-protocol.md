@@ -243,7 +243,6 @@ currently in use
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x06 Request type (table info request)]
 * Frame 1: 4-byte unsigned integer table number
 
-
 ##### Table info response
 
 The response consists of a header frame and a key/value map containing table information.
@@ -260,6 +259,8 @@ Response code:
 Keys returned are:
     - 'Open': "true" if open, "false" otherwise
     - 'table': The requested table number
+    - 'FileSize': The sum of all filesizes in the table dir.
+                  If the table is changed while computing this value, it might be inaccurate.
     - Any key being allowed in the Table open request
     - 'MaxOpen': The 0-based table number of the highest table that is currently open (or -1 if none are open)
 

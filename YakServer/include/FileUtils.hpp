@@ -20,4 +20,10 @@ uint64_t parseUint64(const std::string& value);
  */
 size_t getFilesize(const char* filename);
 
+/**
+ * Get the sum of the filesizes of all files inside a directory.
+ * @return The size or 0 in case of error
+ */
+size_t getDirectoryFilesize(const char* dirname);
+
 #endif // FILEUTILS_HPP
