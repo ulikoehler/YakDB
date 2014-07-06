@@ -261,6 +261,8 @@ Keys returned are:
     - 'table': The requested table number
     - 'FileSize': The sum of all filesizes in the table dir.
                   If the table is changed while computing this value, it might be inaccurate.
+                  Note that the apparent size is computed, being approximately equivalent
+                  to using du -sb. See http://stackoverflow.com/a/5694854/2597135 for details. 
     - Any key being allowed in the Table open request
     - 'MaxOpen': The 0-based table number of the highest table that is currently open (or -1 if none are open)
 
