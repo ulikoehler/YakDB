@@ -26,7 +26,8 @@ using namespace std;
 UpdateWorker::UpdateWorker(void* ctx, Tablespace& tablespace, ConfigParser& configParser) :
 AbstractFrameProcessor(ctx, ZMQ_PULL, ZMQ_PUSH, "Update worker"),
 tableOpenHelper(ctx, configParser),
-tablespace(tablespace) {
+tablespace(tablespace),
+cfg(configParser) {
     //Set HWM
     setHWM(processorInputSocket, configParser.internalRCVHWM,
             configParser.internalRCVHWM, logger);
@@ -42,7 +43,7 @@ tablespace(tablespace) {
 }
 
 UpdateWorker::~UpdateWorker() {
-    logger.trace("Update worker thread terminating...");
+    logger.trace("Update worker thread terminating");
     //Sockets are cleaned up in AbstractFrameProcessor
 }
 
@@ -177,7 +178,7 @@ void UpdateWorker::handlePutRequest(bool generateResponse) {
     //Get the table
     rocksdb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
     rocksdb::WriteBatch batch;
-    const uint32_t maxBatchSize = 32;
+    const uint32_t maxBatchSize = cfg.putBatchSize;
     uint32_t currentBatchSize = 0;
     //The entire update is processed in one batch. Empty batches are allowed.
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
@@ -223,7 +224,6 @@ void UpdateWorker::handlePutRequest(bool generateResponse) {
             batch.Clear();
             currentBatchSize = 0;
         }
-        //batch.Put(keySlice, valueSlice);
         //Statistics
         elementCounter++;
         //Cleanup

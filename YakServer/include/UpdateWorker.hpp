@@ -57,6 +57,7 @@ public:
 private:
     TableOpenHelper tableOpenHelper;
     Tablespace& tablespace;
+    ConfigParser& cfg;
     void handlePutRequest(bool generateResponse);
     void handleDeleteRequest(bool generateResponse);
     void handleDeleteRangeRequest(bool generateResponse);

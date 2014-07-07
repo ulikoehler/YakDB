@@ -231,6 +231,8 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     defaultCompression = compressionModeFromString(cfg["RocksDB.compression"]);
     defaultMergeOperator = cfg["RocksDB.merge-operator"];
     tableSaveFolder = cfg["RocksDB.table-dir"];
+    //RocksDB options
+    putBatchSize = std::stoul(cfg["RocksDB.update-batch-size"]);
     //Normalize table save folder to be slash-terminated
     if(tableSaveFolder[tableSaveFolder.size() - 1] != '/') { //if last char is not slash
         tableSaveFolder += "/";

@@ -46,6 +46,8 @@ public:
     uint64_t defaultBloomFilterBitsPerKey;
     rocksdb::CompressionType defaultCompression;
     std::string defaultMergeOperator;
+    //Other RocksDB options
+    uint32_t putBatchSize;
     //Save folder, normalized to have a terminal slash.
     std::string tableSaveFolder;
 };
