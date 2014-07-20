@@ -6,3 +6,5 @@ build
 **/*.swp
 clientbuild
 testbuild
+next-apid.txt
+tables
