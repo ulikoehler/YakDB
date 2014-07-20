@@ -1,9 +1,7 @@
 Import(["yakServerSrc","yaklibSrc","env"])
 
 sources = [
-    "src/http/URLParser.cpp",
     "test/TestMain.cpp",
-    "test/URLParserTest.cpp"
 ]
 
 env.Program(target="yaktest", source=sources, LIBS=["boost_unit_test_framework"])

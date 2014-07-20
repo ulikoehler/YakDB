@@ -84,7 +84,6 @@ yakServerSrc =  [
     "src/MergeOperators.cpp",
     "src/Server.cpp",
     "src/ThreadUtil.cpp",
-    "src/http/URLParser.cpp"
 ]
 
 Export(["yakServerSrc","env"])
