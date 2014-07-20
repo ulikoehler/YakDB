@@ -131,21 +131,7 @@ Allowed key/value pairs:
 * 'CompressionMode': String code for the table compression mode (see below)
 * 'MergeOperator': String code for the table merge operator (see below)
 
-Supported compression modes:
-
-* NONE
-* SNAPPY
-* ZLIB
-* BZIP2
-* LZ4
-* LZ4HC
-
-Supported merge operators:
-
-* REPLACE (default)
-* INT64ADD (64-bit signed add)
-* DMUL (64-bit double IEEE754 multiply)
-* APPEND (Binary append)
+See default yakdb.cfg for a list of supported compression modes and merge operators.
 
 ##### Table Open response
 
