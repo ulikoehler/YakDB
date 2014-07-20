@@ -265,7 +265,8 @@ void UpdateWorker::handleDeleteRequest(bool generateResponse) {
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
     //Get the table
     rocksdb::DB* db = tablespace.getTable(tableId, tableOpenHelper);
-    //The entire update is processed in one batch
+    //The entire update is processed in one batch. This seems reasonable because
+    // delete batch requests
     zmq_msg_t keyFrame;
     rocksdb::WriteBatch batch;
     while (haveMoreData) {
