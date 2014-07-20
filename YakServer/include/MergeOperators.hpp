@@ -95,6 +95,55 @@ class ListAppendOperator : public rocksdb::AssociativeMergeOperator {
     virtual const char* Name() const override;
 };
 
+
+/**
+ * Arbitrary size binary boolean AND.
+ * If existing/new value is shorter, missing bytes are assumed to be 0xFF (i.e. copied)
+ */
+class ANDOperator : public rocksdb::AssociativeMergeOperator {
+ public:
+  virtual bool Merge(
+    const rocksdb::Slice& key,
+    const rocksdb::Slice* existing_value,
+    const rocksdb::Slice& value,
+    std::string* new_value,
+    rocksdb::Logger* logger) const override;
+
+    virtual const char* Name() const override;
+};
+
+/**
+ * Arbitrary size binary boolean OR.
+ * If existing/new value is shorter, missing bytes are assumed to be 0x00 (i.e. copied)
+ */
+class OROperator : public rocksdb::AssociativeMergeOperator {
+ public:
+  virtual bool Merge(
+    const rocksdb::Slice& key,
+    const rocksdb::Slice* existing_value,
+    const rocksdb::Slice& value,
+    std::string* new_value,
+    rocksdb::Logger* logger) const override;
+
+    virtual const char* Name() const override;
+};
+
+/**
+ * Arbitrary size binary boolean XOR.
+ * If existing/new value is shorter, missing bytes are assumed to be 0x00 (i.e. copied)
+ */
+class XOROperator : public rocksdb::AssociativeMergeOperator {
+ public:
+  virtual bool Merge(
+    const rocksdb::Slice& key,
+    const rocksdb::Slice* existing_value,
+    const rocksdb::Slice& value,
+    std::string* new_value,
+    rocksdb::Logger* logger) const override;
+
+    virtual const char* Name() const override;
+};
+
 /**
  * Create a merge operator instance by merge operator code
  */

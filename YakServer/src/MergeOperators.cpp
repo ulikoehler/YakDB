@@ -172,6 +172,181 @@ bool HOT ListAppendOperator::Merge(
     *new_value = std::move(existing + std::string((const char*)&newValLength, sizeof(uint32_t)) + value.ToString());
 }
 
+bool HOT ANDOperator::Merge(
+    const rocksdb::Slice& key,
+    const rocksdb::Slice* existing_value,
+    const rocksdb::Slice& value,
+    std::string* new_value,
+    rocksdb::Logger* logger) const {
+    //Assuming 0 if no existing value
+    std::string existing;
+    if (existing_value) {
+        existing = existing_value->ToString();
+    } else {
+        //Skip complex boolean logic, just copy value
+        *new_value = value.ToString();
+        return true;
+    }
+
+    //Extract raw binary info
+    const char* existingData = existing.data();
+    size_t existingSize = existing.size();
+    const char* valueData = value.data();
+    size_t valueSize = value.size();
+
+    /*
+     * Allocate the result memory (will be copied to the result string later)
+     * Writing to a string's data() could produce undefined behaviour
+     *  with some C++ STL implementations
+     */
+    size_t dstSize = std::max(existingSize, valueSize);
+    char* dst = new char[dstSize];
+
+    /*
+     * Perform bytewise boolean operation, ignoring extra bytes
+     * TODO: Optimize to use 128+-bit SSE / 64 bit / 32 bit operator,
+     *       or check if the compiler is intelligent enough to do that
+     */
+    size_t numCommonBytes = std::min(existingSize, valueSize);
+    for(size_t i = 0; i < numCommonBytes; i++) {
+        dst[i] = existingData[i] & valueData[i];
+    }
+    //Copy remaining bytes, if any
+    if(existingSize > numCommonBytes) {
+        memcpy(dst + numCommonBytes, existingData + numCommonBytes, existingSize - numCommonBytes);
+    } else if(valueSize > numCommonBytes) {
+        memcpy(dst + numCommonBytes, valueData + numCommonBytes, valueSize - numCommonBytes);
+    } //Else: Both have the same size, nothing to be done
+
+    //Copy dst buffer to new_value string
+    *new_value = std::move(std::string(dst, dstSize));
+    //Free allocated temporary resources
+    delete[] dst;
+    //This function does not have any logical error condition
+    return true;
+}
+
+const char* ANDOperator::Name() const {
+    return "ANDOperator";
+}
+
+
+bool HOT OROperator::Merge(
+    const rocksdb::Slice& key,
+    const rocksdb::Slice* existing_value,
+    const rocksdb::Slice& value,
+    std::string* new_value,
+    rocksdb::Logger* logger) const {
+    //Assuming 0 if no existing value
+    std::string existing;
+    if (existing_value) {
+        existing = existing_value->ToString();
+    } else {
+        //Skip complex boolean logic, just copy value
+        *new_value = value.ToString();
+        return true;
+    }
+
+    //Extract raw binary info
+    const char* existingData = existing.data();
+    size_t existingSize = existing.size();
+    const char* valueData = value.data();
+    size_t valueSize = value.size();
+
+    /*
+     * Allocate the result memory (will be copied to the result string later)
+     * Writing to a string's data() could produce undefined behaviour
+     *  with some C++ STL implementations
+     */
+    size_t dstSize = std::max(existingSize, valueSize);
+    char* dst = new char[dstSize];
+
+    /*
+     * Perform bytewise boolean operation, ignoring extra bytes
+     * TODO: Optimize to use 128+-bit SSE / 64 bit / 32 bit operator,
+     *       or check if the compiler is intelligent enough to do that
+     */
+    size_t numCommonBytes = std::min(existingSize, valueSize);
+    for(size_t i = 0; i < numCommonBytes; i++) {
+        dst[i] = existingData[i] | valueData[i];
+    }
+    //Copy remaining bytes, if any
+    if(existingSize > numCommonBytes) {
+        memcpy(dst + numCommonBytes, existingData + numCommonBytes, existingSize - numCommonBytes);
+    } else if(valueSize > numCommonBytes) {
+        memcpy(dst + numCommonBytes, valueData + numCommonBytes, valueSize - numCommonBytes);
+    } //Else: Both have the same size, nothing to be done
+
+    //Copy dst buffer to new_value string
+    *new_value = std::move(std::string(dst, dstSize));
+    //Free allocated temporary resources
+    delete[] dst;
+    //This function does not have any logical error condition
+    return true;
+}
+
+const char* OROperator::Name() const {
+    return "OROperator";
+}
+
+bool HOT XOROperator::Merge(
+    const rocksdb::Slice& key,
+    const rocksdb::Slice* existing_value,
+    const rocksdb::Slice& value,
+    std::string* new_value,
+    rocksdb::Logger* logger) const {
+    //Assuming 0 if no existing value
+    std::string existing;
+    if (existing_value) {
+        existing = existing_value->ToString();
+    } else {
+        //Skip complex boolean logic, just copy value
+        *new_value = value.ToString();
+        return true;
+    }
+
+    //Extract raw binary info
+    const char* existingData = existing.data();
+    size_t existingSize = existing.size();
+    const char* valueData = value.data();
+    size_t valueSize = value.size();
+
+    /*
+     * Allocate the result memory (will be copied to the result string later)
+     * Writing to a string's data() could produce undefined behaviour
+     *  with some C++ STL implementations
+     */
+    size_t dstSize = std::max(existingSize, valueSize);
+    char* dst = new char[dstSize];
+
+    /*
+     * Perform bytewise boolean operation, ignoring extra bytes
+     * TODO: Optimize to use 128+-bit SSE / 64 bit / 32 bit operator,
+     *       or check if the compiler is intelligent enough to do that
+     */
+    size_t numCommonBytes = std::min(existingSize, valueSize);
+    for(size_t i = 0; i < numCommonBytes; i++) {
+        dst[i] = existingData[i] ^ valueData[i];
+    }
+    //Copy remaining bytes, if any
+    if(existingSize > numCommonBytes) {
+        memcpy(dst + numCommonBytes, existingData + numCommonBytes, existingSize - numCommonBytes);
+    } else if(valueSize > numCommonBytes) {
+        memcpy(dst + numCommonBytes, valueData + numCommonBytes, valueSize - numCommonBytes);
+    } //Else: Both have the same size, nothing to be done
+
+    //Copy dst buffer to new_value string
+    *new_value = std::move(std::string(dst, dstSize));
+    //Free allocated temporary resources
+    delete[] dst;
+    //This function does not have any logical error condition
+    return true;
+}
+
+const char* XOROperator::Name() const {
+    return "XOROperator";
+}
+
 std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(
     const std::string& mergeOperatorCode) {
     if(mergeOperatorCode.empty()) {
