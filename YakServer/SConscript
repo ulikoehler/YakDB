@@ -87,4 +87,6 @@ yakServerSrc =  ["src/zutil.cpp",
 
 Export(["yakServerSrc","env"])
 
-env.Program(target="yakserver", source=yakServerSrc, LIBS=libraries)
+yakserver = env.Program(target="yakserver", source=yakServerSrc, LIBS=libraries)
+
+Return('yakserver')

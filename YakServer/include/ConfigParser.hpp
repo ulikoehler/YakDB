@@ -18,6 +18,15 @@ public:
      */
     std::string getTableConfigFile(uint32_t tableIndex) const;
 
+    /**
+     * Safer stoull version that logs issues if a value could not be converted.
+     */
+    unsigned long long safeStoull(std::map<std::string, std::string>& cfg, const std::string& cfgKey);
+
+    /**
+     * Safer stoull version that logs issues if a value could not be converted.
+     */
+    int safeStoi(std::map<std::string, std::string>& cfg, const std::string& cfgKey);
     /*
      * Config options accessible as fields.
      * To simplify the code and to avoid possible performance issues,

@@ -169,7 +169,7 @@ bool parseBool(const std::string& value) {
     if(!(isClearlyFalse || isClearlyTrue)) {
         cerr << "\x1B[33m[Warn] Can't recognize boolean value '"
              << value
-             << "' -- treating as false (please use true/false!)" << endl;
+             << "' -- treating as false (please use true/false!)\x1B[0;30m\n" << endl;
         return true;
     }
     return isClearlyTrue;
@@ -181,6 +181,31 @@ std::string ConfigParser::getTableDirectory(uint32_t tableIndex) const {
 
 std::string ConfigParser::getTableConfigFile(uint32_t tableIndex) const {
     return getTableDirectory(tableIndex) + ".cfg";
+}
+
+unsigned long long ConfigParser::safeStoull(std::map<std::string, std::string>& cfg, const std::string& cfgKey) {
+    const std::string& value = cfg[cfgKey];
+    try {
+        return std::stoull(value);
+    } catch (...) {
+        cerr << "\x1B[33m[Warn] Can't parse unsigned integral value '"
+             << value << "' for config key '"
+             << cfgKey << "'\x1B[0;30m\n" << endl;
+        exit(1);
+    }
+}
+
+
+int ConfigParser::safeStoi(std::map<std::string, std::string>& cfg, const std::string& cfgKey) {
+    const std::string& value = cfg[cfgKey];
+    try {
+        return std::stoi(value);
+    } catch (...) {
+        cerr << "\x1B[33m[Warn] Can't parse integral value '"
+             << value << "' for config key '" << cfgKey
+             << "'\x1B[0;30m\n" << endl;
+        exit(1);
+    }
 }
 
 COLD ConfigParser::ConfigParser(int argc, char** argv) {
@@ -219,21 +244,21 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     split(pullEndpoints, cfg["ZMQ.pull-endpoints"], is_any_of(", "), token_compress_on);
     split(subEndpoints, cfg["ZMQ.sub-endpoints"], is_any_of(", "), token_compress_on);
     zmqIPv4Only = parseBool(cfg["ZMQ.ipv4-only"]);
-    externalRCVHWM = std::stoi(cfg["ZMQ.external-rcv-hwm"]);
-    externalSNDHWM = std::stoi(cfg["ZMQ.external-snd-hwm"]);;
-    internalRCVHWM = std::stoi(cfg["ZMQ.internal-rcv-hwm"]);;
-    internalSNDHWM = std::stoi(cfg["ZMQ.internal-snd-hwm"]);;
+    externalRCVHWM = safeStoi(cfg, "ZMQ.external-rcv-hwm");
+    externalSNDHWM = safeStoi(cfg, "ZMQ.external-snd-hwm");
+    internalRCVHWM = safeStoi(cfg, "ZMQ.internal-rcv-hwm");
+    internalSNDHWM = safeStoi(cfg, "ZMQ.internal-snd-hwm");
     //Table options
-    useMMapReads = parseBool(cfg["use-mmap-reads"]);
-    useMMapWrites = parseBool(cfg["use-mmap-writes"]);
-    defaultTableBlockSize = std::stoull(cfg["RocksDB.table-block-size"]);
-    defaultWriteBufferSize = std::stoull(cfg["RocksDB.write-buffer-size"]);
-    defaultBloomFilterBitsPerKey = std::stoull(cfg["RocksDB.bloom-filter-bits-per-key"]);
+    useMMapReads = parseBool(cfg["RocksDB.use-mmap-reads"]);
+    useMMapWrites = parseBool(cfg["RocksDB.use-mmap-writes"]);
+    defaultTableBlockSize = safeStoull(cfg, "RocksDB.table-block-size");
+    defaultWriteBufferSize = safeStoull(cfg, "RocksDB.write-buffer-size");
+    defaultBloomFilterBitsPerKey = safeStoull(cfg, "RocksDB.bloom-filter-bits-per-key");
     defaultCompression = compressionModeFromString(cfg["RocksDB.compression"]);
     defaultMergeOperator = cfg["RocksDB.merge-operator"];
     tableSaveFolder = cfg["RocksDB.table-dir"];
     //RocksDB options
-    putBatchSize = std::stoul(cfg["RocksDB.update-batch-size"]);
+    putBatchSize = safeStoull(cfg, "RocksDB.put-batch-size");
     //Normalize table save folder to be slash-terminated
     if(tableSaveFolder[tableSaveFolder.size() - 1] != '/') { //if last char is not slash
         tableSaveFolder += "/";
