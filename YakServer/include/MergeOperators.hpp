@@ -35,6 +35,21 @@ class DMulOperator : public rocksdb::AssociativeMergeOperator {
 };
 
 /**
+ * Signed 64-bit double add operator
+ */
+class DAddOperator : public rocksdb::AssociativeMergeOperator {
+ public:
+  virtual bool Merge(
+    const rocksdb::Slice& key,
+    const rocksdb::Slice* existing_value,
+    const rocksdb::Slice& value,
+    std::string* new_value,
+    rocksdb::Logger* logger) const override;
+
+    virtual const char* Name() const override;
+};
+
+/**
  * Binary append operator
  */
 class AppendOperator : public rocksdb::AssociativeMergeOperator {
@@ -54,6 +69,21 @@ class AppendOperator : public rocksdb::AssociativeMergeOperator {
  * Replace merge operator. Acts as if no merge but a normal Put would be done.
  */
 class ReplaceOperator : public rocksdb::AssociativeMergeOperator {
+ public:
+  virtual bool Merge(
+    const rocksdb::Slice& key,
+    const rocksdb::Slice* existing_value,
+    const rocksdb::Slice& value,
+    std::string* new_value,
+    rocksdb::Logger* logger) const override;
+
+    virtual const char* Name() const override;
+};
+
+/**
+ * List append merge operator. Acts as if no merge but a normal Put would be done.
+ */
+class ListAppendOperator : public rocksdb::AssociativeMergeOperator {
  public:
   virtual bool Merge(
     const rocksdb::Slice& key,
