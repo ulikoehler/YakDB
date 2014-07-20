@@ -154,7 +154,7 @@ std::string compressionModeToString(rocksdb::CompressionType compression) {
  *
  * Any unclear value is recognized as false and logged.
  */
-bool parseBool(const std::string& value) {
+static bool parseBool(const std::string& value) {
     std::string ciValue = to_lower_copy(value);
     bool isClearlyTrue = (
             ciValue == "true"
@@ -194,7 +194,6 @@ unsigned long long ConfigParser::safeStoull(std::map<std::string, std::string>& 
         exit(1);
     }
 }
-
 
 int ConfigParser::safeStoi(std::map<std::string, std::string>& cfg, const std::string& cfgKey) {
     const std::string& value = cfg[cfgKey];
