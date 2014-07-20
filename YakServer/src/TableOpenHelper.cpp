@@ -248,6 +248,8 @@ void TableOpenServer::tableOpenWorkerThread() {
                 logger.trace("Opened table #" + std::to_string(tableIndex) + " with compression mode " + compressionModeToString(parameters.compression));
                 //NOTE: Any option that has not been set up until now is now used from the config default
                 rocksdb::Options options;
+                options.allow_mmap_reads = configParser.useMMapReads;
+                options.allow_mmap_writes = configParser.useMMapWrites;
                 parameters.getOptions(options);
                 //Open the table
                 rocksdb::Status status = rocksdb::DB::Open(options, tableDir.c_str(), &databases[tableIndex]);

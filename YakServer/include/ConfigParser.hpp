@@ -39,7 +39,9 @@ public:
     int externalSNDHWM;
     int internalRCVHWM;
     int internalSNDHWM;
-    //Table options
+    //RocksDB table options
+    bool useMMapReads;
+    bool useMMapWrites;
     uint64_t defaultLRUCacheSize;
     uint64_t defaultTableBlockSize;
     uint64_t defaultWriteBufferSize;

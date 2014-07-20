@@ -224,7 +224,8 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     internalRCVHWM = std::stoi(cfg["ZMQ.internal-rcv-hwm"]);;
     internalSNDHWM = std::stoi(cfg["ZMQ.internal-snd-hwm"]);;
     //Table options
-    defaultLRUCacheSize = std::stoull(cfg["RocksDB.lru-cache-size"]);
+    useMMapReads = parseBool(cfg["use-mmap-reads"]);
+    useMMapWrites = parseBool(cfg["use-mmap-writes"]);
     defaultTableBlockSize = std::stoull(cfg["RocksDB.table-block-size"]);
     defaultWriteBufferSize = std::stoull(cfg["RocksDB.write-buffer-size"]);
     defaultBloomFilterBitsPerKey = std::stoull(cfg["RocksDB.bloom-filter-bits-per-key"]);
