@@ -57,14 +57,15 @@ env = Environment(CXX=cxx,
                          'TERM' : os.environ['TERM'],
                          'HOME' : os.environ['HOME']})
 
-malloc = ARGUMENTS.get("malloc","jemalloc")
-libraries = ["rocksdb","bz2","z","zmq","snappy",malloc]
+malloc = ARGUMENTS.get("malloc", "jemalloc")
+libraries = ["rocksdb", "bz2", "z", "zmq", "snappy", malloc]
 if linkmode == "static":
     #Somehow we need this
     libraries.append("snappy")
     #libraries.append("unwind")
 
-yakServerSrc =  ["src/zutil.cpp",
+yakServerSrc =  [
+    "src/zutil.cpp",
     "src/BoyerMoore.cpp",
     "src/FileUtils.cpp",
     "src/main.cpp",
@@ -83,7 +84,8 @@ yakServerSrc =  ["src/zutil.cpp",
     "src/MergeOperators.cpp",
     "src/Server.cpp",
     "src/ThreadUtil.cpp",
-    "src/http/URLParser.cpp"]
+    "src/http/URLParser.cpp"
+]
 
 Export(["yakServerSrc","env"])
 
