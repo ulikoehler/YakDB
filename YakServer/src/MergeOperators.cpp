@@ -362,7 +362,13 @@ std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(
         return std::make_shared<AppendOperator>();
     } else if(mergeOperatorCode == "REPLACE") { //Also handles REPLACE
         return std::make_shared<ReplaceOperator>();
-    }  else if(mergeOperatorCode == "LISTAPPEND") { //Also handles REPLACE
+    } else if(mergeOperatorCode == "AND") {
+        return std::make_shared<ANDOperator>();
+    } else if(mergeOperatorCode == "OR") {
+        return std::make_shared<OROperator>();
+    } else if(mergeOperatorCode == "XOR") {
+        return std::make_shared<XOROperator>();
+    } else if(mergeOperatorCode == "LISTAPPEND") {
         return std::make_shared<ListAppendOperator>();
     } else {
         std::cerr << "Warning: Invalid merge operator code: " << mergeOperatorCode << std::endl;
