@@ -181,7 +181,7 @@ std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(
         return std::make_shared<Int64AddOperator>();
     } else if(mergeOperatorCode == "DMUL") {
         return std::make_shared<DMulOperator>();
-    }  else if(mergeOperatorCode == "DADD") {
+    } else if(mergeOperatorCode == "DADD") {
         return std::make_shared<DAddOperator>();
     } else if(mergeOperatorCode == "APPEND") {
         return std::make_shared<AppendOperator>();
