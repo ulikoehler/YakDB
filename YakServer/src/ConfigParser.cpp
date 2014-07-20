@@ -236,7 +236,7 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     //Log options
     logFile = cfg["Logging.log-file"];
     //Statistics options
-    statisticsExpungeTimeout = stoull(cfg["Statistics.expunge-timeout"]);
+    statisticsExpungeTimeout = safeStoull(cfg, "Statistics.expunge-timeout");
     //ZMQ options
     //FIXME Using space with token_compress=on seems a bit hackish. Could it cause errors?
     split(repEndpoints, cfg["ZMQ.rep-endpoints"], is_any_of(", "), token_compress_on);
