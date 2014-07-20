@@ -57,6 +57,7 @@ ServerBeacon::ServerBeacon(void* context, const std::string& clusterName, uint32
     zbeacon_subscribe = (zbeacon_subscribe_t) dlsym(libczmq, "zbeacon_subscribe");
     zbeacon_socket = (zbeacon_socket_t) dlsym(libczmq, "zbeacon_socket_t");
     //assert(*zbeacon_hostname(beacon));
+    beacon = zbeacon_new(ctx, 7000);
     zbeacon_noecho(beacon);
     zbeacon_set_interval(beacon, interval);
     std::string publishName = "ZKV/" + clusterName;
@@ -65,7 +66,7 @@ ServerBeacon::ServerBeacon(void* context, const std::string& clusterName, uint32
 
 ServerBeacon::~ServerBeacon() {
     
-    //zbeacon_silence(beacon);
-    //zbeacon_destroy(&beacon);
+    zbeacon_silence(beacon);
+    zbeacon_destroy(&beacon);
 }
 

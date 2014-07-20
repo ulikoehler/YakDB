@@ -13,7 +13,7 @@
  * A CZMQ ZBeacon-based autodiscovery controller that loads CZMQ using the dynamic
  * linker and therefore does not introduce a hard dependency on it.
  * 
- * 
+ * The beacon can be 
  */
 class ServerBeacon {
 public:
@@ -22,6 +22,7 @@ public:
     ~ServerBeacon();
 private:
     void* context;
+    void* beacon;
     std::string clusterName;
     uint32_t interval;
     /**
