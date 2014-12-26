@@ -12,6 +12,8 @@
 #include <rocksdb/db.h>
 #include <rocksdb/filter_policy.h>
 #include <rocksdb/cache.h>
+#include <rocksdb/table.h>
+#include <rocksdb/options.h>
 #include <exception>
 #include <fstream>
 #include <dirent.h>
@@ -70,27 +72,31 @@ void COLD TableOpenParameters::toParameterMap(std::map<std::string, std::string>
 }
 
 void TableOpenParameters::getOptions(rocksdb::Options& options) {
+    rocksdb::BlockBasedTableOptions bbOptions;
     //For all numeric options: <= 0 --> disable / use default
     if(lruCacheSize > 0) {
-        options.block_cache = rocksdb::NewLRUCache(lruCacheSize);
+        bbOptions.block_cache =
+            shared_ptr<rocksdb::Cache>(rocksdb::NewLRUCache(lruCacheSize));
     }
     if (tableBlockSize > 0) {
-        options.block_size = tableBlockSize;
+        bbOptions.block_size = tableBlockSize;
     }
     if (writeBufferSize > 0) {
         options.write_buffer_size = writeBufferSize;
     }
     if(bloomFilterBitsPerKey > 0) {
-        options.filter_policy = rocksdb::NewBloomFilterPolicy(bloomFilterBitsPerKey);
-    }
-    if(bloomFilterBitsPerKey > 0) {
-        options.filter_policy = rocksdb::NewBloomFilterPolicy(bloomFilterBitsPerKey);
+        const rocksdb::FilterPolicy* fp =
+            rocksdb::NewBloomFilterPolicy(bloomFilterBitsPerKey);
+        bbOptions.filter_policy = shared_ptr<const rocksdb::FilterPolicy>(fp);
     }
     options.create_if_missing = true;
     //Compression. Default: Snappy
     options.compression = (rocksdb::CompressionType) compression;
     //Merge operator
     options.merge_operator = createMergeOperator(mergeOperatorCode);
+    //Create table factory from advanced block options
+    rocksdb::TableFactory* tf = rocksdb::NewBlockBasedTableFactory(bbOptions);
+    options.table_factory = std::shared_ptr<rocksdb::TableFactory>(tf);
 }
 
 void COLD TableOpenParameters::readTableConfigFile(const ConfigParser& cfg, uint32_t tableIndex) {
