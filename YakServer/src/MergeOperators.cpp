@@ -170,6 +170,7 @@ bool HOT ListAppendOperator::Merge(
     uint32_t newValLength = value.size();
     //In between the old and the new value, we need to add the 4 bytes size
     *new_value = std::move(existing + std::string((const char*)&newValLength, sizeof(uint32_t)) + value.ToString());
+    return true;
 }
 
 bool HOT ANDOperator::Merge(
