@@ -46,7 +46,7 @@ const int BoyerMooreHorspoolSearcher::find(const char* corpus, size_t corpusLeng
     if (patternLength > corpusLength) {
         return -1;
     }
-    for(int k = patternLength - 1 ; k < corpusLength ; ) {
+    for(int k = patternLength - 1 ; k < (int)corpusLength ; ) {
         int j = patternLength - 1;
         int i = k;
         while (j >= 0 && corpus[i] == pattern[j]) {
