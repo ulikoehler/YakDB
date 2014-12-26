@@ -40,7 +40,7 @@ ReadWorkerController::ReadWorkerController(void* context, Tablespace& tablespace
 
 void ReadWorkerController::start() {
     threads = new std::thread*[numThreads];
-    for (int i = 0; i < numThreads; i++) {
+    for (unsigned int i = 0; i < numThreads; i++) {
         threads[i] = new std::thread(readWorkerThreadFunction,
                                      context, std::ref(tablespace),
                                      std::ref(cfg));
@@ -49,12 +49,12 @@ void ReadWorkerController::start() {
 
 void COLD ReadWorkerController::terminateAll() {
     //Send an empty STOP message for each read worker threadt
-    for (int i = 0; i < numThreads; i++) {
+    for (unsigned int i = 0; i < numThreads; i++) {
         //Send an empty msg (signals the table open thread to stop)
         sendEmptyFrameMessage(workerPushSocket);
     }
     //Wait for each thread to exit
-    for (int i = 0; i < numThreads; i++) {
+    for (unsigned int i = 0; i < numThreads; i++) {
         threads[i]->join();
         delete threads[i];
     }

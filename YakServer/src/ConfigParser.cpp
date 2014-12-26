@@ -33,7 +33,7 @@ static std::string safeReadlink(const std::string& filename) {
     //Increase buffer size until the buffer is large enough
     while (1) {
         char* buffer = new char[bufferSize];
-        size_t rc = readlink (filename.c_str(), buffer, bufferSize);
+        ssize_t rc = readlink (filename.c_str(), buffer, bufferSize);
         if (rc == -1) {
             delete[] buffer;
             if(errno == EINVAL) {

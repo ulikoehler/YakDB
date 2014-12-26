@@ -289,6 +289,7 @@ bool AbstractFrameProcessor::sendMap(std::map<std::string, std::string>& values,
     } else {
         assert(more); //If this fails, read the block comment above;
     }
+    return true;
 }
 
 bool AbstractFrameProcessor::sendMsgHandleError(const std::string& str,
