@@ -28,7 +28,7 @@ class Connection(YakDBConnectionBase):
         responseHeader = replyParts[0]
         if not responseHeader.startswith(b"\x31\x01\x00"):
             raise Exception("Response header frame contains invalid header: %d %d %d"
-                            % (ord(responseHeader[0]), ord(responseHeader[1]), ord(responseHeader[2])))
+                            % (responseHeader[0], responseHeader[1], responseHeader[2]))
         #Return the server version string
         return replyParts[1]
     def tableInfo(self, tableNo=1):
@@ -204,9 +204,9 @@ class Connection(YakDBConnectionBase):
         #Send range. "" --> empty frame --> start/end of table
         self._sendRange(startKey,  endKey, more=True)
         #Send key filter parameters
-        self.socket.send("" if keyFilter is None else keyFilter, zmq.SNDMORE)
+        self.socket.send(b"" if keyFilter is None else keyFilter, zmq.SNDMORE)
         #Send value filter parameters
-        self.socket.send("" if valueFilter is None else valueFilter, zmq.SNDMORE)
+        self.socket.send(b"" if valueFilter is None else valueFilter, zmq.SNDMORE)
         #Send skip number
         self._sendBinary64(skip, more=False)
         #Wait for reply
@@ -439,7 +439,7 @@ class Connection(YakDBConnectionBase):
         #Send the table number frame
         self._sendBinary32(tableNo, more=False) #No SNDMORE flag
         msgParts = self.socket.recv_multipart(copy=True)
-        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x02')
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x02')
     def stopServer(self):
         """
         Stop the YakDB server (by sending a stop request). Use with caution.
@@ -447,11 +447,11 @@ class Connection(YakDBConnectionBase):
         self.socket.send(b"\x31\x01\x05")
         if self.mode is zmq.REQ:
             response = self.socket.recv_multipart(copy=True)
-            YakDBConnectionBase._checkHeaderFrame(response,  '\x05')
+            YakDBConnectionBase._checkHeaderFrame(response, b'\x05')
             #Check responseCode
             responseCode = response[0][3]
-            if ord(responseCode) != 0:
-                raise Exception("Server stop code was %d instead of 0 (ACK)" % responseCode)
+            if responseCode != 0:
+                raise YakDBProtocolException("Server stop code was %d instead of 0 (ACK)" % responseCode)
     def compactRange(self, tableNo, startKey=None, endKey=None):
         """
         Compact a range in a table.

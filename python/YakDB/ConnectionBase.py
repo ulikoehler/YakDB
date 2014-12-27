@@ -132,6 +132,9 @@ class YakDBConnectionBase(object):
             - Response code (expects 0x00, else it assumes that the next frame contains the error description msg)
         This function throws an exception on check failure and exits normally on success
         """
+        #We need a single byte as expected type
+        if isinstance(expectedResponseType, bytes):
+            expectedResponseType = expectedResponseType[0]
         if len(msgParts) == 0:
             raise YakDBProtocolException("Received empty reply message")
         headerFrame = msgParts[0]
@@ -145,16 +148,16 @@ class YakDBConnectionBase(object):
                                          % (len(headerFrame),
                                            ("it doesn't even look like a header frame" if not looksLikeAHeaderFrame
                                                else "but it looks like some kind of header frame")))
-        if headerFrame[2] == b'\xFF':
+        if headerFrame[2] == 255:
             raise YakDBProtocolException("Server responded with protocol error")
         if expectedResponseType is not None and headerFrame[2] != expectedResponseType:
             raise YakDBProtocolException("Response code received from server is "
-                        "%d instead of %d" % (ord(headerFrame[2]),  ord(expectedResponseType)))
-        if headerFrame[3] != b'\x00':
+                        "%d instead of %d" % (headerFrame[2], expectedResponseType))
+        if headerFrame[3] != 0:
             errorMsg = msgParts[1] if len(msgParts) >= 2 else "<Unknown>"
             raise YakDBProtocolException(
                 "Response status code is %d instead of 0x00 (ACK), error message: %s"
-                % (ord(headerFrame[3]),  errorMsg))
+                % (headerFrame[3],  errorMsg))
         #Parse and return request ID, if any
         if len(headerFrame) > 4:
             return headerFrame[4:]
@@ -253,7 +256,7 @@ class YakDBConnectionBase(object):
         #Create the table number frame
         msgParts.append(struct.pack('<I', tableNo))
         #Send limit frame
-        msgParts.append("" if limit is None else struct.pack('<Q', limit))
+        msgParts.append(b"" if limit is None else struct.pack('<Q', limit))
         #Send range. "" --> empty frame --> start/end of table
         msgParts += YakDBConnectionBase._rangeToFrames(startKey, endKey)
         #Send key filter parameters

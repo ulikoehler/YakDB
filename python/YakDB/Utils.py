@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf8 -*-
 
-from YakDB.Exceptions import ParameterException
-
 class YakDBUtils:
     """
     This class provides static utility methods for using YakDB.
@@ -12,35 +10,35 @@ class YakDBUtils:
         """
         Increment a database key
         
-        >>> YakDBUtils.incrementKey("node:abc")
-        'node:abd'
-        >>> YakDBUtils.incrementKey("node:")
-        'node;'
-        >>> YakDBUtils.incrementKey("node;")
-        'node<'
-        >>> YakDBUtils.incrementKey("x")
-        'y'
-        >>> YakDBUtils.incrementKey("node\\xFF;")
-        'node\\xff<'
-        >>> YakDBUtils.incrementKey("x\\xFF")
-        'y\\xff'
-        >>> YakDBUtils.incrementKey("\\xFF\\xFF")
-        '\\xff\\xff\\x00'
+        >>> YakDBUtils.incrementKey(b"node:abc")
+        b'node:abd'
+        >>> YakDBUtils.incrementKey(b"node:")
+        b'node;'
+        >>> YakDBUtils.incrementKey(b"node;")
+        b'node<'
+        >>> YakDBUtils.incrementKey(b"x")
+        b'y'
+        >>> YakDBUtils.incrementKey(b"node\\xFF;")
+        b'node\\xff<'
+        >>> YakDBUtils.incrementKey(b"x\\xFF")
+        b'y\\xff'
+        >>> YakDBUtils.incrementKey(b"\\xFF\\xFF")
+        b'\\xff\\xff\\x00'
         """
         #Increment the last char that is != \xFF
-        if isinstance(key, unicode): key = key.encode("utf-8")
+        if isinstance(key, str): key = key.encode("utf-8")
         keyList = list(key)
         #Find & increment the last non-\xFF char 
-        for idx in range(-1,-1-len(keyList),-1):
+        for idx in range(-1,(-1)-len(keyList),-1):
             lastChar = keyList[idx]
-            if lastChar == '\xFF':
+            if lastChar == 255:
                 continue
-            newLastChar = ord(lastChar)+1
-            keyList[idx] = chr(newLastChar)
+            newLastChar = lastChar + 1
+            keyList[idx] = newLastChar
             #If continue above wasn't called, return immediately
-            return "".join(keyList)
+            return bytes(keyList)
         #The key consists of 0xFF characters only
-        return key + "\x00"
+        return key + b"\x00"
 
 def makeUnique(coll):
     """Return coll with duplicate instances removed. The ordering is maintained"""
