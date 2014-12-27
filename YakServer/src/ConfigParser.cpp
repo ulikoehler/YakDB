@@ -224,6 +224,9 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
         } else if(fileExists("./yakdb.cfg")) {
             configFile = "./yakdb.cfg";
             cout << "Using config " << configFile << endl;
+        }  else if(fileExists("./yakdb.cfg")) {
+            configFile = "./yakdb.cfg";
+            cout << "Using config " << configFile << endl;
         } else {
             printUsageAndExit(argv);
         }

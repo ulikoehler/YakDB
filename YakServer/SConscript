@@ -33,7 +33,7 @@ linkflags.append("-Wl,-rpath=.")
 #linkflags.append("-static-libgcc")
 
 #C++ compiler now defaults to clang++ because it has better error messages.
-cxx = ARGUMENTS.get('cxx','clang++')
+cxx = ARGUMENTS.get('cxx','g++')
 stdlib = ARGUMENTS.get('stdlib','default')
 
 if stdlib != "default":
