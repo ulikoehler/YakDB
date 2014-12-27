@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf8 -*-
 from YakDB.Conversion import ZMQBinaryUtil
 from YakDB.Exceptions import ParameterException, YakDBProtocolException, ConnectionStateException
@@ -64,9 +64,9 @@ class YakDBConnectionBase(object):
         """Throws a parameter exception if the given dict contains any None keys or values"""
         #None keys or values are not supported, they can't be mapped to binary!
         # Use empty strings if neccessary.
-        if any(key == None for key in dictionary.iterkeys()) is None:
+        if any(key == None for key in dictionary.keys()) is None:
             raise ParameterException("Dictionary contains a key = None. Can't convert that to binary!")
-        if any(value == None for value in dictionary.itervalues()) is None:
+        if any(value == None for value in dictionary.values()) is None:
             raise ParameterException("Dictionary contains a value = None. Can't convert that to binary!")
     @staticmethod
     def _checkListForNone(thelist):

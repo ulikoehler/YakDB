@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf8 -*-
 """
 Asynchronous YakDB connection that works with the tornado IO loop.

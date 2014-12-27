@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf8 -*-
 import struct
 #Local imports
@@ -99,7 +99,7 @@ class Connection(YakDBConnectionBase):
         self._sendBinary32(tableNo)
         #Send key/value pairs
         nextToSend = None #Needed because the last value shall be sent w/out SNDMORE
-        for key, value in valueDict.iteritems():
+        for key, value in valueDict.items():
             #Send the value from the last loop iteration
             if nextToSend is not None: self.socket.send(nextToSend, zmq.SNDMORE)
             #Map key & value to binary data if neccessary

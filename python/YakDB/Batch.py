@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf8 -*-
 from Conversion import ZMQBinaryUtil
 from Exceptions import ParameterException
