@@ -43,14 +43,14 @@ class Connection(YakDBConnectionBase):
         """
         self._checkRequestReply()
         self._checkSingleConnection()
-        self.socket.send("\x31\x01\x00" + requestId)
+        self.socket.send(b"\x31\x01\x00" + requestId)
         #Check reply message
         replyParts = self.socket.recv_multipart(copy=True)
         if len(replyParts) != 2:
             raise Exception("Expected to receive 2-part message from the server, but got %d"
                             % len(replyParts))
         responseHeader = replyParts[0]
-        if not responseHeader.startswith("\x31\x01\x00"):
+        if not responseHeader.startswith(b"\x31\x01\x00"):
             raise Exception("Response header frame contains invalid header: %d %d %d"
                             % (ord(responseHeader[0]), ord(responseHeader[1]), ord(responseHeader[2])))
         #Return the server version string
@@ -63,11 +63,11 @@ class Connection(YakDBConnectionBase):
         self._checkRequestReply()
         self._checkSingleConnection()
         #Send request
-        self.socket.send("\x31\x01\x06", zmq.SNDMORE)
+        self.socket.send(b"\x31\x01\x06", zmq.SNDMORE)
         self._sendBinary32(tableNo, more=False)
         #Check reply message
         replyParts = self.socket.recv_multipart(copy=True)
-        YakDBConnectionBase._checkHeaderFrame(replyParts, '\x06')
+        YakDBConnectionBase._checkHeaderFrame(replyParts, b'\x06')
         return YakDBConnectionBase._mapScanToDict(replyParts[1:])
     def put(self, tableNo, valueDict, partsync=False, fullsync=False, requestId=""):
         """
@@ -94,7 +94,7 @@ class Connection(YakDBConnectionBase):
             raise ParameterException("Dictionary to be written did not contain any valid data!")
         YakDBConnectionBase._checkDictionaryForNone(valueDict)
         #Send header frame
-        self.socket.send(YakDBConnectionBase._getWriteHeader("\x20", partsync, fullsync, requestId), zmq.SNDMORE)
+        self.socket.send(YakDBConnectionBase._getWriteHeader(b"\x20", partsync, fullsync, requestId), zmq.SNDMORE)
         #Send the table number
         self._sendBinary32(tableNo)
         #Send key/value pairs
@@ -114,7 +114,7 @@ class Connection(YakDBConnectionBase):
         #If this is a req/rep connection, receive a reply
         if self.mode is zmq.REQ:
             msgParts = self.socket.recv_multipart(copy=True)
-            YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x20')
+            YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x20')
     def delete(self, tableNo, keys, partsync=False, fullsync=False, requestId=""):
         """
         Delete one or multiples values, identified by their keys, from a table.
@@ -134,7 +134,7 @@ class Connection(YakDBConnectionBase):
         YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = ZMQBinaryUtil.convertToBinary(keys)
         #Send header frame
-        self.socket.send(YakDBConnectionBase._getWriteHeader("\x21", partsync, fullsync, requestId), zmq.SNDMORE)
+        self.socket.send(YakDBConnectionBase._getWriteHeader(b"\x21", partsync, fullsync, requestId), zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send key list
@@ -149,7 +149,7 @@ class Connection(YakDBConnectionBase):
         #Wait for reply
         if self.mode is zmq.REQ:
             msgParts = self.socket.recv_multipart(copy=True)
-            YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x21')
+            YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x21')
     def read(self, tableNo, keys, mapKeys=False, requestId=""):
         """
         Read one or multiples values, identified by their keys, from a table.
@@ -172,7 +172,7 @@ class Connection(YakDBConnectionBase):
         YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = ZMQBinaryUtil.convertToBinaryList(keys)
         #Send header frame
-        self.socket.send("\x31\x01\x10" + requestId, zmq.SNDMORE)
+        self.socket.send(b"\x31\x01\x10" + requestId, zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send key list
@@ -186,7 +186,7 @@ class Connection(YakDBConnectionBase):
         self.socket.send(nextToSend)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        YakDBConnectionBase._checkHeaderFrame(msgParts, '\x10')
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x10')
         #Return data frames
         values = msgParts[1:]
         if mapKeys:
@@ -220,7 +220,7 @@ class Connection(YakDBConnectionBase):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x13" + ("\x01" if invert else "\x00") + requestId, zmq.SNDMORE)
+        self.socket.send(b"\x31\x01\x13" + (b"\x01" if invert else b"\x00") + requestId, zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send limit frame
@@ -235,7 +235,7 @@ class Connection(YakDBConnectionBase):
         self._sendBinary64(skip, more=False)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        YakDBConnectionBase._checkHeaderFrame(msgParts, '\x13') #Remap the returned key/value pairs to a dict
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x13') #Remap the returned key/value pairs to a dict
         dataParts = msgParts[1:]
         #Return appropriate data format
         if mapData:
@@ -256,7 +256,7 @@ class Connection(YakDBConnectionBase):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x14" + ("\x01" if invert else "\x00") + requestId, zmq.SNDMORE)
+        self.socket.send(b"\x31\x01\x14" + (b"\x01" if invert else b"\x00") + requestId, zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send limit frame
@@ -271,7 +271,7 @@ class Connection(YakDBConnectionBase):
         self._sendBinary64(skip, more=False)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        YakDBConnectionBase._checkHeaderFrame(msgParts, '\x14') #Remap the returned key/value pairs to a dict
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x14') #Remap the returned key/value pairs to a dict
         dataParts = msgParts[1:]
         return dataParts
     def deleteRange(self, tableNo, startKey, endKey, limit=None):
@@ -292,14 +292,14 @@ class Connection(YakDBConnectionBase):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x22", zmq.SNDMORE)
+        self.socket.send(b"\x31\x01\x22", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo, more=True)
         #Send range. "" --> empty frame --> start/end of tabe
         self._sendRange(startKey,  endKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x22')
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x22')
     def count(self, tableNo, startKey, endKey):
         """
         self._checkSingleConnection()
@@ -319,14 +319,14 @@ class Connection(YakDBConnectionBase):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x11", zmq.SNDMORE)
+        self.socket.send(b"\x31\x01\x11", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send range. "" --> empty frame --> start/end of table
         self._sendRange(startKey,  endKey)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x11')
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x11')
         #Deserialize
         binaryCount = msgParts[1]
         count = struct.unpack("<Q", binaryCount)[0]
@@ -358,7 +358,7 @@ class Connection(YakDBConnectionBase):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x12", zmq.SNDMORE)
+        self.socket.send(b"\x31\x01\x12", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send key list
@@ -372,11 +372,11 @@ class Connection(YakDBConnectionBase):
         self.socket.send(nextToSend)
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
-        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x12')
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x12')
         #Return the data frames after mapping them to bools
         processedValues = []
         for msgPart in msgParts[1:]:
-            processedValues.append(False if msgPart == "\x00" else True)
+            processedValues.append(False if msgPart == b"\x00" else True)
         return processedValues
     def openTable(self, tableNo, lruCacheSize=None, writeBufferSize=None, tableBlocksize=None, bloomFilterBitsPerKey=None, compression="SNAPPY", mergeOperator="REPLACE"):
         """
@@ -409,30 +409,25 @@ class Connection(YakDBConnectionBase):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        headerFrame = "\x31\x01\x01" + ("\x00" if compression else "\x01")
+        headerFrame = b"\x31\x01\x01" + (b"\x00" if compression else b"\x01")
         self.socket.send(headerFrame, zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         #Send parameter map
         if lruCacheSize is not None:
-            self.socket.send("LRUCacheSize", zmq.SNDMORE)
-            self.socket.send("%d" % lruCacheSize, zmq.SNDMORE)
+            self.__sendDecimalParam("LRUCacheSize", lruCacheSize)
         if tableBlocksize is not None:
-            self.socket.send("Blocksize", zmq.SNDMORE)
-            self.socket.send("%d" % tableBlocksize, zmq.SNDMORE)
+            self.__sendDecimalParam("Blocksize", tableBlocksize)
         if writeBufferSize  is not None:
-            self.socket.send("WriteBufferSize", zmq.SNDMORE)
-            self.socket.send("%d" % writeBufferSize, zmq.SNDMORE)
+            self.__sendDecimalParam("WriteBufferSize", writeBufferSize)
         if bloomFilterBitsPerKey is not None:
-            self.socket.send("BloomFilterBitsPerKey", zmq.SNDMORE)
-            self.socket.send("%d" % bloomFilterBitsPerKey, zmq.SNDMORE)
-        self.socket.send("MergeOperator", zmq.SNDMORE)
-        self.socket.send(mergeOperator, zmq.SNDMORE)
-        self.socket.send("CompressionMode", zmq.SNDMORE)
-        self.socket.send(compression)
+            self.__sendDecimalParam("BloomFilterBitsPerKey", bloomFilterBitsPerKey)
+
+        self.__sendBytesParam("MergeOperator", mergeOperator)
+        self.__sendBytesParam("CompressionMode", compression, flags=0)
         #Receive and extract response code
         msgParts = self.socket.recv_multipart(copy=True)
-        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x01')
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x01')
     def truncateTable(self, tableNo):
         """
         Close & truncate a table.
@@ -446,11 +441,11 @@ class Connection(YakDBConnectionBase):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x04", zmq.SNDMORE)
+        self.socket.send(b"\x31\x01\x04", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo, 0) #No SNDMORE flag
         msgParts = self.socket.recv_multipart(copy=True)
-        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x04')
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x04')
     def closeTable(self, tableNo):
         """
         Close a table.
@@ -464,7 +459,7 @@ class Connection(YakDBConnectionBase):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x02", zmq.SNDMORE)
+        self.socket.send(b"\x31\x01\x02", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo, more=False) #No SNDMORE flag
         msgParts = self.socket.recv_multipart(copy=True)

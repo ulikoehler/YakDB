@@ -58,7 +58,7 @@ class YakDBConnectionBase(object):
     def _getWriteHeader(requestCode, partsync, fullsync, requestId):
         """Build the request header string including the write flags"""
         flags = (1 if partsync else 0) | (2 if fullsync else 0)
-        return "\x31\x01%s%s%s" % (requestCode, chr(flags), requestId)
+        return b"\x31\x01" + requestCode + bytes([flags]) + requestId
     @staticmethod
     def _checkDictionaryForNone(dictionary):
         """Throws a parameter exception if the given dict contains any None keys or values"""
@@ -127,19 +127,19 @@ class YakDBConnectionBase(object):
         if len(headerFrame) < 4:
             #Check if it looks like a header frame (magic byte + version byte)
             looksLikeAHeaderFrame = (len(headerFrame) >= 1)
-            if ((len(headerFrame) >= 1 and headerFrame[0] != '\x31') or
-                (len(headerFrame) >= 2 and headerFrame[1] != '\x01')):
+            if ((len(headerFrame) >= 1 and headerFrame[0] != b'\x31') or
+                (len(headerFrame) >= 2 and headerFrame[1] != b'\x01')):
                  looksLikeAHeaderFrame = False
             raise YakDBProtocolException("Reponse header frame has size of %d, but expected size-4 frame, %s"
                                          % (len(headerFrame),
                                            ("it doesn't even look like a header frame" if not looksLikeAHeaderFrame
                                                else "but it looks like some kind of header frame")))
-        if headerFrame[2] == '\xFF':
+        if headerFrame[2] == b'\xFF':
             raise YakDBProtocolException("Server responded with protocol error")
         if expectedResponseType is not None and headerFrame[2] != expectedResponseType:
             raise YakDBProtocolException("Response code received from server is "
                         "%d instead of %d" % (ord(headerFrame[2]),  ord(expectedResponseType)))
-        if headerFrame[3] != '\x00':
+        if headerFrame[3] != b'\x00':
             errorMsg = msgParts[1] if len(msgParts) >= 2 else "<Unknown>"
             raise YakDBProtocolException(
                 "Response status code is %d instead of 0x00 (ACK), error message: %s"
@@ -148,6 +148,16 @@ class YakDBConnectionBase(object):
         if len(headerFrame) > 4:
             return headerFrame[4:]
         return None #No request ID
+    def __sendBytesParam(self, key, value, flags=zmq.SNDMORE):
+        """
+        Set a binary key/value pair in two distinct frames over self.socket.
+        """
+        self.socket.send(key, zmq.SNDMORE)
+        self.socket.send(value, flags)
+    def __sendDecimalParam(self, key, value, flags=zmq.SNDMORE):
+        """Like __sendBytesParam but sends a decimal number as parameter"""
+        self.socket.send(key, zmq.SNDMORE)
+        self.socket.send(("%d" % value).encode(), flags)
     def _checkConnection(self):
         """Check if the current instance socket is connected, else raise an exception"""
         if self.socket is None:
@@ -215,7 +225,7 @@ class YakDBConnectionBase(object):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        msgParts = ["\x31\x01\x13" + ("\x01" if invert else "\x00") + requestId]
+        msgParts = [b"\x31\x01\x13" + (b"\x01" if invert else b"\x00") + requestId]
         #Create the table number frame
         msgParts.append(struct.pack('<I', tableNo))
         #Send limit frame
@@ -241,7 +251,7 @@ class YakDBConnectionBase(object):
         self.__class__._checkParameterType(tableNo, int, "tableNo")
         convertedKeys = ZMQBinaryUtil.convertToBinaryList(keys)
         #Send header frame
-        msgParts = ["\x31\x01\x10" + requestId]
+        msgParts = [b"\x31\x01\x10" + requestId]
         #Send the table number frame
         msgParts.append(struct.pack('<I', tableNo))
         #Send key list
