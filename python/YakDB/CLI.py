@@ -203,6 +203,9 @@ def yakCLI():
     """
     Call this function to use the yak CLI on sys.argv.
     """
+    if sys.version_info.major < 3:
+        print "YakDB requires Python 3 to run. Please run yak using a python3k interpreter!"
+
     parser = argparse.ArgumentParser(description="YakDB client tool")
     #Server optionstype=int
     serverArgsGroup = parser.add_argument_group(parser, "Server options")
