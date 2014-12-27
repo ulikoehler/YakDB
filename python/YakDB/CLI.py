@@ -98,7 +98,7 @@ def scan(db, args):
     for key, value in it:
         print(key + ", " + value)
 
-def doList(db, args):
+def listKeysInRange(db, args):
     tableNo = args.tableNo
     #Override -t with positional argument, if any
     if args.table is not None:
@@ -411,7 +411,7 @@ def yakCLI():
             nargs='?',
             action="store",
             help="The table to list. Overrides -t option.")
-    parserList.set_defaults(func=doList)
+    parserList.set_defaults(func=listKeysInRange)
     #Count
     parserCount = subparsers.add_parser("count", description="Count how many keys exist in a specified range of the table")
     parserCount.add_argument('--from',

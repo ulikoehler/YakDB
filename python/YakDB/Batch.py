@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf8 -*-
-from Conversion import ZMQBinaryUtil
-from Exceptions import ParameterException
+from YakDB.Conversion import ZMQBinaryUtil
+from YakDB.Exceptions import ParameterException
 
 class AutoWriteBatch:
     """

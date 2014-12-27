@@ -12,30 +12,6 @@ class Connection(YakDBConnectionBase):
     """
     An instance of this class represents a connection to a YakDB database.
     """
-    def _sendBinary32(self, value, more=True):
-        """
-        Send a binary 32-bit number (little-endian) over the current socket
-        """
-        ZMQBinaryUtil.sendBinary32(self.socket, value, more)
-    def _sendBinary64(self, value, more=True):
-        """
-        Send a binary 32-bit number (little-endian) over the current socket
-        """
-        if value is None:
-            self.socket.send("", (zmq.SNDMORE if more else 0))
-        else:
-            ZMQBinaryUtil.sendBinary64(self.socket, value, more)
-    def _sendRange(self, startKey,  endKey,  more=False):
-        """
-        Send a dual-frame range over the socket.
-        If any of the keys is None or empty, a zero-sized frame is sent
-        @param more If this is set to true, not only the range start frame but also the range end frame is sent
-            with the ZMQ_SNDMORE flag
-        """
-        startKey = "" if startKey is None else ZMQBinaryUtil.convertToBinary(startKey)
-        endKey = "" if endKey is None else ZMQBinaryUtil.convertToBinary(endKey)
-        self.socket.send(startKey, zmq.SNDMORE)
-        self.socket.send(endKey,  (zmq.SNDMORE if more else 0))
     def serverInfo(self, requestId=b""):
         """
         Send a server info request to the server and return the version string
@@ -264,9 +240,9 @@ class Connection(YakDBConnectionBase):
         #Send range. "" --> empty frame --> start/end of table
         self._sendRange(startKey,  endKey, more=True)
         #Send key filter parameters
-        self.socket.send("" if keyFilter is None else keyFilter, zmq.SNDMORE)
+        self.socket.send(b"" if keyFilter is None else keyFilter, zmq.SNDMORE)
         #Send value filter parameters
-        self.socket.send("" if valueFilter is None else valueFilter, zmq.SNDMORE)
+        self.socket.send(b"" if valueFilter is None else valueFilter, zmq.SNDMORE)
         #Send skip number
         self._sendBinary64(skip, more=False)
         #Wait for reply
@@ -415,16 +391,16 @@ class Connection(YakDBConnectionBase):
         self._sendBinary32(tableNo)
         #Send parameter map
         if lruCacheSize is not None:
-            self.__sendDecimalParam("LRUCacheSize", lruCacheSize)
+            self.__sendDecimalParam(b"LRUCacheSize", lruCacheSize)
         if tableBlocksize is not None:
-            self.__sendDecimalParam("Blocksize", tableBlocksize)
+            self.__sendDecimalParam(b"Blocksize", tableBlocksize)
         if writeBufferSize  is not None:
-            self.__sendDecimalParam("WriteBufferSize", writeBufferSize)
+            self.__sendDecimalParam(b"WriteBufferSize", writeBufferSize)
         if bloomFilterBitsPerKey is not None:
-            self.__sendDecimalParam("BloomFilterBitsPerKey", bloomFilterBitsPerKey)
+            self.__sendDecimalParam(b"BloomFilterBitsPerKey", bloomFilterBitsPerKey)
 
-        self.__sendBytesParam("MergeOperator", mergeOperator)
-        self.__sendBytesParam("CompressionMode", compression, flags=0)
+        self.__sendBytesParam(b"MergeOperator", mergeOperator)
+        self.__sendBytesParam(b"CompressionMode", compression, flags=0)
         #Receive and extract response code
         msgParts = self.socket.recv_multipart(copy=True)
         YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x01')
@@ -468,7 +444,7 @@ class Connection(YakDBConnectionBase):
         """
         Stop the YakDB server (by sending a stop request). Use with caution.
         """
-        self.socket.send("\x31\x01\x05")
+        self.socket.send(b"\x31\x01\x05")
         if self.mode is zmq.REQ:
             response = self.socket.recv_multipart(copy=True)
             YakDBConnectionBase._checkHeaderFrame(response,  '\x05')
@@ -488,12 +464,12 @@ class Connection(YakDBConnectionBase):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x03", zmq.SNDMORE)
+        self.socket.send(b"\x31\x01\x03", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo, more=True)
         self._sendRange(startKey,  endKey)
         msgParts = self.socket.recv_multipart(copy=True)
-        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x03')
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x03')
     def initializePassiveDataJob(self, tableNo, startKey=None, endKey=None, scanLimit=None, chunksize=None):
         """
         Initialize a job on the server that waits for client requests.
@@ -511,7 +487,7 @@ class Connection(YakDBConnectionBase):
         self._checkSingleConnection()
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x42", zmq.SNDMORE)
+        self.socket.send(b"\x31\x01\x42", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo)
         self._sendBinary32(chunksize)
@@ -520,7 +496,7 @@ class Connection(YakDBConnectionBase):
         self._sendRange(startKey,  endKey)
         #Receive response
         msgParts = self.socket.recv_multipart(copy=True)
-        YakDBConnectionBase._checkHeaderFrame(msgParts,  '\x42')
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x42')
         if len(msgParts) < 2:
             raise YakDBProtocolException("CSPTMIR response does not contain APID frame")
         #Get the APID and create a new job instance
@@ -535,7 +511,7 @@ class Connection(YakDBConnectionBase):
         YakDBConnectionBase._checkParameterType(apid, int, "apid")
         self._checkRequestReply()
         #Send header frame
-        self.socket.send("\x31\x01\x50", zmq.SNDMORE)
+        self.socket.send(b"\x31\x01\x50", zmq.SNDMORE)
         #Send APID
         self._sendBinary64(apid, more=False)
         #Receive response chunk
@@ -543,9 +519,9 @@ class Connection(YakDBConnectionBase):
         #A response code of 0x01 or 0x02 also indicates success
         if len(msgParts) >= 1 and len(msgParts[0]) > 2:
             hdrList = list(msgParts[0]) #Strings are immutable!
-            hdrList[3] = '\x00' #Otherwise _checkHeaderFrame would fail
+            hdrList[3] = b'\x00' #Otherwise _checkHeaderFrame would fail
             msgParts[0] = b"".join(hdrList)
-        YakDBConnectionBase._checkHeaderFrame(msgParts, '\x50')
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x50')
         #We silently ignore the partial data / no data flags from the header,
         # because we can simply deduce them from the data frames.
         dataParts = msgParts[1:]

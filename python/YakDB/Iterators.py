@@ -45,7 +45,8 @@ class KeyValueIterator(object):
         #Get the key to use as start key on chunk load
         lastIdentifier = (scanRes[-1][0])
         self.nextStartKey = YakDBUtils.incrementKey(lastIdentifier)
-    def next(self):
+    def next(self): return self.__next__()
+    def __next__(self):
         """
         Get the next key-value pair
         """

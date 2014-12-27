@@ -75,6 +75,17 @@ class YakDBConnectionBase(object):
         # Use empty strings if neccessary.
         if any(key == None for key in thelist) is None:
             raise ParameterException("Dictionary contains a key = None. Can't convert that to binary!")
+    def _sendRange(self, startKey,  endKey,  more=False):
+        """
+        Send a dual-frame range over the socket.
+        If any of the keys is None or empty, a zero-sized frame is sent
+        @param more If this is set to true, not only the range start frame but also the range end frame is sent
+            with the ZMQ_SNDMORE flag
+        """
+        startKey = b"" if startKey is None else ZMQBinaryUtil.convertToBinary(startKey)
+        endKey = b"" if endKey is None else ZMQBinaryUtil.convertToBinary(endKey)
+        self.socket.send(startKey, zmq.SNDMORE)
+        self.socket.send(endKey,  (zmq.SNDMORE if more else 0))
     @staticmethod
     def _checkParameterType(value, expectedType, name,  allowNone=False):
         """
@@ -108,8 +119,8 @@ class YakDBConnectionBase(object):
         return {dataParts[i]: dataParts[i+1] for i in range(0,len(dataParts),2)}
     @staticmethod
     def _rangeToFrames(startKey, endKey):
-        startKey = "" if startKey is None else ZMQBinaryUtil.convertToBinary(startKey)
-        endKey = "" if endKey is None else ZMQBinaryUtil.convertToBinary(endKey)
+        startKey = b"" if startKey is None else ZMQBinaryUtil.convertToBinary(startKey)
+        endKey = b"" if endKey is None else ZMQBinaryUtil.convertToBinary(endKey)
         return [startKey, endKey]
     @staticmethod
     def _checkHeaderFrame(msgParts, expectedResponseType=None):
@@ -158,6 +169,19 @@ class YakDBConnectionBase(object):
         """Like __sendBytesParam but sends a decimal number as parameter"""
         self.socket.send(key, zmq.SNDMORE)
         self.socket.send(("%d" % value).encode(), flags)
+    def _sendBinary32(self, value, more=True):
+        """
+        Send a binary 32-bit number (little-endian) over the current socket
+        """
+        ZMQBinaryUtil.sendBinary32(self.socket, value, more)
+    def _sendBinary64(self, value, more=True):
+        """
+        Send a binary 32-bit number (little-endian) over the current socket
+        """
+        if value is None:
+            self.socket.send("", (zmq.SNDMORE if more else 0))
+        else:
+            ZMQBinaryUtil.sendBinary64(self.socket, value, more)
     def _checkConnection(self):
         """Check if the current instance socket is connected, else raise an exception"""
         if self.socket is None:
@@ -233,9 +257,9 @@ class YakDBConnectionBase(object):
         #Send range. "" --> empty frame --> start/end of table
         msgParts += YakDBConnectionBase._rangeToFrames(startKey, endKey)
         #Send key filter parameters
-        msgParts.append("" if keyFilter is None else keyFilter)
+        msgParts.append(b"" if keyFilter is None else keyFilter)
         #Send value filter parameters
-        msgParts.append("" if keyFilter is None else valueFilter) 
+        msgParts.append(b"" if keyFilter is None else valueFilter) 
         #Send skip frame
         msgParts.append(struct.pack('<Q', skip))
         return msgParts
