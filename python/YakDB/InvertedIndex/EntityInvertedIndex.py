@@ -11,7 +11,11 @@ from YakDB.Utils import makeUnique
 from YakDB.InvertedIndex import InvertedIndex
 import functools
 import collections
-import cPickle as pickle
+#Python3 has no separate cPickle module
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 #Only needed for the default key extractor, but it's a thin wrapper
 import hashlib

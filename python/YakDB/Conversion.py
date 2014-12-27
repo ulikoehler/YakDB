@@ -4,7 +4,7 @@ import platform
 import zmq
 import struct
 import collections
-from Exceptions import ParameterException
+from YakDB.Exceptions import ParameterException
 
 class ZMQBinaryUtil:
     """
