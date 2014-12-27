@@ -12,10 +12,10 @@ import YakDB.Dump
 from YakDB.Iterators import KeyIterator, KeyValueIterator
 
 def info(db, args):
-    print(db.serverInfo())
+    print((db.serverInfo()))
 
 def tableInfo(db, args):
-    print db.tableInfo(args.table)
+    print(db.tableInfo(args.table))
 
 def stop(db, args):
     db.stopServer()
@@ -27,7 +27,7 @@ def read(db, args):
     #Convert value-only to key-->value map if not --print-raw is set
     if args.printRaw:
         for line in output:
-            print line
+            print(line)
     else:
         outMap = {}
         for index, inval in enumerate(keys):
@@ -39,27 +39,27 @@ def put(db, args):
     keysValues = args.keyValuePairs
     #Build the key/value dict
     if len(keysValues) % 2 != 0:
-        print("Didn't find a value for key %s, ignoring that key" % keysValues[-1])
+        print(("Didn't find a value for key %s, ignoring that key" % keysValues[-1]))
         keysValues = keysValues[0:-1]
     keys = keysValues[0::2]
     values = keysValues[1::2]
-    putDict = dict(zip(keys, values))
+    putDict = dict(list(zip(keys, values)))
     db.put(tableNo, putDict)
     #Convert value-only to key-->value map
     if not args.quiet:
-        for key, value in putDict.iteritems():
-            print("Successfully put '%s' --> '%s'" % (key, value))
+        for key, value in putDict.items():
+            print(("Successfully put '%s' --> '%s'" % (key, value)))
 
 def exists(db, args):
     tableNo = args.tableNo
     keys = args.keys
     result = db.exists(tableNo, keys)
     if args.printNumeric:
-        result = map(lambda x: 1 if x else 0, result)
+        result = [1 if x else 0 for x in result]
     #Convert value-only to key-->value map
     if args.printRaw:
         for value in result:
-            print value
+            print(value)
     else: #Print dictionary
         outMap = {}
         for index, inval in enumerate(keys):
@@ -71,7 +71,7 @@ def delete(db, args):
     keys = args.keys
     db.delete(tableNo, keys)
     if not args.quiet:
-        print("Deleted [%s]" % ", ".join(keys))
+        print(("Deleted [%s]" % ", ".join(keys)))
 
 def deleteRange(db, args):
     tableNo = args.tableNo
@@ -96,7 +96,7 @@ def scan(db, args):
     #Lazily iterate over key value tuples
     it = KeyValueIterator(db, tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, skip=skip, invert=invert)
     for key, value in it:
-        print key + ", " + value
+        print(key + ", " + value)
 
 def doList(db, args):
     tableNo = args.tableNo
@@ -115,7 +115,7 @@ def doList(db, args):
     for key in it:
         #This won't really work for newline-containing keys,
         # but we don't recommend them anyway.
-        print key
+        print(key)
 
 
 def dump(db, args):
@@ -136,10 +136,10 @@ def importDump(db, args):
         tableNo = args.table
     inputFile = args.inputFile
     if not os.path.exists(inputFile):
-        print >>sys.stderr,"Error: Input file '%s' does not exist!" % inputFile
+        print("Error: Input file '%s' does not exist!" % inputFile, file=sys.stderr)
         sys.exit(1)
     if not os.path.isfile(inputFile):
-        print >>sys.stderr,"Error: Input file '%s' is not a file!" % inputFile
+        print("Error: Input file '%s' is not a file!" % inputFile, file=sys.stderr)
         sys.exit(1)
     YakDB.Dump.importYDFDump(db, inputFile, tableNo)
 
@@ -150,7 +150,7 @@ def count(db, args):
         tableNo = args.table
     fromKey = args.fromKey
     toKey = args.toKey
-    print(db.count(tableNo, fromKey, toKey))
+    print((db.count(tableNo, fromKey, toKey)))
 
 def compact(db, args):
     tables = [args.tableNo]
@@ -161,7 +161,7 @@ def compact(db, args):
     for table in tables:
         db.compactRange(table, fromKey, toKey)
         if not args.quiet:
-            print "Compaction finished"
+            print("Compaction finished")
 
 def openTable(db, args):
     compression = args.compression
@@ -175,7 +175,7 @@ def openTable(db, args):
                     tableBlocksize=blocksize, bloomFilterBitsPerKey=bloomFilterBitsPerKey,
                     compression=compression, mergeOperator=mergeOperator)
         if not args.quiet:
-            print "Opening table #%d finished" % table
+            print("Opening table #%d finished" % table)
 
 def closeTable(db, args):
     tables = [args.tableNo]
@@ -184,7 +184,7 @@ def closeTable(db, args):
     for table in tables:
         db.closeTable(table)
         if not args.quiet:
-            print "Closing table #%d finished" % table
+            print("Closing table #%d finished" % table)
 
 def truncateTable(db, args):
     tables = [args.tableNo]
@@ -193,7 +193,7 @@ def truncateTable(db, args):
     for table in tables:
         db.truncateTable(table)
         if not args.quiet:
-            print "Truncating table #%d finished" % table
+            print("Truncating table #%d finished" % table)
 
 
 def repl(db, args):
