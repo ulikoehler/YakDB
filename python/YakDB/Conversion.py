@@ -51,17 +51,17 @@ class ZMQBinaryUtil:
         
         For other types, raises an exception
         """
-        if type(value) is str:
+        if type(value) is bytes:
             return value
         elif type(value) is int:
             return struct.pack('<i', value)
         elif type(value) is float:
             return struct.pack('<d', value)
-        elif type(value) is unicode:
+        elif type(value) is str:
             return value.encode("utf-8")
         #Listlike types
         elif isinstance(value, collections.Iterable):
-            #str and unicode are also iterable, but we already handled that
+            #str and bytes are also iterable, but we already handled that
             if not convertIterables:
                 raise ParameterException("Value '%s' contains nested iterable or iterable conversion is disabled, can't convert!" % str(value))
             return [ZMQBinaryUtil.convertToBinary(val, convertIterables=False)

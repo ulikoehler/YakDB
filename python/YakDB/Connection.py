@@ -36,7 +36,7 @@ class Connection(YakDBConnectionBase):
         endKey = "" if endKey is None else ZMQBinaryUtil.convertToBinary(endKey)
         self.socket.send(startKey, zmq.SNDMORE)
         self.socket.send(endKey,  (zmq.SNDMORE if more else 0))
-    def serverInfo(self, requestId=""):
+    def serverInfo(self, requestId=b""):
         """
         Send a server info request to the server and return the version string
         @return The server version string
@@ -69,7 +69,7 @@ class Connection(YakDBConnectionBase):
         replyParts = self.socket.recv_multipart(copy=True)
         YakDBConnectionBase._checkHeaderFrame(replyParts, b'\x06')
         return YakDBConnectionBase._mapScanToDict(replyParts[1:])
-    def put(self, tableNo, valueDict, partsync=False, fullsync=False, requestId=""):
+    def put(self, tableNo, valueDict, partsync=False, fullsync=False, requestId=b""):
         """
         Write a dictionary of key-value pairs to the connected servers.
 
@@ -115,7 +115,7 @@ class Connection(YakDBConnectionBase):
         if self.mode is zmq.REQ:
             msgParts = self.socket.recv_multipart(copy=True)
             YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x20')
-    def delete(self, tableNo, keys, partsync=False, fullsync=False, requestId=""):
+    def delete(self, tableNo, keys, partsync=False, fullsync=False, requestId=b""):
         """
         Delete one or multiples values, identified by their keys, from a table.
 
@@ -150,7 +150,7 @@ class Connection(YakDBConnectionBase):
         if self.mode is zmq.REQ:
             msgParts = self.socket.recv_multipart(copy=True)
             YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x21')
-    def read(self, tableNo, keys, mapKeys=False, requestId=""):
+    def read(self, tableNo, keys, mapKeys=False, requestId=b""):
         """
         Read one or multiples values, identified by their keys, from a table.
 
@@ -192,7 +192,7 @@ class Connection(YakDBConnectionBase):
         if mapKeys:
             values = YakDBConnectionBase._mapReadKeyValues(keys, values)
         return values
-    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, mapData=False, requestId=""):
+    def scan(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, mapData=False, requestId=b""):
         """
         Synchronous scan. Scans an entire range at once.
         The scan stops at the table end, endKey (exclusive) or when
@@ -243,7 +243,7 @@ class Connection(YakDBConnectionBase):
         else:
             return YakDBConnectionBase._mapScanToTupleList(dataParts)
 
-    def list(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, mapData=False, requestId=""):
+    def list(self, tableNo, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, mapData=False, requestId=b""):
         """
         Synchronous list. Fully equivalent to scan, but only returns keys.
         See scan documentation for further reference.
