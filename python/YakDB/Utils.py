@@ -37,7 +37,7 @@ class YakDBUtils:
             keyList[idx] = newLastChar
             #If continue above wasn't called, return immediately
             return bytes(keyList)
-        #The key consists of 0xFF characters only
+        #The key consists of 0xFF characters only: Extend length
         return key + b"\x00"
 
 def makeUnique(coll):

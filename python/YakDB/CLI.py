@@ -96,7 +96,7 @@ def scan(db, args):
     #Lazily iterate over key value tuples
     it = KeyValueIterator(db, tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, skip=skip, invert=invert)
     for key, value in it:
-        print(key + ", " + value)
+        print("{0},{1}".format(key, value))
 
 def listKeysInRange(db, args):
     tableNo = args.tableNo
