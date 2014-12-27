@@ -37,8 +37,8 @@ cxx = ARGUMENTS.get('cxx','g++')
 stdlib = ARGUMENTS.get('stdlib','default')
 
 if stdlib != "default":
-    cxxflags.append("-stdlib=libc++")
-    linkflags.append("-stdlib=libc++")
+    cxxflags.append("-stdlib=" + stdlib)
+    linkflags.append("-stdlib=" + stdlib)
 
 #Fix clang bug on precise
 if cxx == "clang++":
