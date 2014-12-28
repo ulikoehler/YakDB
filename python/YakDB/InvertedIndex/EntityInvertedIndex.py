@@ -9,6 +9,7 @@ from YakDB.ConnectionBase import YakDBConnectionBase
 from YakDB.TornadoConnection import TornadoConnection
 from YakDB.Utils import makeUnique
 from YakDB.InvertedIndex import InvertedIndex
+from YakDB.Iterators import KeyValueIterator
 import functools
 import collections
 #Python3 has no separate cPickle module
@@ -20,6 +21,7 @@ except ImportError:
 #Only needed for the default key extractor, but it's a thin wrapper
 import hashlib
 import base64
+
 
 def hashEntity(entity):
     """
@@ -37,7 +39,7 @@ class EntityInvertedIndex(object):
     at least a minimal number of results. The overall number of results can be set by limit.
 
     The default implementation uses pickle as value packer and SHA1 hashing of the
-    entity (the first 16 chars of the b64 representation) as key generator.
+    entity (the first 16 chars of the b64 representation are used) as key generator.
     """
     def __init__(self, connection, entityTableNo, indexTableNo, keyExtractor=hashEntity, minEntities=50, maxEntities=250):
         """
@@ -166,6 +168,26 @@ class EntityInvertedIndex(object):
         """Search multiple tokens in the inverted index, for exact matches"""
         assert self.connectionIsAsync
         return self.__execAsyncSearch(self.index.searchMultiTokenPrefixAsync, callback, tokens, levels, scanLimit)
+    def iterateEntities(self, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
+        "Wrapper to initialize a EntityIterator iterating over self"
+        return EntityIterator(self, startKey, endKey, limit, keyFilter,
+            valueFilter, skip, invert, chunkSize)
+
+
+class EntityIterator(KeyValueIterator):
+    """
+    Lazy iterator wrapper that directly iterates over documents.
+    """
+    def __init__(self, idx, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
+        KeyValueIterator.__init__(self, idx.conn, idx.entityTableNo,
+            startKey, endKey, limit, keyFilter,
+            valueFilter, skip, invert, chunkSize)
+        self.idx = idx
+    def __next__(self):
+        k, v = KeyValueIterator.__next__(self)
+        return (k, self.idx.unpackValue(v))
+
+
 
 if __name__ == "__main__":
     import doctest

@@ -47,9 +47,6 @@ class KeyValueIterator(object):
         self.nextStartKey = YakDBUtils.incrementKey(lastIdentifier)
     def next(self): return self.__next__()
     def __next__(self):
-        """
-        Get the next key-value pair
-        """
         if len(self.buf) == 0:
             self.__loadNextChunk() #raises StopIteration if needed
         return self.buf.popleft()
