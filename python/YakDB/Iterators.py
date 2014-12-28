@@ -120,11 +120,8 @@ class JobIterator(object):
         """
         chunk = self.job.requestDataChunk()
         #Stop if there's nothing left to scan
-        if len(chunk) is 0:
-            raise StopIteration
-        for key, value in chunk.iteritems():
-            dataTuple = (key, value)
-            self.buf.append(dataTuple)
+        if not chunk: raise StopIteration
+        self.buf = deque(chunk)
     def __next__(self):
         """
         Get the next node
@@ -132,4 +129,4 @@ class JobIterator(object):
         if len(self.buf) == 0:
             self.__loadNextChunk() #raises StopIteration if needed
         return self.buf.popleft()
-    def next(self): return __next__(self)
+    def next(self): return self.__next__()

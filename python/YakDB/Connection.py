@@ -505,6 +505,7 @@ class Connection(YakDBConnectionBase):
         """
         Requests a data chunk for a given asynchronous Job.
         May only be used for client-side passive jobs.
+        Retunrs
         @param apid The Asynchronous Process ID
         """
         YakDBConnectionBase._checkParameterType(apid, int, "apid")
@@ -524,7 +525,7 @@ class Connection(YakDBConnectionBase):
         #We silently ignore the partial data / no data flags from the header,
         # because we can simply deduce them from the data frames.
         dataParts = msgParts[1:]
-        mappedData = {}
+        mappedData = []
         for i in range(0, len(dataParts), 2):
-            mappedData[dataParts[i]] = dataParts[i+1]
+            mappedData.append((dataParts[i], dataParts[i+1]))
         return mappedData

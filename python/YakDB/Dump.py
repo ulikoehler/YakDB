@@ -7,6 +7,7 @@ Provides utility functions for dumping
 from __future__ import with_statement
 import struct
 import gzip
+import lzma
 from YakDB.Batch import AutoWriteBatch
 
 __keyValueMagicByte = 0x6DE0
@@ -43,9 +44,7 @@ def __writeYDFKeyValue(f, key, value):
         value -- The value to write, in any binary writable form (not unicode)
     """
     hdr = struct.pack("<HQQ", __keyValueMagicByte, len(key), len(value))
-    f.write(hdr)
-    f.write(key)
-    f.write(value)
+    f.write(hdr + key + value)
 
 def __readYDFKeyValue(f):
     """
@@ -71,10 +70,12 @@ def dumpYDF(conn, outputFilename, tableNo, startKey=None, endKey=None, limit=Non
     """
     job = conn.initializePassiveDataJob(tableNo, startKey, endKey, limit, chunkSize)
     #Transparent compression
-    openFunction = gzip.open if outputFilename.endswith(".gz") else open
+    openFunction = open
+    if outputFilename.endswith(".gz"): openFunction = gzip.open
+    if outputFilename.endswith(".xz"): openFunction = lzma.open
     with openFunction(outputFilename, "wb") as outfile:
         __writeYDFFileHeader(outfile)
-        for key, value in job.iteritems():
+        for key, value in job:
             __writeYDFKeyValue(outfile, key, value)
 
 def importYDFDump(conn, inputFilename, tableNo):
@@ -84,7 +85,9 @@ def importYDFDump(conn, inputFilename, tableNo):
     #Auto-batch writes
     batch = AutoWriteBatch(conn, tableNo)
     #Transparent decompression
-    openFunction = gzip.open if inputFilename.endswith(".gz") else open
+    openFunction = open
+    if inputFilename.endswith(".gz"): openFunction = gzip.open
+    if inputFilename.endswith(".xz"): openFunction = lzma.open
     with openFunction(inputFilename, "rb") as infile:
         __verifyYDFFileHeader(infile)
         while True:

@@ -25,7 +25,7 @@ class ClientSidePassiveJob(object):
         not request any more data blocks (they will always be empty).
         """
         return self.connection._requestJobDataChunk(self.apid)
-    def iteritems(self):
+    def __iter__(self):
         """
         Iterate over the key-value pairs in the current job.
         Automatically loads chunks if needed.
