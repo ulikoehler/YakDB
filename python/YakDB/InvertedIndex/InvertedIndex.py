@@ -133,12 +133,28 @@ class InvertedIndex(object):
                 result = resultSet
                 initialized = True
         return (set() if result is None else result)
-    def writeList(self, token, entityList, level=""):
+    def writeIndex(self, token, entityList, level=""):
         """
         Write a list of entities that relate to (token, level) to the index.
         The previous entity result for that (token, level) is replaced.
+
+        Precondition (not checked): Either it is acceptable that the previous
+        index entry is replaced (e.g. when assembling the index in memory)
+        or the table has been opened with merge operator = NULAPPEND.
         """
-        kv = {InvertedIndex.getKey(token, level): "\x00".join(entityList)};
+        kv = {InvertedIndex.getKey(token, level): "\x00".join(entityList)}
+        self.conn.put(self.tableNo, kv)
+    def indexTokens(self, tokens, entity, level=""):
+        """
+        Like writeIndex, but does not add a single token for a list of documents
+        but a list of tokens for a single document.
+        
+        Precondition (not checked): Either it is acceptable that the previous
+        index entry is replaced (e.g. when assembling the index in memory)
+        or the table has been opened with merge operator = NULAPPEND.
+        """
+        kv = {InvertedIndex.getKey(token, level): entity
+              for token in tokens}
         self.conn.put(self.tableNo, kv)
     def searchSingleTokenExact(self, token, level="", limit=10):
         """Search a single token by exact match in the inverted index"""

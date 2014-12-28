@@ -125,10 +125,11 @@ class JobIterator(object):
         for key, value in chunk.iteritems():
             dataTuple = (key, value)
             self.buf.append(dataTuple)
-    def next(self):
+    def __next__(self):
         """
         Get the next node
         """
         if len(self.buf) == 0:
             self.__loadNextChunk() #raises StopIteration if needed
         return self.buf.popleft()
+    def next(self): return __next__(self)

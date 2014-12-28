@@ -44,7 +44,7 @@ ClientSidePassiveJob::ClientSidePassiveJob(void* ctxParam,
             it->SeekToFirst();
         }
         logger.debug("Initialized client-side job with chunksize "
-                     + std::to_string(chunksize) + " - waiting fro ");
+                     + std::to_string(chunksize));
     }
 
 void ClientSidePassiveJob::mainLoop() {

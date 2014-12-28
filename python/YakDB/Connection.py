@@ -518,8 +518,8 @@ class Connection(YakDBConnectionBase):
         #A response code of 0x01 or 0x02 also indicates success
         if len(msgParts) >= 1 and len(msgParts[0]) > 2:
             hdrList = list(msgParts[0]) #Strings are immutable!
-            hdrList[3] = b'\x00' #Otherwise _checkHeaderFrame would fail
-            msgParts[0] = b"".join(hdrList)
+            hdrList[3] = 0 #Otherwise _checkHeaderFrame would fail
+            msgParts[0] = bytes(hdrList)
         YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x50')
         #We silently ignore the partial data / no data flags from the header,
         # because we can simply deduce them from the data frames.

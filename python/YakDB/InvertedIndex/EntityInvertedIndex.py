@@ -71,12 +71,26 @@ class EntityInvertedIndex(object):
         """Write a list of entities at onces"""
         writeDict = {self.extractKey(e): self.packValue(e) for e in entities}
         self.conn.put(self.entityTableNo, writeDict)
-    def writeList(self, token, entityList, level=""):
+    def writeIndex(self, token, entityList, level=""):
         """
         Write a list of entities that relate to (token, level) to the index.
         The previous entity result for that (token, level) is replaced.
+
+        Precondition (not checked): Either it is acceptable that the previous
+        index entry is replaced (e.g. when assembling the index in memory)
+        or the table has been opened with merge operator = NULAPPEND.
         """
-        self.index.writeList(token, entityList, level)
+        self.index.writeIndex(token, entityList, level)
+    def indexTokens(self, tokens, entity, level=""):
+        """
+        Like writeIndex, but does not add a single token for a list of documents
+        but a list of tokens for a single document.
+        
+        Precondition (not checked): Either it is acceptable that the previous
+        index entry is replaced (e.g. when assembling the index in memory)
+        or the table has been opened with merge operator = NULAPPEND.
+        """
+        self.index.indexTokens(tokens, entity, level)
     def getEntities(self, keyList):
         """Read a list of entities and unpack them. Return the list of objects"""
         assert not self.connectionIsAsync

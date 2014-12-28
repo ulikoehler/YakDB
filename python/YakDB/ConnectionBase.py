@@ -185,7 +185,7 @@ class YakDBConnectionBase(object):
         Send a binary 32-bit number (little-endian) over the current socket
         """
         if value is None:
-            self.socket.send("", (zmq.SNDMORE if more else 0))
+            self.socket.send(b"", (zmq.SNDMORE if more else 0))
         else:
             ZMQBinaryUtil.sendBinary64(self.socket, value, more)
     def _checkConnection(self):
