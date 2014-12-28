@@ -75,6 +75,8 @@ class EntityInvertedIndex(object):
         """
         Write a list of entities that relate to (token, level) to the index.
         The previous entity result for that (token, level) is replaced.
+        
+        Entity part identifiers need to be included in the entity ID strings.
 
         Precondition (not checked): Either it is acceptable that the previous
         index entry is replaced (e.g. when assembling the index in memory)
@@ -85,6 +87,8 @@ class EntityInvertedIndex(object):
         """
         Like writeIndex, but does not add a single token for a list of documents
         but a list of tokens for a single document.
+
+        Entity part identifiers need to be included in the entity ID strings.
         
         Precondition (not checked): Either it is acceptable that the previous
         index entry is replaced (e.g. when assembling the index in memory)

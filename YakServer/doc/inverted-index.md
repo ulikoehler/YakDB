@@ -29,6 +29,8 @@ The index for each token is stored in one row per level.
 
 The list assigned to each (token, level) tuple must consist of binary strings that don't contain "\x00" characters (because they are used as separators)
 
+Entity IDs MUST NOT contain the "\x1E" byte. Entities SHOULD only consist of printable characters.
+
 ### Level specification
 
 The level may be any string that does not contains the "\x1E" character in its binary form.
@@ -39,8 +41,10 @@ For both, in-row and multi-row storage, the key format is as follows:
 
     <level>\x1E<token>
 
-The key format is optimized to improve cache hits and reduce overhead for prefix searches when the level is known.
+The key format is optimized to improve cache hits and reducte overhead for prefix searches when the level is known.
 
 ### Value
 
 The value is the list of related entities, joined by "\x00". The joined string shall not have a trailing "\x00" at the end.
+
+Additionally, any entity ID MAY have a part identifier (separated from the actual entity ID by "\x1E") denoting the part of the document . In case that identifier is empty, no "\x1E" separator SHALL be appended.

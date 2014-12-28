@@ -239,6 +239,35 @@ class InvertedIndex(object):
             #Therefore, for read() emulation, we don't need to know the token
             result = InvertedIndex._processMultiTokenPrefixResult(results)
             origCallback(result)
+    def iterateIndex(self, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
+        "Wrapper to initialize a IndexIterator iterating over self"
+        return IndexIterator(self, startKey, endKey, limit, keyFilter,
+            valueFilter, skip, invert, chunkSize)
+
+
+def __splitEntityIdPart(entity):
+    "Utility to split \x1E-separated entities into a 2-tuple"
+    (a, _, b) = entity.partition(b"\x1E")
+    return (a, b)
+
+class IndexIterator(KeyValueIterator):
+    """
+    Lazy iterator wrapper that directly iterates over an index table,
+    i.e. splits the entity list and the level/token pair
+
+    Iterates over tuples (level, token, [(entity, part)])
+
+    Entity parts are returned as empty string if not present.
+    """
+    def __init__(self, idx, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
+        KeyValueIterator.__init__(self, idx.conn, idx.entityTableNo,
+            startKey, endKey, limit, keyFilter,
+            valueFilter, skip, invert, chunkSize)
+    def __next__(self):
+        k, v = KeyValueIterator.__next__(self)
+        level, token = k.partition(b"\x1E")
+        documents = [__splitEntityIdPart(d) for d in k.partition(b"\x00")]
+        return (level, token, documents)
         
 if __name__ == "__main__":
     import doctest
