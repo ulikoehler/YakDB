@@ -12,7 +12,7 @@ import YakDB.Dump
 from YakDB.Iterators import KeyIterator, KeyValueIterator
 
 def info(db, args):
-    print((db.serverInfo()))
+    print((db.serverInfo()).decode("utf-8"))
 
 def tableInfo(db, args):
     print(db.tableInfo(args.table))
@@ -204,9 +204,10 @@ def yakCLI():
     Call this function to use the yak CLI on sys.argv.
     """
     if sys.version_info.major < 3:
-        print "YakDB requires Python 3 to run. Please run yak using a python3k interpreter!"
+        print("YakDB requires Python 3 to run. Please run yak using a python3k interpreter!")
 
     parser = argparse.ArgumentParser(description="YakDB client tool")
+    parser.set_defaults(func=info)
     #Server optionstype=int
     serverArgsGroup = parser.add_argument_group(parser, "Server options")
     serverArgsGroup.add_argument("-s","--server",
