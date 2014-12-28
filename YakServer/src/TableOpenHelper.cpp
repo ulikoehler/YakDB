@@ -249,9 +249,6 @@ void TableOpenServer::tableOpenWorkerThread() {
                 parameters.readTableConfigFile(configParser, tableIndex);
                 //Override default + config with custom open parameters, if any
                 parameters.parseFromParameterMap(parameterMap);
-                //Process the config options
-                logger.info("Creating/opening table #" + std::to_string(tableIndex));
-                logger.trace("Opened table #" + std::to_string(tableIndex) + " with compression mode " + compressionModeToString(parameters.compression));
                 //NOTE: Any option that has not been set up until now is now used from the config default
                 rocksdb::Options options;
                 options.allow_mmap_reads = configParser.useMMapReads;
@@ -266,6 +263,13 @@ void TableOpenServer::tableOpenWorkerThread() {
                     if (unlikely(zmq_send_const(processorInputSocket, "\x00", 1, 0) == -1)) {
                         logMessageSendError("table open (success) reply", logger);
                     }
+                    //Log success
+                    logger.info(std::string("Opened table #")
+                        + std::to_string(tableIndex)
+                        + " compression mode = "
+                        + compressionModeToString(parameters.compression)
+                        + " using merge operator "
+                        + options.merge_operator->Name());
                 } else { //status == not ok
                     std::string errorDescription = "Error while trying to open table #"
                         + std::to_string(tableIndex) + " in directory " + tableDir

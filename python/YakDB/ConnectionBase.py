@@ -162,10 +162,13 @@ class YakDBConnectionBase(object):
         if len(headerFrame) > 4:
             return headerFrame[4:]
         return None #No request ID
-    def __sendBytesParam(self, key, value, flags=zmq.SNDMORE):
+    def _sendBytesParam(self, key, value, flags=zmq.SNDMORE):
         """
         Set a binary key/value pair in two distinct frames over self.socket.
         """
+        #Other options
+        if isinstance(key, str): key = key.encode("utf-8")
+        if isinstance(value, str): value = value.encode("utf-8")
         self.socket.send(key, zmq.SNDMORE)
         self.socket.send(value, flags)
     def __sendDecimalParam(self, key, value, flags=zmq.SNDMORE):

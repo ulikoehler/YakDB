@@ -38,7 +38,7 @@ bool HOT Int64AddOperator::Merge(
 }
 
 const char* Int64AddOperator::Name() const {
-    return "Int64AddOperator";
+    return "Int64 add";
 }
 
 bool HOT DMulOperator::Merge(
@@ -75,7 +75,7 @@ bool HOT DMulOperator::Merge(
 }
 
 const char* DMulOperator::Name() const {
-    return "DMulOperator";
+    return "Double multiplication";
 }
 
 bool HOT DAddOperator::Merge(
@@ -112,7 +112,7 @@ bool HOT DAddOperator::Merge(
 }
 
 const char* DAddOperator::Name() const {
-    return "DAddOperator";
+    return "Double add";
 }
 
 bool HOT AppendOperator::Merge(
@@ -148,11 +148,11 @@ bool ReplaceOperator::Merge(
 }
 
 const char* ReplaceOperator::Name() const {
-    return "ReplaceOperator";
+    return "Replace";
 }
 
 const char* ListAppendOperator::Name() const {
-    return "ListAppendOperator";
+    return "List append";
 }
 
 bool HOT ListAppendOperator::Merge(
@@ -174,7 +174,7 @@ bool HOT ListAppendOperator::Merge(
 }
 
 const char* NULAppendOperator::Name() const {
-    return "NULAppendOperator";
+    return "NUL-separated append";
 }
 
 bool HOT NULAppendOperator::Merge(
@@ -251,7 +251,7 @@ bool HOT ANDOperator::Merge(
 }
 
 const char* ANDOperator::Name() const {
-    return "ANDOperator";
+    return "Binary AND";
 }
 
 
@@ -310,7 +310,7 @@ bool HOT OROperator::Merge(
 }
 
 const char* OROperator::Name() const {
-    return "OROperator";
+    return "Binary OR";
 }
 
 bool HOT XOROperator::Merge(
@@ -368,7 +368,7 @@ bool HOT XOROperator::Merge(
 }
 
 const char* XOROperator::Name() const {
-    return "XOROperator";
+    return "Binary XOR";
 }
 
 std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(

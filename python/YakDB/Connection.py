@@ -398,10 +398,9 @@ class Connection(YakDBConnectionBase):
             self.__sendDecimalParam(b"WriteBufferSize", writeBufferSize)
         if bloomFilterBitsPerKey is not None:
             self.__sendDecimalParam(b"BloomFilterBitsPerKey", bloomFilterBitsPerKey)
-
-        self.__sendBytesParam(b"MergeOperator", mergeOperator)
-        self.__sendBytesParam(b"CompressionMode", compression, flags=0)
-        #Receive and extract response code
+        self._sendBytesParam(b"MergeOperator", mergeOperator)
+        self._sendBytesParam(b"CompressionMode", compression, flags=0)
+        #Receive and etract response code
         msgParts = self.socket.recv_multipart(copy=True)
         YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x01')
     def truncateTable(self, tableNo):
