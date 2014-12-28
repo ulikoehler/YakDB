@@ -319,7 +319,7 @@ def yakCLI():
             dest="toKey",
             default=None,
             help="The key to stop deleting at (exclusive), default: end of table")
-    parserDeleteRange.add_argument('-l","--limit',
+    parserDeleteRange.add_argument('-l','--limit',
             action="store",
             dest="scanLimit",
             type=int,
