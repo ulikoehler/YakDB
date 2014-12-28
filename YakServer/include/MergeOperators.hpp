@@ -95,6 +95,18 @@ class ListAppendOperator : public rocksdb::AssociativeMergeOperator {
     virtual const char* Name() const override;
 };
 
+class NULAppendOperator : public rocksdb::AssociativeMergeOperator {
+ public:
+  virtual bool Merge(
+    const rocksdb::Slice& key,
+    const rocksdb::Slice* existing_value,
+    const rocksdb::Slice& value,
+    std::string* new_value,
+    rocksdb::Logger* logger) const override;
+
+    virtual const char* Name() const override;
+};
+
 
 /**
  * Arbitrary size binary boolean AND.

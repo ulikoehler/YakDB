@@ -173,6 +173,29 @@ bool HOT ListAppendOperator::Merge(
     return true;
 }
 
+const char* NULAppendOperator::Name() const {
+    return "NULAppendOperator";
+}
+
+bool HOT NULAppendOperator::Merge(
+    const rocksdb::Slice& key,
+    const rocksdb::Slice* existing_value,
+    const rocksdb::Slice& value,
+    std::string* new_value,
+    rocksdb::Logger* logger) const {
+    // assuming empty if no existing value
+    std::string existing;
+    if (existing_value) {
+        existing = existing_value->ToString();
+    }
+    if(existing.size() == 0) {
+        *new_value = value.ToString();
+    } else { //Add NUL separator in between
+        *new_value = existing + "\x00" + value.ToString();
+    }
+    return true;
+}
+
 bool HOT ANDOperator::Merge(
     const rocksdb::Slice& key,
     const rocksdb::Slice* existing_value,
@@ -371,6 +394,8 @@ std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(
         return std::make_shared<XOROperator>();
     } else if(mergeOperatorCode == "LISTAPPEND") {
         return std::make_shared<ListAppendOperator>();
+    } else if(mergeOperatorCode == "NULAPPEND") {
+        return std::make_shared<NULAppendOperator>();
     } else {
         std::cerr << "Warning: Invalid merge operator code: " << mergeOperatorCode << std::endl;
         return std::make_shared<ReplaceOperator>();
