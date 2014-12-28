@@ -176,6 +176,10 @@ bool HOT ListAppendOperator::Merge(
 const char* NULAppendOperator::Name() const {
     return "NUL-separated append";
 }
+#include <iostream>
+using std::cout;
+using std::cerr;
+using std::endl;
 
 bool HOT NULAppendOperator::Merge(
     const rocksdb::Slice& key,
@@ -191,7 +195,7 @@ bool HOT NULAppendOperator::Merge(
     if(existing.size() == 0) {
         *new_value = value.ToString();
     } else { //Add NUL separator in between
-        *new_value = existing + "\x00" + value.ToString();
+        *new_value = existing + std::string("\x00", 1) + value.ToString();
     }
     return true;
 }
