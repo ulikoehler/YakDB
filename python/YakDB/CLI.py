@@ -207,7 +207,6 @@ def yakCLI():
         print("YakDB requires Python 3 to run. Please run yak using a python3k interpreter!")
 
     parser = argparse.ArgumentParser(description="YakDB client tool")
-    parser.set_defaults(func=info)
     #Server optionstype=int
     serverArgsGroup = parser.add_argument_group(parser, "Server options")
     serverArgsGroup.add_argument("-s","--server",
@@ -572,4 +571,8 @@ def yakCLI():
     else:
         db.useRequestReplyMode()
     db.connect(args.serverURL)
-    args.func(db, args)
+    #For some reason, the default=info setting only works with Python2
+    try:
+        args.func(db, args)
+    except AttributeError:
+        info(db, args)
