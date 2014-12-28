@@ -70,6 +70,7 @@ yakServerSrc =  [
     "src/FileUtils.cpp",
     "src/main.cpp",
     "src/TableOpenHelper.cpp",
+    "src/TableOpenServer.cpp",
     "src/ConfigParser.cpp",
     "src/Tablespace.cpp",
     "src/UpdateWorker.cpp",

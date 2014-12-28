@@ -78,6 +78,7 @@ public:
     void closeTable(IndexType index);
 
     inline TableType getExistingTable(IndexType index) {
+        //Essentially databases[index], but we need to get rid of the volatile-ness
         return databases[index];
     }
 
@@ -91,8 +92,8 @@ public:
      */
     inline int32_t getMaximumOpenTableNumber() {
         int32_t ret = -1;
-        for(size_t i = 0; i < databasesSize; i++) {
-            if(databases[i] != nullptr) {
+        for(uint32_t i = 0; i < databases.size(); i++) {
+            if(getExistingTable(i) != nullptr) {
                 ret = i;
             }
         }
@@ -103,22 +104,76 @@ public:
      * Checks if a given table is opened.
      * This method is reentrant and thread-safe.
      */
-    bool isTableOpen(IndexType index) {
-        return databases[index] != nullptr;
+    inline bool isTableOpen(IndexType index) {
+        return getExistingTable(index) != nullptr;
     }
 
+    /**
+     * Ensure the internal vectors have at least an appropriate size
+     * to store a table at the given index
+     */
+    inline void ensureSize(IndexType tableIndex) {
+        //Avoid scaling superlinearly by only reserving a small margin
+        // beyond the required size
+        databases.reserve(tableIndex + 16);
+        databases.reserve(tableIndex + 16);
+    }
+
+    /**
+     * Erase a table entry and get the (now erased)
+     * table entry. Might return nullptr if the table
+     * wasn't open in the first place.
+     * This operation is not executed atomically.
+     */
+    inline TableType eraseAndGetTableEntry(IndexType index) {
+        //Need to remove volatileness qualifier
+        TableType db = databases[index];
+        databases[index] = nullptr;
+        return db;
+    }
+
+    /**
+     * Get a pointer to the memory location in the databases vector
+     * where the caller may store a pointer to a newly opened table.
+     */
+    inline TableType* getTablePointer(IndexType index) {
+        return &databases[index];
+    }
+
+    /**
+     * Set the merge required flag for a given table index.
+     * Does not automatically resize the vectors.
+     */
+    inline void setMergeRequired(IndexType index, bool newValue) {
+        mergeRequired[index] = newValue;
+    }
+
+    /**
+     * Get the merge required flag for a given table index.
+     * Does not automatically resize the vectors.
+     */
+    inline bool isMergeRequired(IndexType index) {
+        //Need to remove volatileness for this operation
+        return mergeRequired[index];
+    }
 
 private:
     /**
      * The databases vector.
      * Any method in this class has read-only access (tables may be closed by this class however)
      *
-     * Write acess is serialized using the TableOpenHelper class.
+     * Write acess is serialized using the TableOpenHelper/TableOpenServer classes.
      *
      * Therefore locks and double initialization are avoided.
      */
     TableCollectionType databases; //Indexed by table num
-    uint32_t databasesSize;
+    /**
+     * This vector stores true for any table if it is required to use the
+     * Merge operation instead of the Put operation.
+     * This is true exactly if a non-REPLACE merge operator is selected.
+     * The details of selecting either PUT o
+     */
+    std::vector<bool> mergeRequired; //Indexed by table num
     ConfigParser& cfg;
 };
 

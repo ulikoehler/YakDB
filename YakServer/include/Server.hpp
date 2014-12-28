@@ -12,6 +12,7 @@
 #include "ConfigParser.hpp"
 #include "AsyncJobRouter.hpp"
 #include "Logger.hpp"
+#include "TableOpenServer.hpp"
 #include "LogServer.hpp"
 
 class KeyValueServer {

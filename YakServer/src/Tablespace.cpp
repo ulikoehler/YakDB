@@ -8,26 +8,24 @@
 #include "Tablespace.hpp"
 
 Tablespace::Tablespace(ConfigParser& cfg, IndexType defaultTablespaceSize)
-    : databases(defaultTablespaceSize), cfg(cfg) {
-    //Initialize the table array with 16 tables.
-    //This avoids early re-allocation
-    databasesSize = defaultTablespaceSize;
+        : databases(defaultTablespaceSize), cfg(cfg) {
+    ensureSize(defaultTablespaceSize);
     //Use malloc here to allow usage of realloc
     //Initialize all pointers to zero
-    for (int i = 0; i < databases.size(); i++) {
+    for (size_t i = 0; i < databases.size(); i++) {
         databases[i] = nullptr;
     }
 }
 
 void Tablespace::cleanup() {
     //Flush & delete all databases
-    for (int i = 0; i < databasesSize; i++) {
+    for (size_t i = 0; i < databases.size(); i++) {
         if (databases[i] != nullptr) {
             delete databases[i];
         }
     }
     databases.clear();
-    databasesSize = 0;
+    mergeRequired.clear();
 }
 
 
@@ -45,7 +43,7 @@ Tablespace::TableType Tablespace::getTable(IndexType index, TableOpenHelper& ope
     if (databases[index] == nullptr || index >= databases.size()) {
         openHelper.openTable(index);
     }
-    Tablespace::TableType ret = databases[index];
+    Tablespace::TableType ret = databases[index];   
     assert(ret != nullptr); //If this fails, the database could not be opened properly
     return ret;
 }

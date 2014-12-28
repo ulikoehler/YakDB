@@ -425,6 +425,9 @@ PARTSYNC may not be sent for non-REQ-REP sockets. Sending PARTSYNC over other so
 
 If both the key and value frames are empty, the frame pair is ignored.
 
+The implementation automatically selects if a Merge or a Put will be executed on the
+underlying database, depending on the merge operator that was used when opening the table.
+
 ##### Delete request:
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x21 Request type (Delete request)] [1 byte write flags]

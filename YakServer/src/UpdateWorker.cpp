@@ -180,6 +180,8 @@ void UpdateWorker::handlePutRequest(bool generateResponse) {
     rocksdb::WriteBatch batch;
     const uint32_t maxBatchSize = cfg.putBatchSize;
     uint32_t currentBatchSize = 0;
+    //Check if we need to use Merge instead of Put (i.e. if we have a non-REPLACE merge operator)
+    bool mergeRequired = tablespace.isMergeRequired(tableId);
     //The entire update is processed in one batch. Empty batches are allowed.
     bool haveMoreData = socketHasMoreFrames(processorInputSocket);
     zmq_msg_t keyFrame, valueFrame;
@@ -211,7 +213,11 @@ void UpdateWorker::handlePutRequest(bool generateResponse) {
         //Write into batch
         rocksdb::Slice keySlice((char*) zmq_msg_data(&keyFrame), keySize);
         rocksdb::Slice valueSlice((char*) zmq_msg_data(&valueFrame), valueSize);
-        batch.Put(keySlice, valueSlice);
+        if(mergeRequired) {
+            batch.Merge(keySlice, valueSlice);
+        } else { //A simple put is enough (REPLACE merge operator)
+            batch.Put(keySlice, valueSlice);
+        }
         currentBatchSize++;
         //If batch is full, write to db
         if(currentBatchSize >= maxBatchSize) {

@@ -401,3 +401,7 @@ std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(
         return std::make_shared<ReplaceOperator>();
     }
 }
+
+bool isReplaceMergeOperator(const std::string& mergeOperatorCode) {
+    return mergeOperatorCode == "REPLACE";
+}

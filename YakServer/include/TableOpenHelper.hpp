@@ -21,6 +21,20 @@
 #define UINT64_MAX (std::numeric_limits<uint64_t>::max())
 #endif
 
+enum class TableOperationRequestType : uint8_t {
+    StopServer = 0,
+    OpenTable = 1,
+    CloseTable = 2,
+    TruncateTable = 3
+};
+
+/**
+ * Send a table operation request
+ */
+int sendTableOperationRequest(void* socket, TableOperationRequestType requestType, int flags = 0);
+
+class Tablespace;
+
 struct TableOpenParameters  {
     uint64_t lruCacheSize;
     uint64_t tableBlockSize;
@@ -63,31 +77,6 @@ struct TableOpenParameters  {
      * The file written by this can be read using readTableConfigFile()
      */
     void writeToFile(const ConfigParser& cfg, uint32_t tableIndex);
-};
-
-
-/**
- * This class starts a single thread in the background that shall receive an
- * inproc message.
- *
- * This class shall be instantiated exactly once or the behaviour will be undefined.
- */
-class TableOpenServer : private AbstractFrameProcessor {
-public:
-    TableOpenServer(void* ctx,
-                    ConfigParser& configParser,
-                    std::vector<rocksdb::DB*>& databases);
-    ~TableOpenServer();
-    /**
-     * Terminate the table open server.
-     * Includes a full cleanup.
-     */
-    void terminate();
-    void tableOpenWorkerThread();
-private:
-    std::thread* workerThread;
-    ConfigParser& configParser;
-    std::vector<rocksdb::DB*>& databases;
 };
 
 /**
