@@ -15,6 +15,8 @@
 #include "endpoints.hpp"
 #include "zutil.hpp"
 
+using namespace std;
+
 COLD TableOpenServer::TableOpenServer(void* context,
                     ConfigParser& configParserParam,
                     Tablespace& tablespaceParam)
@@ -138,7 +140,7 @@ void TableOpenServer::tableOpenWorkerThread() {
             // parameters, because it needs to take precedence to the table config file
             tablespace.ensureSize(tableIndex);
             //Open the table only if it hasn't been opened yet, else just ignore the request
-            if (tablespace.isTableOpen(tableIndex)) {
+            if (!tablespace.isTableOpen(tableIndex)) {
                 std::string tableDir = configParser.getTableDirectory(tableIndex);
                 //Override default values with the last values from the table config file, if any
                 parameters.readTableConfigFile(configParser, tableIndex);

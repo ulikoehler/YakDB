@@ -78,7 +78,6 @@ public:
     void closeTable(IndexType index);
 
     inline TableType getExistingTable(IndexType index) {
-        //Essentially databases[index], but we need to get rid of the volatile-ness
         return databases[index];
     }
 
@@ -116,7 +115,7 @@ public:
         //Avoid scaling superlinearly by only reserving a small margin
         // beyond the required size
         databases.reserve(tableIndex + 16);
-        databases.reserve(tableIndex + 16);
+        mergeRequired.reserve(tableIndex + 16);
     }
 
     /**
@@ -126,7 +125,6 @@ public:
      * This operation is not executed atomically.
      */
     inline TableType eraseAndGetTableEntry(IndexType index) {
-        //Need to remove volatileness qualifier
         TableType db = databases[index];
         databases[index] = nullptr;
         return db;
@@ -153,7 +151,6 @@ public:
      * Does not automatically resize the vectors.
      */
     inline bool isMergeRequired(IndexType index) {
-        //Need to remove volatileness for this operation
         return mergeRequired[index];
     }
 
