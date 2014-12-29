@@ -29,7 +29,7 @@ def hashEntity(entity):
     """
     return base64.b64encode(hashlib.sha1(pickle.dumps(entity)).digest())[:16]
 
-class EntityInvertedIndex(object):
+class EntityInvertedIndex(InvertedIndex):
     """
     An inverted index wrapper that handles saving and reading of entities.
     
@@ -48,12 +48,12 @@ class EntityInvertedIndex(object):
             tableNo: The table no to store the inverted index in.
         """
         assert isinstance(connection, YakDBConnectionBase)
+        InvertedIndex.__init__(self, connection, indexTableNo)
         self.minEntities = minEntities
         self.maxEntities = maxEntities
         self.extractKey = keyExtractor
         self.conn = connection
         self.entityTableNo = entityTableNo
-        self.index = InvertedIndex(connection, indexTableNo)
         self.connectionIsAsync = isinstance(connection, TornadoConnection)
     def packValue(self, entity):
         """Pack = Serialize an entity"""
@@ -71,43 +71,19 @@ class EntityInvertedIndex(object):
         """Write a list of entities at onces"""
         writeDict = {self.extractKey(e): self.packValue(e) for e in entities}
         self.conn.put(self.entityTableNo, writeDict)
-    def writeIndex(self, token, entityList, level=""):
-        """
-        Write a list of entities that relate to (token, level) to the index.
-        The previous entity result for that (token, level) is replaced.
-        
-        Entity part identifiers need to be included in the entity ID strings.
-
-        Precondition (not checked): Either it is acceptable that the previous
-        index entry is replaced (e.g. when assembling the index in memory)
-        or the table has been opened with merge operator = NULAPPEND.
-        """
-        self.index.writeIndex(token, entityList, level)
-    def indexTokens(self, tokens, entity, level=""):
-        """
-        Like writeIndex, but does not add a single token for a list of documents
-        but a list of tokens for a single document.
-
-        Entity part identifiers need to be included in the entity ID strings.
-        
-        Precondition (not checked): Either it is acceptable that the previous
-        index entry is replaced (e.g. when assembling the index in memory)
-        or the table has been opened with merge operator = NULAPPEND.
-        """
-        self.index.indexTokens(tokens, entity, level)
-    def getEntities(self, keyList):
+    def getEntities(self, keyList, mapKeys=False):
         """Read a list of entities and unpack them. Return the list of objects"""
         assert not self.connectionIsAsync
-        readResult = self.conn.read(keyList)
+        readResult = self.conn.read(keyList, mapKeys=mapKeys)
         #In some cases, the returned values contain None (e.g. incorrect indexing).
         #This is not handled as hard error, because it would interrupt services
         # under certain conditions. Instead we ignore the None's
         return [self.unpackValue(val) for val in readResult if val]
-    def getEntitiesAsync(self, keyList, callback):
+    def getEntitiesAsync(self, keyList, callback, mapKeys=False):
         """Read entities asynchronously"""
         assert self.connectionIsAsync
         internalCallback = functools.partial(self.__getEntitiesAsyncCallback, callback)
-        self.conn.read(self.entityTableNo, keyList, callback=internalCallback)
+        self.conn.read(self.entityTableNo, keyList, callback=internalCallback, mapKeys=mapKeys)
     def __getEntitiesAsyncCallback(self, callback, values):
         #See getEntities() for info on why we filter Nones
         callback([self.unpackValue(val) for val in values if val])
@@ -124,7 +100,7 @@ class EntityInvertedIndex(object):
         allResults = makeUnique(allResults)
         #Clamp to the maximum number of entities
         allResults = allResults[:self.maxEntities]
-        #Read the entity objects
+        #Read the entity objects3
         return self.getEntities(allResults)
     def __execAsyncSearch(self, searchFunc, callback, tokenObj, levels, scanLimit=None):
         """
@@ -155,7 +131,13 @@ class EntityInvertedIndex(object):
             #Clamp to the maximum number of entities
             allResults = allResults[:self.maxEntities]
             #Read the entity objects
-            self.getEntitiesAsync(allResults, callback=callback)
+            cbWrapper = functools.partial(self.__execAsyncSearchFethCB, callback, )
+            self.getEntitiesAsync(allResults, callback=cbWrapper, mapKeys=True)
+    def __execAsyncSearchFethCB(self, callback, result):
+        """Called when the async entity fetch step is finished."""
+        #TODO: Re-map entity parts
+        callback(result)
+        pass
     def searchSingleTokenPrefix(self, token, levels=[""], scanLimit=10):
         """
         Search a single token (or token prefix) in one or multiple levels
