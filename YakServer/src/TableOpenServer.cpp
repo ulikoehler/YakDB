@@ -205,6 +205,8 @@ void TableOpenServer::tableOpenWorkerThread() {
             uint8_t responseCode = 0x00;
             //Close if not already closed
             if (tablespace.isTableOpen(tableIndex)) {
+                logger.info("Closing table " + std::to_string(tableIndex)
+                            + " due to pending truncation request");
                 delete tablespace.eraseAndGetTableEntry(tableIndex);
             }
             /**
