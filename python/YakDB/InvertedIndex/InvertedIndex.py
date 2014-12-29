@@ -7,6 +7,7 @@ from YakDB.Utils import YakDBUtils
 from YakDB.Connection import Connection
 from YakDB.ConnectionBase import YakDBConnectionBase
 from YakDB.TornadoConnection import TornadoConnection
+from YakDB.Iterators import KeyValueIterator
 from zmq.eventloop.zmqstream import ZMQStream
 import functools
 
@@ -143,6 +144,7 @@ class InvertedIndex(object):
         or the table has been opened with merge operator = NULAPPEND.
         """
         kv = {InvertedIndex.getKey(token, level): "\x00".join(entityList)}
+        if not kv: return
         self.conn.put(self.tableNo, kv)
     def indexTokens(self, tokens, entity, level=""):
         """
@@ -155,6 +157,7 @@ class InvertedIndex(object):
         """
         kv = {InvertedIndex.getKey(token, level): entity
               for token in tokens}
+        if not kv: return
         self.conn.put(self.tableNo, kv)
     def searchSingleTokenExact(self, token, level="", limit=10):
         """Search a single token by exact match in the inverted index"""
