@@ -204,7 +204,7 @@ void TableOpenServer::tableOpenWorkerThread() {
         } else if (requestType == TableOperationRequestType::TruncateTable) { //Close & truncate
             uint8_t responseCode = 0x00;
             //Close if not already closed
-            if (!tablespace.isTableOpen(tableIndex)) {
+            if (tablespace.isTableOpen(tableIndex)) {
                 delete tablespace.eraseAndGetTableEntry(tableIndex);
             }
             /**
