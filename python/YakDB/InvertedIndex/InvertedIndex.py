@@ -99,7 +99,7 @@ class InvertedIndex(object):
         #NOTE: If one of the tokens has no result at all, it is currently ignored
         initialized = False
         result = None
-        for key, value in scanResult.iteritems():
+        for key, value in scanResult.items():
             if InvertedIndex.extractLevel(key) == level:
                 valueList = InvertedIndex.splitValues(value)
                 if initialized:
@@ -262,10 +262,20 @@ class IndexIterator(KeyValueIterator):
     def __next__(self):
         k, v = KeyValueIterator.__next__(self)
         level, _, token = k.partition(b"\x1E")
-        entities = [self.__splitEntityIdPart(d) for d in v.split(b"\x00")]
+        entities = [IndexIterator._splitEntityIdPart(d) for d in v.split(b"\x00")]
         return (level, token, entities)
-    def __splitEntityIdPart(self, entity):
-        "Utility to split \x1E-separated entities into a 2-tuple"
+    @staticmethod
+    def _splitEntityIdPart(entity):
+        """
+        Utility to split \x1E-separated entities into a 2-tuple
+
+        >>> IndexIterator._splitEntityIdPart(b"foo:bar")
+        (b'foo:bar', b'')
+        >>> IndexIterator._splitEntityIdPart(b"foo\x1Ebar")
+        (b'foo', b'bar')
+        >>> IndexIterator._splitEntityIdPart(b"")
+        (b'', b'')
+        """
         (a, _, b) = entity.partition(b"\x1E")
         return (a, b)
         

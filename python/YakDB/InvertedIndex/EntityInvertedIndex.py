@@ -3,6 +3,7 @@
 """
 Inverted index plus entity management utilities for YakDB.
 """
+
 from YakDB.Utils import YakDBUtils
 from YakDB.Connection import Connection
 from YakDB.ConnectionBase import YakDBConnectionBase
@@ -61,6 +62,19 @@ class EntityInvertedIndex(InvertedIndex):
     def unpackValue(self, packedEntity):
         """Unpack = deserialize an entity from the database."""
         return pickle.loads(packedEntity)
+    @staticmethod
+    def _entityIdsToKey(entityId):
+        """
+        Convert an entity ID to a key, i.e. remove the part identifier and the separator
+
+        >>> EntityInvertedIndex._entityIdsToKey(b"foo:bar")
+        b'foo:bar'
+        >>> EntityInvertedIndex._entityIdsToKey(b"foo\x1Ebar")
+        b'foo'
+        >>> EntityInvertedIndex._entityIdsToKey(b"")
+        b''
+        """
+        return entityId.partition(b"\x1E")[0]
     def writeEntity(self, entity):
         """Write an entity to the database"""
         assert not self.connectionIsAsync
@@ -71,22 +85,22 @@ class EntityInvertedIndex(InvertedIndex):
         """Write a list of entities at onces"""
         writeDict = {self.extractKey(e): self.packValue(e) for e in entities}
         self.conn.put(self.entityTableNo, writeDict)
-    def getEntities(self, keyList, mapKeys=False):
+    def getEntities(self, entityIds):
         """Read a list of entities and unpack them. Return the list of objects"""
         assert not self.connectionIsAsync
-        readResult = self.conn.read(keyList, mapKeys=mapKeys)
-        #In some cases, the returned values contain None (e.g. incorrect indexing).
-        #This is not handled as hard error, because it would interrupt services
-        # under certain conditions. Instead we ignore the None's
-        return [self.unpackValue(val) for val in readResult if val]
-    def getEntitiesAsync(self, keyList, callback, mapKeys=False):
+        readResult = self.conn.read(
+            (EntityInvertedIndex._entityIdsToKey(k) for k in entityIds)
+        )
+        return zip(entityIds, (self.unpackValue(val) for val in readResults))
+    def getEntitiesAsync(self, entityIds, callback):
         """Read entities asynchronously"""
         assert self.connectionIsAsync
-        internalCallback = functools.partial(self.__getEntitiesAsyncCallback, callback)
-        self.conn.read(self.entityTableNo, keyList, callback=internalCallback, mapKeys=mapKeys)
-    def __getEntitiesAsyncCallback(self, callback, values):
-        #See getEntities() for info on why we filter Nones
-        callback([self.unpackValue(val) for val in values if val])
+        internalCallback = functools.partial(self.__getEntitiesAsyncCallback, entityIds, callback)
+        keys = (EntityInvertedIndex._entityIdsToKey(k) for k in entityIds)
+        self.conn.read(self.entityTableNo, keys, callback=internalCallback, mapKeys=mapKeys)
+    def __getEntitiesAsyncCallback(self, entityIds, callback, values):
+        entities = (self.unpackValue(val) for val in values)
+        callback(zip(entityIds, minEntities))
     def __execSyncSearch(self, searchFunc, tokenObj, levels, scanLimit):
         """
         Internal search runner for synchronous multi-level search
@@ -131,13 +145,7 @@ class EntityInvertedIndex(InvertedIndex):
             #Clamp to the maximum number of entities
             allResults = allResults[:self.maxEntities]
             #Read the entity objects
-            cbWrapper = functools.partial(self.__execAsyncSearchFethCB, callback, )
-            self.getEntitiesAsync(allResults, callback=cbWrapper, mapKeys=True)
-    def __execAsyncSearchFethCB(self, callback, result):
-        """Called when the async entity fetch step is finished."""
-        #TODO: Re-map entity parts
-        callback(result)
-        pass
+            self.getEntitiesAsync(allResults, callback=callback, mapKeys=True)
     def searchSingleTokenPrefix(self, token, levels=[""], scanLimit=10):
         """
         Search a single token (or token prefix) in one or multiple levels
