@@ -269,7 +269,7 @@ def yakCLI():
             nargs='+',
             action="store",
             help="The keys to read")
-    parserRead.add_argument('-p","--print-raw',
+    parserRead.add_argument('-p','--print-raw',
             dest="printRaw",
             action="store_true",
             default=False,
@@ -484,7 +484,7 @@ def yakCLI():
             type=int,
             default=None,
             help="The table blocksize. Larger blocks yield better compression and scan performance, but usually worse random-access performance. See LevelDB docs for details")
-    parserOpenTable.add_argument('-f","--bloom-filter-bits-per-key',
+    parserOpenTable.add_argument('-f','--bloom-filter-bits-per-key',
             action="store",
             dest="bloomFilterBitsPerKey",
             type=int,
@@ -506,7 +506,7 @@ def yakCLI():
             type=int,
             action="store",
             help="The tables to compact. Overrides -t option.")
-    parserTruncateTable.add_argument('-y","--yes',
+    parserTruncateTable.add_argument('-y','--yes',
             dest="confirmed",
             action="store_true",
             default=False,
