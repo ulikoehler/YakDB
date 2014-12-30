@@ -2,7 +2,10 @@
 #include "macros.hpp"
 
 #include <iostream>
+#include <set>
 #include <rocksdb/env.h>
+#include <boost/algorithm/string.hpp>
+#include <algorithm>
 
 bool HOT Int64AddOperator::Merge(
     const rocksdb::Slice& key,
@@ -21,7 +24,6 @@ bool HOT Int64AddOperator::Merge(
             memcpy(&existing, existing_value->data(), sizeof(int64_t));
         }
     }
-
     int64_t operand;
     if (unlikely(value.size() != sizeof(int64_t))) {
         // if existing_value is corrupted, treat it as 0
@@ -30,7 +32,6 @@ bool HOT Int64AddOperator::Merge(
     } else {
         memcpy(&operand, value.data(), sizeof(int64_t));
     }
-
     int64_t result = existing + operand;
     *new_value = std::move(std::string((char*)&result, sizeof(int64_t)));
     //Errors are treated as 0.
@@ -176,10 +177,6 @@ bool HOT ListAppendOperator::Merge(
 const char* NULAppendOperator::Name() const {
     return "NUL-separated append";
 }
-#include <iostream>
-using std::cout;
-using std::cerr;
-using std::endl;
 
 bool HOT NULAppendOperator::Merge(
     const rocksdb::Slice& key,
@@ -196,6 +193,49 @@ bool HOT NULAppendOperator::Merge(
         *new_value = value.ToString();
     } else { //Add NUL separator in between
         *new_value = existing + std::string("\x00", 1) + value.ToString();
+    }
+    return true;
+}
+
+const char* NULAppendSetOperator::Name() const {
+    return "NUL-separated set append";
+}
+
+bool HOT NULAppendSetOperator::Merge(
+    const rocksdb::Slice& key,
+    const rocksdb::Slice* existing_value,
+    const rocksdb::Slice& value,
+    std::string* new_value,
+    rocksdb::Logger* logger) const {
+    // assuming empty if no existing value
+    if (existing_value != nullptr && existing_value->size() != 0) {
+        if(value.size() == 0) {
+            //Trivial: Only existing value is present
+            *new_value = existing_value->ToString();
+            return true;
+        }
+        //Copy strings to lvalues
+        std::string existing = existing_value->ToString();
+        std::string valueStr = value.ToString();
+        //NUL string requires explicit constructor call
+        static const std::string nul = std::string("\0", 1);
+        //Need to split new & existing value into set and join with 0
+        std::set<std::string> existingSplit;
+        std::set<std::string> valueSplit;
+        //Perform splitting
+        auto predicate = boost::is_any_of(nul);
+        boost::algorithm::split(existingSplit, existing, predicate);
+        boost::algorithm::split(valueSplit, valueStr, predicate);
+        //Build union of sets
+        std::vector<std::string> result;
+        std::set_union(existingSplit.begin(), existingSplit.end(),
+                       valueSplit.begin(), valueSplit.end(),
+                       std::back_inserter(result));
+        //Store new value
+        *new_value = boost::algorithm::join(result, nul);
+    } else {
+        //Trivial replace: existing_value == nullptr
+        *new_value = value.ToString();
     }
     return true;
 }
@@ -400,6 +440,8 @@ std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(
         return std::make_shared<ListAppendOperator>();
     } else if(mergeOperatorCode == "NULAPPEND") {
         return std::make_shared<NULAppendOperator>();
+    } else if(mergeOperatorCode == "NULAPPENDSET") {
+        return std::make_shared<NULAppendSetOperator>();
     } else {
         std::cerr << "Warning: Invalid merge operator code: " << mergeOperatorCode << std::endl;
         return std::make_shared<ReplaceOperator>();
