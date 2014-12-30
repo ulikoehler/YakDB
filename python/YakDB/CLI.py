@@ -465,7 +465,7 @@ def yakCLI():
     parserOpenTable.add_argument('-m','--merge-operator',
             dest="mergeOperator",
             default="REPLACE",
-            help="Merge operator (REPLACE, INT64ADD, DMUL or APPEND)")
+            help="Merge operator (e.g. REPLACE, INT64ADD, DMUL or APPEND)")
     parserOpenTable.add_argument('-l','--lru-cache-size',
             action="store",
             dest="lruCacheSize",
