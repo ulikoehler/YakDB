@@ -471,9 +471,9 @@ void UpdateWorker::handleTableOpenRequest(bool generateResponse) {
     //Create the response if neccessary
     if (generateResponse) {
         //Assemble & send response header
-        char responseHeader[4] = {0x31, 0x01, 0xFF, 0x01};
-        responseHeader[2] = ret.data()[0];
-        bool isErrorResponse = (responseHeader[2] != 0x00);
+        char responseHeader[4] = {0x31, 0x01, 0x01, 0xFF};
+        responseHeader[3] = ret.data()[0];
+        bool isErrorResponse = (responseHeader[3] != 0x00);
         sendResponseHeader(responseHeader, (isErrorResponse ? ZMQ_SNDMORE : 0));
         //Send error description if response code indicates error
         if(isErrorResponse) {
