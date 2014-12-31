@@ -271,6 +271,8 @@ protected:
      * if any.
      *
      * If the headerFrame parameter is NULL, no request ID is generated.
+     * @param responseHeader The response header bytes are stored here
+     * @param flags Use ZMQ_SNDMORE here 
      */
     bool sendResponseHeader(const char* responseHeader,
         int flags = 0,

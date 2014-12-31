@@ -1,4 +1,5 @@
 #include "MergeOperators.hpp"
+#include "Logger.hpp"
 #include "macros.hpp"
 
 #include <iostream>
@@ -443,11 +444,11 @@ std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(
     } else if(mergeOperatorCode == "NULAPPENDSET") {
         return std::make_shared<NULAppendSetOperator>();
     } else {
-        std::cerr << "Warning: Invalid merge operator code: " << mergeOperatorCode << std::endl;
-        return std::make_shared<ReplaceOperator>();
+        //FAIL
+        return std::shared_ptr<rocksdb::MergeOperator>(nullptr);
     }
 }
 
-bool isReplaceMergeOperator(const std::string& mergeOperatorCode) {
-    return mergeOperatorCode == "REPLACE";
+bool isReplaceMergeOperator(const char* mergeOperatorCode) {
+    return strcmp(mergeOperatorCode, "Replace") == 0;
 }

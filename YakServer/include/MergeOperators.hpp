@@ -169,6 +169,7 @@ class XOROperator : public rocksdb::AssociativeMergeOperator {
 
 /**
  * Create a merge operator instance by merge operator code
+ * @return The merge operator or nullptr (as shared ptr) if code is illegal
  */
 std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(
     const std::string& mergeOperatorCode);
@@ -177,6 +178,6 @@ std::shared_ptr<rocksdb::MergeOperator> createMergeOperator(
  * @return true if the given merge operator code represents
  *   a trivial replace operator
  */
-bool isReplaceMergeOperator(const std::string& mergeOperatorCode);
+bool isReplaceMergeOperator(const char* mergeOperatorCode);
 
 #endif //__MERGE_OPERATORS_HPP

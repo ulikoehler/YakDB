@@ -150,7 +150,32 @@ void TableOpenServer::tableOpenWorkerThread() {
                 rocksdb::Options options;
                 options.allow_mmap_reads = configParser.useMMapReads;
                 options.allow_mmap_writes = configParser.useMMapWrites;
-                parameters.getOptions(options);
+                TableOpenParameters::GetOptionsResult res = parameters.getOptions(options);
+                //Handle error code in table open parameters:
+                switch(res) {
+                    case TableOpenParameters::GetOptionsResult::MergeOperatorCodeIllegal: {
+                        logger.error("Unknown merge operator code: " + parameters.mergeOperatorCode);
+                        //Fail
+                        std::string errorReplyString = "\x11Merge operator " + parameters.mergeOperatorCode + " not recognized";
+                        if (unlikely(zmq_send(processorInputSocket, errorReplyString.data(), errorReplyString.size(), 0) == -1)) {
+                            logMessageSendError("table open error reply", logger);
+                        }
+                        continue; //Recv loop
+                    }
+                    case TableOpenParameters::GetOptionsResult::Success: {
+                        //Success, nothing to be done
+                        break;
+                    }
+                    default: {
+                        //Log unknown code, but proceed as in case of success
+                        logger.error("Internal error: Unknown getOptions() return code (continuing with REPLACE): "
+                                     + std::to_string((int)res));
+                        //Use default
+                        //Set default merge operator
+                        options.merge_operator = createMergeOperator("REPLACE");
+                        break;
+                    }
+                }
                 //Open the table
                 rocksdb::Status status = rocksdb::DB::Open(options, tableDir.c_str(),
                     tablespace.getTablePointer(tableIndex));
@@ -170,7 +195,7 @@ void TableOpenServer::tableOpenWorkerThread() {
                         + options.merge_operator->Name());
                     //Set merge operator trivial flag
                     tablespace.setMergeRequired(tableIndex,
-                        !isReplaceMergeOperator(parameters.mergeOperatorCode));
+                        !isReplaceMergeOperator(options.merge_operator->Name()));
                 } else { //status == not ok
                     std::string errorDescription = "Error while trying to open table #"
                         + std::to_string(tableIndex) + " in directory " + tableDir

@@ -244,7 +244,7 @@ void UpdateWorker::handlePutRequest(bool generateResponse) {
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendResponseHeader(ackResponse, 0, 4);
+        sendResponseHeader(ackResponse);
     }
 }
 
@@ -298,7 +298,7 @@ void UpdateWorker::handleDeleteRequest(bool generateResponse) {
     //Send success code
     if (generateResponse) {
         //Send success code
-        sendResponseHeader(ackResponse, 0, 4);
+        sendResponseHeader(ackResponse);
     }
 }
 
@@ -443,7 +443,7 @@ void UpdateWorker::handleDeleteRangeRequest(bool generateResponse) {
     }
     //Create the response if neccessary
     if (generateResponse) {
-        sendResponseHeader(ackResponse, 0, 4);
+        sendResponseHeader(ackResponse);
     }
 }
 
@@ -464,18 +464,22 @@ void UpdateWorker::handleTableOpenRequest(bool generateResponse) {
     if (!parseUint32Frame(tableId, "Table ID frame", generateResponse)) {
         return;
     }
-    //Open the table (consuming the remaining frames as parameter map)
-    tableOpenHelper.openTable(tableId, processorInputSocket);
-    std::map<std::string, std::string> parameters;
-    if(!receiveMap(parameters, "Receive table open parameter map", true)) {
-        return;
-    }
-    //
+    //Open the table (consumes remaining frames)
+    std::string ret =
+        tableOpenHelper.openTable(tableId, processorInputSocket);
     //Parse the flags from the header frame
-    //
     //Create the response if neccessary
     if (generateResponse) {
-        sendResponseHeader(ackResponse, 0, 4);
+        //Assemble & send response header
+        char responseHeader[4] = {0x31, 0x01, 0xFF, 0x01};
+        responseHeader[2] = ret.data()[0];
+        bool isErrorResponse = (responseHeader[2] != 0x00);
+        sendResponseHeader(responseHeader, (isErrorResponse ? ZMQ_SNDMORE : 0));
+        //Send error description if response code indicates error
+        if(isErrorResponse) {
+            std::string errDesc = ret.substr(1);
+            sendMsgHandleError(errDesc, 0, nullptr, false);
+        }
     }
 }
 

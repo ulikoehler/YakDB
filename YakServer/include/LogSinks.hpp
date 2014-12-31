@@ -39,6 +39,7 @@ class StderrLogSink : public LogSink {
 public:
     StderrLogSink();
     void log(LogLevel logLevel, uint64_t timestamp, const std::string& senderName, const std::string& logMessage);
+    
     /**
      * Enable or disable ANSI-colored logging
      */

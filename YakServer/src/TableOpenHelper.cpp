@@ -67,7 +67,7 @@ void COLD TableOpenParameters::toParameterMap(std::map<std::string, std::string>
     parameters["MergeOperator"] = mergeOperatorCode;
 }
 
-void TableOpenParameters::getOptions(rocksdb::Options& options) {
+TableOpenParameters::GetOptionsResult TableOpenParameters::getOptions(rocksdb::Options& options) {
     rocksdb::BlockBasedTableOptions bbOptions;
     //For all numeric options: <= 0 --> disable / use default
     if(lruCacheSize > 0) {
@@ -90,9 +90,13 @@ void TableOpenParameters::getOptions(rocksdb::Options& options) {
     options.compression = (rocksdb::CompressionType) compression;
     //Merge operator
     options.merge_operator = createMergeOperator(mergeOperatorCode);
+    if(options.merge_operator == nullptr) {
+        return GetOptionsResult::MergeOperatorCodeIllegal;
+    }
     //Create table factory from advanced block options
     rocksdb::TableFactory* tf = rocksdb::NewBlockBasedTableFactory(bbOptions);
     options.table_factory = std::shared_ptr<rocksdb::TableFactory>(tf);
+    return GetOptionsResult::Success;
 }
 
 void COLD TableOpenParameters::readTableConfigFile(const ConfigParser& cfg, uint32_t tableIndex) {
@@ -157,7 +161,7 @@ COLD TableOpenHelper::TableOpenHelper(void* context, ConfigParser& cfg) :
     }
 }
 
-void COLD TableOpenHelper::openTable(uint32_t tableId, void* paramSrcSock) {
+std::string COLD TableOpenHelper::openTable(uint32_t tableId, void* paramSrcSock) {
     //Note that the socket could be NULL <=> no parameters
     //Just send a message containing the table index to the opener thread
     if(sendTableOperationRequest(reqSocket, TableOperationRequestType::OpenTable, ZMQ_SNDMORE) == -1) {
@@ -173,8 +177,13 @@ void COLD TableOpenHelper::openTable(uint32_t tableId, void* paramSrcSock) {
             logger.critical("Table open client parameter transfer failed: " + std::string(zmq_strerror(errno)));
         }
     }
-    //Wait for the reply (reply content is ignored)
-    zmq_recv(reqSocket, nullptr, 0, 0); //Blocks until reply received
+    //Wait for the reply and return string
+    std::string ret;
+    if(zmqRecvString(reqSocket, ret) == -1) {
+        //Internal communication error
+        return "\x20";
+    }
+    return ret;
 }
 
 void COLD TableOpenHelper::closeTable(TableOpenHelper::IndexType index) {

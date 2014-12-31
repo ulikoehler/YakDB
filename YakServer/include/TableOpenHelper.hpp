@@ -28,6 +28,7 @@ enum class TableOperationRequestType : uint8_t {
     TruncateTable = 3
 };
 
+
 /**
  * Send a table operation request
  */
@@ -42,6 +43,14 @@ struct TableOpenParameters  {
     uint64_t bloomFilterBitsPerKey;
     rocksdb::CompressionType compression;
     std::string mergeOperatorCode;
+
+    /**
+     * Return code of the getOptions() function
+     */
+    enum class GetOptionsResult : uint8_t {
+        Success = 0,
+        MergeOperatorCodeIllegal = 1
+    };
 
     /**
      * Construct a new instance with all parameters set from config
@@ -63,8 +72,9 @@ struct TableOpenParameters  {
     /**
      * Convert the current instance to a rocksdb optionset
      * @param options In this reference the values are stored.
+     * @return One of the status codes defined in GetOptionsResult
      */
-    void getOptions(rocksdb::Options& options);
+    GetOptionsResult getOptions(rocksdb::Options& options);
 
     /**
      * Read a table config file (request is ignored if file does not exist).
@@ -97,8 +107,9 @@ public:
     ~TableOpenHelper();
     /**
      * Open a table using a socket from which parameters are read
+     * @return String with 1st byte: return code, remaining bytes: error message
      */
-    void openTable(IndexType tableId, void* srcSock=nullptr);
+    std::string openTable(IndexType tableId, void* srcSock=nullptr);
     void closeTable(IndexType index);
     void truncateTable(IndexType index);
     void* reqSocket; //This ZMQ socket is used to send requests

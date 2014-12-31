@@ -121,15 +121,15 @@ Additionally, opening tables takes a considerable amount of time, therefore
 * Frame 2-n (even numbers): Option key
 * Frame 3-n (odd numbers): Option value
 
-Table open options are specified as key/value pairs (both string).
+Table open options are specified as key/value pairs (both strings).
 Allowed key/value pairs:
 
 * 'LRUCacheSize': LRU cache size in bytes (unsigned)
 * 'Blocksize': Table blocksize in bytes (unsigned)
 * 'WriteBufferSize': Write buffer size in bytes (unsigned)
 * 'BloomFilterBitsPerKey': Bits per key for table bloom filter (unsigned)
-* 'CompressionMode': String code for the table compression mode (see below)
-* 'MergeOperator': String code for the table merge operator (see below)
+* 'CompressionMode': String code for the table compression mode (see yakdb.cfg)
+* 'MergeOperator': String code for the table merge operator (see yakdb.cfg)
 
 See default yakdb.cfg for a list of supported compression modes and merge operators.
 
@@ -143,6 +143,8 @@ Sent after table has been opened
 Response codes:
 * 0x00 Table opened successfully
 * 0x10 Error while opening table (implies frame 1 being existent and non-empty)
+* 0x11 Merge operator code not recognized
+* 0x20 Internal error (not DB-backend related) while trying to open the table
 
 ##### Close table request
 
