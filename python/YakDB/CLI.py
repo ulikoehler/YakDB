@@ -96,7 +96,11 @@ def scan(db, args):
     #Lazily iterate over key value tuples
     it = KeyValueIterator(db, tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, skip=skip, invert=invert)
     for key, value in it:
-        print("{0},{1}".format(key, value))
+        if args.onlyKeys:
+            #Print key but strip "b'" and "'"
+            print(str(key)[2:-1])
+        else: #Print k,v
+            print("{0},{1}".format(key, value))
 
 def listKeysInRange(db, args):
     tableNo = args.tableNo
@@ -364,6 +368,11 @@ def yakCLI():
             dest="invertDirection",
             default=False,
             help="Invert the scan direction")
+    parserScan.add_argument('--only-keys',
+            action="store_true",
+            dest="onlyKeys",
+            default=False,
+            help="Only print keys, omit values completely")
     parserScan.add_argument('table',
             type=int,
             nargs='?',
