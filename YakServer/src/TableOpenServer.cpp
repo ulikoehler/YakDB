@@ -208,8 +208,8 @@ void TableOpenServer::tableOpenWorkerThread() {
                     }
                 }
             } else { // Table already open
-                //Send "no action needed" reply
-                if (unlikely(zmq_send_const(processorInputSocket, "\x01", 1, 0) == -1)) {
+                //No action required, but return status is OK
+                if (unlikely(zmq_send_const(processorInputSocket, "\x00", 1, 0) == -1)) {
                     logMessageSendError("table open (no action needed) reply", logger);
                 }
             }
