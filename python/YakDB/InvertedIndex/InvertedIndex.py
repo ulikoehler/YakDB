@@ -200,7 +200,7 @@ class InvertedIndex(object):
         readKeys = [InvertedIndex.getKey(token, level) for token in tokens]
         readResult = self.conn.read(self.tableNo, readKeys)
         return InvertedIndex._processMultiTokenResult(readResult, level)
-    def searchMultiTokenExactAsync(self, tokens, callback, level="", ):
+    def searchMultiTokenExactAsync(self, tokens, callback, level=""):
         """Search multiple tokens in the inverted index, for exact matches"""
         assert self.connectionIsAsync
         readKeys = [InvertedIndex.getKey(token, level) for token in tokens]
@@ -212,24 +212,24 @@ class InvertedIndex(object):
         """This is called when the response for a multi token search has been received"""
         result = InvertedIndex._processMultiTokenResult(response, level)
         origCallback(result)
-    def searchMultiTokenPrefix(self, tokens, level="", limit=25):
+    def searchMultiTokenPrefix(self, tokens, levels=[""], limit=25):
         """Search multiple tokens in the inverted index"""
         assert not self.connectionIsAsync
         #Basically we execute multiple single token searches and emulate a multi-token
         # result to pass it into the merging algorithm
-        singleTokenResults = [self.searchSingleTokenPrefix(token, level, limit =limit) for token in tokens]
+        singleTokenResults = [self.searchSingleTokenPrefix(token, levels, limit=limit) for token in tokens]
         return InvertedIndex._processMultiTokenPrefixResult(singleTokenResults)
-    def searchMultiTokenPrefixAsync(self, tokens, callback, level="", limit=25):
+    def searchMultiTokenPrefixAsync(self, tokens, callback, levels=[""], limit=25):
         """Search multiple tokens in the inverted index, for exact matches"""
         assert self.connectionIsAsync
-        readKeys = [InvertedIndex.getKey(token, level) for token in tokens]
+        readKeys = [InvertedIndex.getKey(token, levels) for token in tokens]
         #In the results array, we set each index to the corresponding result, if any yet
         results = [None] * len(tokens)
         for i, token in enumerate(tokens):
             internalCallback = functools.partial(InvertedIndex.__searchMultiTokenPrefixAsyncRecvCallback,
-                                                 callback, level, results, i)
+                                                 callback, levels, results, i)
             #Here, we need access to both keys and values --> map the data into a dict
-            self.searchSingleTokenPrefixAsync(token=token, level=level, limit=limit, callback=internalCallback)
+            self.searchSingleTokenPrefixAsync(token=token, levels=levels, limit=limit, callback=internalCallback)
     @staticmethod
     def __searchMultiTokenPrefixAsyncRecvCallback(origCallback, level, results, i, response):
         """This is called when the response for a multi token search has been received"""
