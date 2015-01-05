@@ -18,8 +18,7 @@ class YakDBUtils:
         b'node<'
         >>> YakDBUtils.incrementKey(b"x")
         b'y'
-        >>> YakDBUtils.incrementKey(b"node\\xFF;")
-        b'node\\xff<'
+        >>> YakDBUtils.incrementKey(b"node\\xFF;")       b'node\\xff<'
         >>> YakDBUtils.incrementKey(b"x\\xFF")
         b'y\\xff'
         >>> YakDBUtils.incrementKey(b"\\xFF\\xFF")
@@ -40,11 +39,13 @@ class YakDBUtils:
         #The key consists of 0xFF characters only: Extend length
         return key + b"\x00"
 
-def makeUnique(coll):
-    """Return coll with duplicate instances removed. The ordering is maintained"""
-    uniqueResults = set()
-    return [r for r in coll if r not in uniqueResults and not uniqueResults.add(r)]
+def makeUnique(it):
+    """Return the given iterable without duplicates, maintaining its order"""
+    #Reference: http://stackoverflow.com/a/480227/2597135
+    seen = set()
+    seenAdd = seen.add
+    return [x for x in it if not (x in seen or seenAdd(x))]
     
 if __name__ == "__main__":
     import doctest
-    doctest.testmod()
+    doct

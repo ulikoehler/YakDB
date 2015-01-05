@@ -139,6 +139,31 @@ class InvertedIndex(object):
                 result = resultSet
                 initialized = True
         return (set() if result is None else result)
+    @staticmethod
+    def selectResults(results, levels, minHits=25, maxHits=50):
+        """
+        Postprocess a level-indexed result dictionary.
+        Selects a defined range of hits from the results,
+        prioritizing levels.
+        Returns a list of hits.
+
+        Keywords arguments:
+            results: The results to process, as a dict indexed by the level
+            levels: A list of levels with descending priority
+            minHits: Subsequent levels are skipped entirely if this length
+                of the resulting list is reached
+            maxHits: The maximum number of results returned
+        """
+        ret = []
+        #Add levels until minHits is reached
+        for level in levels:
+            if level not in results: continue
+            ret += list(results[level])
+            if len(ret) >= minHits: break
+        #Clamp to maxEntites length
+        if len(ret) > maxHits:
+            ret = ret[:maxHits]
+        return ret
     def writeIndex(self, token, entityList, levels=""):
         """
         Write a list of entities that relate to (token, level) to the index.
@@ -221,22 +246,23 @@ class InvertedIndex(object):
         """
         assert not self.connectionIsAsync
         ret = {}
+        #Strategy: We run multiple single token searches and merge them
+        # into a combined result
         for token in tokens:
             result = self.searchSingleTokenPrefix(token, levels, limit=limit)
-            #Skip empty hitsets except in strict mode
-            if not (result[level] or strict): continue
+            print(result)
             #Merge with result set
             for level in levels:
+                #Ensure the key is present (prevents rare exceptions)
+                if level not in result: result[level] = set()
+                #Skip empty hitsets except in strict mode
+                if not (result[level] or strict): continue
+                #Merge current with new value
                 if level not in ret:
                     ret[level] = result[level]
-                else: #Merge already existing hitset with current hitset
+                else: #Merge already existing hitset with currenft hitset
                     ret[level] = ret[level] & result[level]
         return ret
-
-        #Basically we execute multiple single token searches and emulate a multi-token
-        # result to pass it into the merging algorithm
-        singleTokenResults = [ for token in tokens]
-        return InvertedIndex._processMultiTokenPrefixResult(singleTokenResults)
     def iterateIndex(self, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
         "Wrapper to initialize a IndexIterator iterating over self"
         return IndexIterator(self, startKey, endKey, limit, keyFilter,
@@ -259,7 +285,7 @@ class IndexIterator(KeyValueIterator):
     def __next__(self):
         k, v = KeyValueIterator.__next__(self)
         level, _, token = k.partition(b"\x1E")
-        entities = (IndexIterator._splitEntityIdPart(d) for d in v.split(b"\x00"))
+        entities = [IndexIterator._splitEntityIdPart(d) for d in v.split(b"\x00")]
         return (level, token, entities)
     @staticmethod
     def _splitEntityIdPart(entity):
