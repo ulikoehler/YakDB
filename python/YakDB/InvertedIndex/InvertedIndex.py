@@ -39,9 +39,6 @@ class InvertedIndex(object):
     def getKey(token, level=""):
         """
         Get the inverted index database key for a given token and level
-
-        >>> InvertedIndex.getKey(b"mytoken", b"mylevel")
-        b'mylevel\\x1emytok'
         """
         #Ensure we're only dealing with bytes
         if type(level) == str: level = level.encode("utf-8")
@@ -50,15 +47,8 @@ class InvertedIndex(object):
         return level + b"\x1E" + token
     @staticmethod
     def extractLevel(dbKey):
-        """
-        Given a DB key, extracts the level
-
-        >>> InvertedIndex.extractLevel("thelevel\\x1Ethetoken")
-        'thelevel'
-        >>> InvertedIndex.extractLevel("\x1Ethetoken")
-        ''
-        """
-        return dbKey.rpartition("\x1E")[0]
+        """Given a DB key, extracts the level"""
+        return dbKey.rpartition(b"\x1E")[0]
     @staticmethod
     def splitValues(dbValue):
         """
@@ -87,8 +77,11 @@ class InvertedIndex(object):
         """
         Process the scan result for a single token prefix search and a single level
         Returns a set containing all hits.
+
+        Keys are ignored, i.e. this function must only be applied to a result set
+        from a single level/token combination.
         """
-        return [set(InvertedIndex.splitValues(value)) for _, value in scanResult]
+        return set(itertools.chain(*(InvertedIndex.splitValues(value) for _, value in scanResult)))
     @staticmethod
     def selectResults(results, levels, minHits=25, maxHits=50):
         """
@@ -154,9 +147,6 @@ class InvertedIndex(object):
         for level in levels:
             startKey = InvertedIndex.getKey(token, level)
             endKey = YakDBUtils.incrementKey(startKey)
-            print("startKey: %s" % startKey)
-            print("endKey: %s" % endKey)
-            print("limit: %d" % limit)
             scanResult = self.conn.scan(self.tableNo, startKey=startKey, endKey=endKey, limit=limit)
             res[level] = self._processScanResult(scanResult)
         return res
