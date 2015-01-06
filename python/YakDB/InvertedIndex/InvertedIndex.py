@@ -63,13 +63,12 @@ class InvertedIndex(object):
     def splitValues(dbValue):
         """
         Given a DB values, extracts the list of related entities
-
-        >>> sorted(InvertedIndex.splitValues("a\\x00b\\x00cd\\x00ef"))
-        ['a', 'b', 'cd', 'ef']
         """
         #Empty input --> empty output
         if not dbValue: return set()
-        return set(dbValue.split('\x00'))
+        #Ensure we're dealing with byte strings
+        if type(dbValue) == str: dbValue = dbValue.encode("utf-8")
+        return set(dbValue.split(b'\x00'))
     @staticmethod
     def _processReadResult(scanResult):
         """
