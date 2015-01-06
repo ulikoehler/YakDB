@@ -37,8 +37,17 @@ class InvertedIndex(object):
         self.connectionIsAsync = isinstance(connection, TornadoConnection)
     @staticmethod
     def getKey(token, level=""):
-        """Get the inverted index database key for a given token and level"""
-        return "%s\x1E%s" % (level, token)
+        """
+        Get the inverted index database key for a given token and level
+
+        >>> InvertedIndex.getKey(b"mytoken", b"mylevel")
+        b'mylevel\\x1emytok'
+        """
+        #Ensure we're only dealing with bytes
+        if type(level) == str: level = level.encode("utf-8")
+        if type(token) == str: token = token.encode("utf-8")
+        #Assemble the key
+        return level + b"\x1E" + token
     @staticmethod
     def extractLevel(dbKey):
         """
@@ -65,80 +74,22 @@ class InvertedIndex(object):
     def _processReadResult(scanResult):
         """
         Process the read result for a single token search
-        Returns a dict (indexed by level) containing a set of hits
+        Returns a dict (indexed by level) containing a set of hits.
 
-        >>> res = [('L1\\x1Ef','x\\x00y'),('X\\x1Eg','a\\x00y'),('L1\\x1Efoo','z\\x00y')]
-        >>> sorted(InvertedIndex._processReadResult(res))
-        {'L1': {'x', 'y', 'z'}, 'X':{'a', 'y'}}
-        >>> res = [('L2\\x1Ef','x\\x00y'),('L3\\x1Eg','a\\x00y'),('L4\\x1Efoo','z\\x00y')]
-        >>> sorted(InvertedIndex._processReadResult(res))
-        {'2': {'x', 'y'}, 'X': {'a', 'y'}}
+        This function assumes that every level occurs only once in the given
+        result set.
+
+        Argument: A list of tuples (level, binary value)
         """
-        return {InvertedIndex.extractLevel(key): InvertedIndex.splitValues(value)
-                for key, value in scanResult}
+        return {level: InvertedIndex.splitValues(value)
+                for level, value in scanResult}
     @staticmethod
     def _processScanResult(scanResult):
         """
         Process the scan result for a single token prefix search and a single level
-        Returns a set containing all hits
-
-        >>> res = [('L1\\x1Ef','x\\x00y'),('X\\x1Eg','a\\x00y'),('L1\\x1Efoo','z\\x00y')]
-        >>> sorted(InvertedIndex._processReadResult(res))
-        {'L1': {'x', 'y', 'z'}, 'X':{'a', 'y'}}
-        >>> res = [('L2\\x1Ef','x\\x00y'),('L3\\x1Eg','a\\x00y'),('L4\\x1Efoo','z\\x00y')]
-        >>> sorted(InvertedIndex._processReadResult(res))
-        {'2': {'x', 'y'}, 'X': {'a', 'y'}}
+        Returns a set containing all hits.
         """
-        return set(InvertedIndex.splitValues(value) for _, value in scanResult)
-    @staticmethod
-    def _processMultiTokenResult(scanResult, level):
-        """
-        Process the scan result for a multi-token exact search
-        Returns the set of entities relating to the token.
-
-        >>> res = {'L1\\x1Ef':'x\\x00y','X\\x1Eg':'a\\x00y','L1\\x1Efoo':'z\\x00y'}
-        >>> sorted(InvertedIndex._processMultiTokenResult(res, 'L1'))
-        ['y']
-        >>> res = {'L4\\x1Ef':'x\\x00y','L3\\x1Eg':'a\\x00y','L5\\x1Efoo':'z\\x00y'}
-        >>> sorted(InvertedIndex._processMultiTokenResult(res, 'L1'))
-        []
-        """
-        #NOTE: If one of the tokens has no result at all, it is currently ignored
-        initialized = False
-        result = None
-        for key, value in scanResult.items():
-            if InvertedIndex.extractLevel(key) == level:
-                valueList = InvertedIndex.splitValues(value)
-                if initialized:
-                    result.intersection_update(valueList)
-                else: #First level-matching result
-                    result = set(valueList)
-                    initialized = True
-        return (set() if result is None else result)
-    @staticmethod
-    def _processMultiTokenPrefixResult(resultList):
-        """
-        Process the scan result for a multi-token prefix search.
-        The result list argument is the list of result sets from
-        the single token searches
-
-        >>> res = [set(["a","b","x"]),set(["x","y","a"])]
-        >>> sorted(InvertedIndex._processMultiTokenPrefixResult(res))
-        ['a', 'x']
-        >>> res = [set(["a","b","x"]),set(["d","e","f"]),set(["x","y","a"])]
-        >>> sorted(InvertedIndex._processMultiTokenPrefixResult(res))
-        []
-        """
-        #NOTE: If one of the tokens has no result at all, it is currently ignored
-        initialized = False
-        result = None
-        for resultSet in resultList:
-            if initialized:
-                result.intersection_update(resultSet)
-            else: #First result
-                result = resultSet
-                initialized = True
-        return (set() if result is None else result)
+        return [set(InvertedIndex.splitValues(value)) for _, value in scanResult]
     @staticmethod
     def selectResults(results, levels, minHits=25, maxHits=50):
         """
@@ -190,12 +141,12 @@ class InvertedIndex(object):
               for token in tokens}
         if not kv: return
         self.conn.put(self.tableNo, kv)
-    def searchSingleTokenExact(self, token, level=[""], limit=10):
+    def searchSingleTokenExact(self, token, levels=[""], limit=10):
         """Search a single token by exact match in the inverted index"""
         assert not self.connectionIsAsync
-        readKeys = [InvertedIndex.getKey(token, level) for level in levels]
-        readResult = self.conn.read(self.tableNo, readKeys)
-        return self._processReadResult(zip(readKeys, readResult))
+        readResult = self.conn.read(self.tableNo,
+            (InvertedIndex.getKey(token, level) for level in levels))
+        return self._processReadResult(zip(levels, readResult))
     def searchSingleTokenPrefix(self, token, levels=[""], limit=25):
         """Search a single token with prefix matching in the inverted index"""
         assert not self.connectionIsAsync
@@ -204,6 +155,9 @@ class InvertedIndex(object):
         for level in levels:
             startKey = InvertedIndex.getKey(token, level)
             endKey = YakDBUtils.incrementKey(startKey)
+            print("startKey: %s" % startKey)
+            print("endKey: %s" % endKey)
+            print("limit: %d" % limit)
             scanResult = self.conn.scan(self.tableNo, startKey=startKey, endKey=endKey, limit=limit)
             res[level] = self._processScanResult(scanResult)
         return res
@@ -248,7 +202,6 @@ class InvertedIndex(object):
         ret = {}
         #Strategy: We run multiple single token searches and merge them
         # into a combined result
-        print("Tokens %s" % str(tokens))
         for token in tokens:
             result = self.searchSingleTokenPrefix(token, levels, limit=limit)
             #Merge with result set
@@ -327,7 +280,7 @@ class AsynchronousInvertedIndex(InvertedIndex):
         if all([obj is not None for obj in results]):
             #The multi-token search algorithm uses only the level from the key.
             #Therefore, for read() emulation, we don't need to know the token
-            result = InvertedIndex._processMultiTokenPrefixResult(results)
+            result = None#TODO: InvertedIndex._processMultiTokenPrefixResult(results)
             origCallback(result)
     def searchMultiTokenExactAsync(self, tokens, callback, level=""):
         """Search multiple tokens in the inverted index, for exact matches"""
@@ -339,7 +292,7 @@ class AsynchronousInvertedIndex(InvertedIndex):
     @staticmethod
     def __searchMultiTokenExactAsyncRecvCallback(origCallback, level, response):
         """This is called when the response for a multi token search has been received"""
-        result = InvertedIndex._processMultiTokenResult(response, level)
+        result = None#TODO: InvertedIndex._processMultiTokenResult(response, level)
         origCallback(result)
     def searchSingleTokenPrefixAsync(self, token, callback, levels=[""], limit=25):
         """

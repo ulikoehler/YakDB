@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
-from distutils.core import setup
+from setuptools import setup
 
 setup(name='YakDB',
       version='0.1',
@@ -8,9 +8,10 @@ setup(name='YakDB',
       author='Uli Köhler',
       author_email='ukoehler@btronik.de',
       url='http://techoverflow.net/',
-      packages=['YakDB','YakDB.Graph', 'YakDB.InvertedIndex'],
+      packages=['YakDB', 'YakDB.Graph', 'YakDB.InvertedIndex'],
       scripts=["yak"],
       requires=['zmq (>=13.0)'],
+      test_suite="tests",
       classifiers = [
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',

@@ -9,7 +9,7 @@ class YakDBUtils:
     def incrementKey(key):
         """
         Increment a database key
-        
+
         >>> YakDBUtils.incrementKey(b"node:abc")
         b'node:abd'
         >>> YakDBUtils.incrementKey(b"node:")
@@ -18,16 +18,19 @@ class YakDBUtils:
         b'node<'
         >>> YakDBUtils.incrementKey(b"x")
         b'y'
-        >>> YakDBUtils.incrementKey(b"node\\xFF;")       b'node\\xff<'
+        >>> YakDBUtils.incrementKey(b"node\\xFF;")
+        b'node\\xff<'
         >>> YakDBUtils.incrementKey(b"x\\xFF")
         b'y\\xff'
         >>> YakDBUtils.incrementKey(b"\\xFF\\xFF")
         b'\\xff\\xff\\x00'
+        >>> YakDBUtils.incrementKey(b"level\\x1Efoobar")
+        b'level\\x1efoobas'
         """
         #Increment the last char that is != \xFF
         if isinstance(key, str): key = key.encode("utf-8")
         keyList = list(key)
-        #Find & increment the last non-\xFF char 
+        #Find & increment the last non-\xFF char
         for idx in range(-1,(-1)-len(keyList),-1):
             lastChar = keyList[idx]
             if lastChar == 255:
@@ -48,4 +51,4 @@ def makeUnique(it):
     
 if __name__ == "__main__":
     import doctest
-    doct
+    doctest.testmod()
