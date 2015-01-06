@@ -63,6 +63,10 @@ class TestInvertedIndex(unittest.TestCase):
         #Test 4
         res = InvertedIndex.getKey(b"", b"")
         self.assertEqual(res, b'\x1E')
+        #Test 5: Test with unicode strings
+        res = InvertedIndex.getKey("mytoken", "mylevel")
+        self.assertEqual(res, b'mylevel\x1Emytoken')
+
 
 
 
