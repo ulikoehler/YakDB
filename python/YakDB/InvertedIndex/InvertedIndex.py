@@ -248,9 +248,9 @@ class InvertedIndex(object):
         ret = {}
         #Strategy: We run multiple single token searches and merge them
         # into a combined result
+        print("Tokens %s" % str(tokens))
         for token in tokens:
             result = self.searchSingleTokenPrefix(token, levels, limit=limit)
-            print(result)
             #Merge with result set
             for level in levels:
                 #Ensure the key is present (prevents rare exceptions)

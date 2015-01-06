@@ -186,7 +186,7 @@ class EntityInvertedIndex(object):
             valueFilter, skip, invert, chunkSize)
     def iterateIndex(self, *args, **kwargs):
         "Decorator for InvertedIndex.iterateIndex"
-        self.index.iterateIndex(*args, **kwargs)
+        return self.index.iterateIndex(*args, **kwargs)
 
 class EntityIterator(KeyValueIterator):
     """

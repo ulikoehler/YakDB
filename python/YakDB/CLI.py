@@ -201,7 +201,7 @@ def truncateTable(db, args):
 
 
 def repl(db, args):
-    code.InteractiveConsole(locals=globals()).interact("YakDB REPL -- Connection is available in 'db' variable")
+    code.InteractiveConsole(locals={"db":db}).interact("YakDB REPL -- Connection is available in 'db' variable")
 
 def yakCLI():
     """
