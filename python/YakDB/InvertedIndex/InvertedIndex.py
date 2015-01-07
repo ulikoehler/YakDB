@@ -5,11 +5,9 @@ Inverted index utilities for YakDB.
 """
 from YakDB.Utils import YakDBUtils
 from YakDB.ConnectionBase import YakDBConnectionBase
-from YakDB.TornadoConnection import TornadoConnection
 from YakDB.Iterators import KeyValueIterator
-import functools
 import itertools
-from collections import defaultdict
+
 
 class InvertedIndex(object):
     """
@@ -106,7 +104,7 @@ class InvertedIndex(object):
         if len(ret) > maxHits:
             ret = ret[:maxHits]
         return ret
-    def writeIndex(self, token, entityList, levels=""):
+    def writeIndex(self, token, entityList, level=""):
         """
         Write a list of entities that relate to (token, level) to the index.
         The previous entity result for that (token, level) is replaced.
