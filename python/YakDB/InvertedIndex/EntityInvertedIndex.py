@@ -90,10 +90,10 @@ class EntityInvertedIndex(object):
         assert not self.connectionIsAsync
         #Shortcut for empty resultset
         if not entityIds: return []
-        readResult = self.conn.read(self.entityTableNo,
+        readResults = self.conn.read(self.entityTableNo,
             keys=[EntityInvertedIndex._entityIdsToKey(k) for k in entityIds]
         )
-        return zip(entityIds, (self.unpackValue(val) for val in readResults))
+        return dict(zip(entityIds, (self.unpackValue(val) for val in readResults)))
     def getEntitiesAsync(self, entityIds, callback):
         """Read entities asynchronously"""
         assert self.connectionIsAsync

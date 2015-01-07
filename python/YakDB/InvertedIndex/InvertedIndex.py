@@ -36,7 +36,7 @@ class InvertedIndex(object):
         self.tableNo = tableNo
         self.connectionIsAsync = isinstance(connection, TornadoConnection)
     @staticmethod
-    def getKey(token, level=""):
+    def getKey(token, level=b""):
         """
         Get the inverted index database key for a given token and level
         """
@@ -209,6 +209,20 @@ class InvertedIndex(object):
         "Wrapper to initialize a IndexIterator iterating over self"
         return IndexIterator(self, startKey, endKey, limit, keyFilter,
             valueFilter, skip, invert, chunkSize)
+    def searchSingleTokenExactAsync(self, token, callback, levels=[""], limit=25):
+        """
+        Search a single token in the inverted index using async connection
+        """
+        assert self.connectionIsAsync
+        readKeys = [InvertedIndex.getKey(token, level) for level in levels]
+        internalCallback = functools.partial(
+            InvertedIndex.__searchSingleTokenExactAsyncRecvCallback, callback)
+        readResult = self.conn.read(self.tableNo,
+            (InvertedIndex.getKey(token, level) for level in levels),
+            callback = )
+    @staticmethod
+    def __searchSingleTokenExactAsyncRecvCallback(origCallback, readResult):
+        origCallback(self._processReadResult(zip(levels, readResult)))
 
 
 class IndexIterator(KeyValueIterator):
@@ -296,18 +310,6 @@ class AsynchronousInvertedIndex(InvertedIndex):
     def __searchSingleTokenPrefixAsyncRecvCallback(origCallback, response):
         "This gets called once an asynchronous request to "
         origCallback(InvertedIndex._processReadResult(response))
-    def searchSingleTokenExactAsync(self, token, callback, levels=[""], limit=25):
-        """
-        Search a single token in the inverted index using async connection
-        """
-        assert self.connectionIsAsync
-        readKeys = [InvertedIndex.getKey(token, level) for level in levels]
-        internalCallback = functools.partial(
-            InvertedIndex.__searchSingleTokenExactAsyncRecvCallback, callback, readKeys)
-        self.conn.read(self.tableNo, readKeys, callback=internalCallback)
-    @staticmethod
-    def __searchSingleTokenExactAsyncRecvCallback(origCallback, readKeys, readResult):
-        origCallback(self._processReadResult(zip(readKeys, readResult)))
 
 if __name__ == "__main__":
     import doctest
