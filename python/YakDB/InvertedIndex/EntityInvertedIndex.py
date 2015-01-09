@@ -29,7 +29,7 @@ def hashEntity(entity):
 class EntityInvertedIndex(object):
     """
     An inverted index decorator that handles saving and reading of entities.
-    
+
     Mimics the behaviour of an InvertedIndex (and uses it internally),
     but allows multi-level searches and automatically fetches entities:
     Each consecutive level is searched if the previous level did not return
@@ -82,9 +82,10 @@ class EntityInvertedIndex(object):
     def getEntities(self, entityIds):
         """Read a list of entities and unpack them. Return the list of objects"""
         #Shortcut for empty resultset
-        if not entityIds: return []
+        if not entityIds: return {}
+        #One-shot read all selected entities at once
         readResults = self.conn.read(self.entityTableNo,
-            keys=[EntityInvertedIndex._entityIdsToKey(k) for k in entityIds]
+            keys=(EntityInvertedIndex._entityIdsToKey(k) for k in entityIds)
         )
         return dict(zip(entityIds, (self.unpackValue(val) for val in readResults)))
     def __execSyncSearch(self, searchFunc, tokenObj, levels, limit):
@@ -111,7 +112,7 @@ class EntityInvertedIndex(object):
         return self.__execSyncSearch(
             self.index.searchSingleTokenPrefix, token, levels, limit)
     def searchMultiTokenExact(self, tokens, levels=[""]):
-        """Search multiple tokens in the inverted i     ndex (by exact match)"""
+        """Search multiple tokens in the inverted index (by exact match)"""
         return self.__execSyncSearch(
             self.index.searchMultiTokenExact, tokens, levels)
     def searchMultiTokenPrefix(self, tokens, levels=[""], limit=25):
