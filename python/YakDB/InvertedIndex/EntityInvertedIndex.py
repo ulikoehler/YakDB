@@ -98,6 +98,8 @@ class EntityInvertedIndex(object):
             minHits=self.minEntities, maxHits=self.maxEntities)
         #Remove duplicate results (using set would destroy the order)
         allResults = makeUnique(allResults)
+        #FAILSAFE: Although we SHOULD have at most maxEntities results, we need to be sure
+        allResults = allResults[:self.maxEntities]
         #Read the entity objects3
         return self.getEntities(allResults)
     def searchSingleTokenPrefix(self, token, levels=[""], limit=10):

@@ -195,7 +195,7 @@ class InvertedIndex(object):
                 #Merge current with new value
                 if level not in ret:
                     ret[level] = result[level]
-                else: #Merge already existing hitset with currenft hitset
+                else: #Merge already existing hitset with current hitset
                     ret[level] = ret[level] & result[level]
         return ret
     def iterateIndex(self, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
