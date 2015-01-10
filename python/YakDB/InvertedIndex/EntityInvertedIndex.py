@@ -79,7 +79,7 @@ class EntityInvertedIndex(object):
         """Write a list of entities at onces"""
         writeDict = {self.extractKey(e): self.packValue(e) for e in entities}
         self.conn.put(self.entityTableNo, writeDict)
-    def getEntities(self, entityIds):
+    def __getEntitiesDict(self, entityIds):
         """Read a list of entities and unpack them. Return the list of objects"""
         #Shortcut for empty resultset
         if not entityIds: return {}
@@ -89,6 +89,14 @@ class EntityInvertedIndex(object):
         )
         #We return the entity ID so that the caller knows which entity part caused the hit
         return dict(zip(entityIds, (self.unpackValue(val) for val in readResults)))
+    def findEntity(self, entityId):
+        "Retrieve a single entity from the database"
+        return self.conn.read(self.entityTableNo,
+            keys=(EntityInvertedIndex._entityIdsToKey(entityId)))[0]
+    def findEntities(self, entityIds):
+        "Retrieve multiple entities from the database"
+        return self.conn.read(self.entityTableNo,
+            keys=(EntityInvertedIndex._entityIdsToKey(k) for k in entityIds))
     def __execSyncSearch(self, searchFunc, tokenObj, levels, limit):
         """
         Internal search runner for synchronous multi-level search
@@ -103,7 +111,7 @@ class EntityInvertedIndex(object):
         #FAILSAFE: Although we SHOULD have at most maxEntities results, we need to be sure
         allResults = allResults[:self.maxEntities]
         #Read the entity objects3
-        return self.getEntities(allResults)
+        return self.__getEntitiesDict(allResults)
     def searchSingleTokenPrefix(self, token, levels=[""], limit=10):
         """
         Search a single token (or token prefix) in one or multiple levels
