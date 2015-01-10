@@ -28,7 +28,7 @@ class YakDBConnectionBase(object):
         #Connect to the endpoints, if any
         if endpoints is None:
             pass
-        elif type(endpoints) is str:
+        elif type(endpoints) is str or type(endpoints) is bytes:
             self.connect(endpoints)
         elif isinstance(connection, collections.Iterable):
             [self.connect(endpoint) for endpoint in endpoints]

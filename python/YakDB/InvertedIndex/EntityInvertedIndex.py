@@ -87,7 +87,8 @@ class EntityInvertedIndex(object):
         readResults = self.conn.read(self.entityTableNo,
             keys=(EntityInvertedIndex._entityIdsToKey(k) for k in entityIds)
         )
-        return (self.unpackValue(val) for val in readResults)
+        #We return the entity ID so that the caller knows which entity part caused the hit
+        return dict(zip(entityIds, (self.unpackValue(val) for val in readResults)))
     def __execSyncSearch(self, searchFunc, tokenObj, levels, limit):
         """
         Internal search runner for synchronous multi-level search
