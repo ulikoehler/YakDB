@@ -135,6 +135,9 @@ class EntityInvertedIndex(object):
     def iterateIndex(self, *args, **kwargs):
         "Decorator for InvertedIndex.iterateIndex"
         return self.index.iterateIndex(*args, **kwargs)
+    def indexTokens(self, *args, **kwargs):
+        "Decorator for InvertedIndex.iterateIndex"
+        return self.index.indexTokens(*args, **kwargs)
 
 class EntityIterator(KeyValueIterator):
     """
