@@ -202,6 +202,20 @@ class InvertedIndex(object):
         "Wrapper to initialize a IndexIterator iterating over self"
         return IndexIterator(self, startKey, endKey, limit, keyFilter,
             valueFilter, skip, invert, chunkSize)
+    @staticmethod
+    def splitEntityIdPart(entity):
+        """
+        Utility to split \x1E-separated entities into a 2-tuple
+
+        >>> IndexIterator._splitEntityIdPart(b"foo:bar")
+        (b'foo:bar', b'')
+        >>> IndexIterator._splitEntityIdPart(b"foo\x1Ebar")
+        (b'foo', b'bar')
+        >>> IndexIterator._splitEntityIdPart(b"")
+        (b'', b'')
+        """
+        (a, _, b) = entity.partition(b"\x1E")
+        return (a, b)
 
 
 class IndexIterator(KeyValueIterator):
@@ -220,22 +234,8 @@ class IndexIterator(KeyValueIterator):
     def __next__(self):
         k, v = KeyValueIterator.__next__(self)
         level, _, token = k.partition(b"\x1E")
-        entities = [IndexIterator._splitEntityIdPart(d) for d in v.split(b"\x00")]
+        entities = [InvertedIndex.splitEntityIdPart(d) for d in v.split(b"\x00")]
         return (level, token, entities)
-    @staticmethod
-    def _splitEntityIdPart(entity):
-        """
-        Utility to split \x1E-separated entities into a 2-tuple
-
-        >>> IndexIterator._splitEntityIdPart(b"foo:bar")
-        (b'foo:bar', b'')
-        >>> IndexIterator._splitEntityIdPart(b"foo\x1Ebar")
-        (b'foo', b'bar')
-        >>> IndexIterator._splitEntityIdPart(b"")
-        (b'', b'')
-        """
-        (a, _, b) = entity.partition(b"\x1E")
-        return (a, b)
 
 if __name__ == "__main__":
     import doctest
