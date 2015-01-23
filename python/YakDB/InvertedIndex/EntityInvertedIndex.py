@@ -111,7 +111,7 @@ class EntityInvertedIndex(object):
         #FAILSAFE: Although we SHOULD have at most maxEntities results, we need to be sure
         allResults = allResults[:self.maxEntities]
         #Read the entity objects
-        self.__getEntitiesDict(allResults)
+        return self.__getEntitiesDict(allResults)
     def searchSingleTokenPrefix(self, token, levels=[""], limit=10):
         """
         Search a single token (or token prefix) in one or multiple levels
