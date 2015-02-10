@@ -130,12 +130,12 @@ class InvertedIndex(object):
               for token in tokens}
         if not kv: return
         self.conn.put(self.tableNo, kv)
-    def searchSingleTokenExact(self, token, levels=[""], limit=10):
+    def searchSingleTokenExact(self, token, levels=[b""], limit=10):
         """Search a single token by exact match in the inverted index"""
         readResult = self.conn.read(self.tableNo,
             (InvertedIndex.getKey(token, level) for level in levels))
         return self._processReadResult(zip(levels, readResult))
-    def searchSingleTokenPrefix(self, token, levels=[""], limit=25):
+    def searchSingleTokenPrefix(self, token, levels=[b""], limit=25):
         """Search a single token with prefix matching in the inverted index"""
         res = {}
         #For prefix = scan operations we need to perform one operation per level
@@ -145,7 +145,7 @@ class InvertedIndex(object):
             scanResult = self.conn.scan(self.tableNo, startKey=startKey, endKey=endKey, limit=limit)
             res[level] = self._processScanResult(scanResult)
         return res
-    def searchMultiTokenExact(self, tokens, levels=[""], strict=False):
+    def searchMultiTokenExact(self, tokens, levels=[b""], strict=False):
         """
         Search multiple tokens in the inverted index (by exact match)
 
@@ -171,7 +171,7 @@ class InvertedIndex(object):
             else: #Merge already existing hitset with current hitset
                 res[level] = res[level] & set(hits)
         return res
-    def searchMultiTokenPrefix(self, tokens, levels=[""], limit=25, strict=False):
+    def searchMultiTokenPrefix(self, tokens, levels=[b""], limit=25, strict=False):
         """
         Search multiple tokens in the inverted index
 
@@ -198,6 +198,19 @@ class InvertedIndex(object):
                 else: #Merge already existing hitset with current hitset
                     ret[level] = ret[level] & result[level]
         return ret
+    def searchSingleTokenMultiExact(self, tokens, level=b""):
+        """
+        Perform a bunch of independent single-token exact searches for a single level in a single
+        read request.
+
+        Returns a dictionary with a list of tuples (entityId, entityPart) for each token
+        """
+        readKeys = (InvertedIndex.getKey(token, level) for token in tokens)
+        readResult = self.conn.read(self.tableNo, tokens)
+        return {
+            k: InvertedIndex.splitValues(value)
+            for (k, v) in zip(tokens, readResult)
+        }
     def iterateIndex(self, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
         "Wrapper to initialize a IndexIterator iterating over self"
         return IndexIterator(self, startKey, endKey, limit, keyFilter,
@@ -237,6 +250,6 @@ class IndexIterator(KeyValueIterator):
         entities = [InvertedIndex.splitEntityIdPart(d) for d in v.split(b"\x00")]
         return (level, token, entities)
 
-if __name__ == "__main__":
+if __name__ == "__main__":,
     import doctest
     doctest.testmod()
