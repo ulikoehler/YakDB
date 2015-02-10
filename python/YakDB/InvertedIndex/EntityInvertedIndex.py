@@ -128,6 +128,9 @@ class EntityInvertedIndex(object):
         """Search multiple tokens in the inverted index"""
         return self.__execSyncSearch(
             self.index.searchMultiTokenPrefix, tokens, levels, limit)
+    def searchSingleTokenMultiExact(self, *args, **kwargs):
+        "Currently just a thin wrapper for InvertedIndex.searchSingleTokenMultiExact()"
+        return self.index.searchSingleTokenMultiExact(*args, **kwargs)
     def iterateEntities(self, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
         "Wrapper to initialize a EntityIterator iterating over self"
         return EntityIterator(self, startKey, endKey, limit, keyFilter,

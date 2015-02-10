@@ -207,10 +207,8 @@ class InvertedIndex(object):
         """
         readKeys = (InvertedIndex.getKey(token, level) for token in tokens)
         readResult = self.conn.read(self.tableNo, tokens)
-        return {
-            k: InvertedIndex.splitValues(value)
-            for (k, v) in zip(tokens, readResult)
-        }
+        return {k: [InvertedIndex.splitEntityIdPart(v) for v in InvertedIndex.splitValues(values)]
+                for (k, values) in zip(tokens, readResult)}
     def iterateIndex(self, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
         "Wrapper to initialize a IndexIterator iterating over self"
         return IndexIterator(self, startKey, endKey, limit, keyFilter,
@@ -250,6 +248,6 @@ class IndexIterator(KeyValueIterator):
         entities = [InvertedIndex.splitEntityIdPart(d) for d in v.split(b"\x00")]
         return (level, token, entities)
 
-if __name__ == "__main__":,
+if __name__ == "__main__":
     import doctest
     doctest.testmod()
