@@ -142,6 +142,27 @@ class EntityInvertedIndex(object):
         "Decorator for InvertedIndex.iterateIndex"
         return self.index.indexTokens(*args, **kwargs)
 
+#Draft for wrapper or InvertedIndex.searchSingleTokenMultiExact()
+#def searchSingleTokenMultiExact(self, tokens, level=b""):
+#    """
+#    Wraps InvertedIndex.searchSingleTokenMultiExact()
+#    Fetches the entities and inserts the "hitloc" member which contains
+#    the hit's document part
+#    """
+#    indexRes = self.index.searchSingleTokenMultiExact(self, tokens, level=b"")
+#    #Build a list of all entities to read
+#    readKeys = (v[0] for v in itertools.chain(*indexRes.values()))
+#    #Perform entity read
+#    entityMap = self.conn.read(self.entityTableNo, readKeys, mapKeys=True)
+#    #Process
+#    result = {}
+#    for hit, values in indexRes.items():
+#        currentResult = [] #Result list for 
+#        for value in values:
+#            entityId, entityPart = value
+#            #Shallow-copy dict and add "hitloc"
+#            #Reason: We might need different hitlocs for different instances of an entity
+
 class EntityIterator(KeyValueIterator):
     """
     Lazy iterator wrapper that directly iterates over documents.
