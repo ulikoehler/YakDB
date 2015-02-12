@@ -101,16 +101,16 @@ class EntityInvertedIndex(object):
         """
         Internal search runner for synchronous multi-level search
         """
-        #Scan
+        # Scan
         resultDict = searchFunc(tokenObj, levels, limit)
-        #Reduce results based on level priority
+        # Reduce results based on level priority
         allResults = InvertedIndex.selectResults(resultDict, levels,
             minHits=self.minEntities, maxHits=self.maxEntities)
-        #Remove duplicate results (using set would destroy the order)
+        # Remove duplicate results (using set would destroy the order)
         allResults = makeUnique(allResults)
-        #FAILSAFE: Although we SHOULD have at most maxEntities results, we need to be sure
+        # FAILSAFE: Although we SHOULD have at most maxEntities results, we need to be sure
         allResults = allResults[:self.maxEntities]
-        #Read the entity objects
+        # Read the entity objects
         return self.__getEntitiesDict(allResults)
     def searchSingleTokenPrefix(self, token, levels=[""], limit=10):
         """
@@ -131,6 +131,36 @@ class EntityInvertedIndex(object):
     def searchSingleTokenMultiExact(self, *args, **kwargs):
         "Currently just a thin wrapper for InvertedIndex.searchSingleTokenMultiExact()"
         return self.index.searchSingleTokenMultiExact(*args, **kwargs)
+    def searchSingleTokenMultiExact(self, tokens, level=b""):
+        """
+        Wraps InvertedIndex.searchSingleTokenMultiExact()
+        Fetches the entities and inserts the "hitloc" member which contains
+        the hit's document part.
+
+        Returns map: "hit token" -> list of entities
+        Empty result sets for tokens are omitted
+        """
+        indexRes = self.index.searchSingleTokenMultiExact(self, tokens, level)
+        #Build a list of all entities to read
+        readKeys = (v[0] for v in itertools.chain(*indexRes.values()))
+        #Perform entity read
+        entityRawMap = self.conn.read(self.entityTableNo, readKeys, mapKeys=True)
+        entityMap = {k: self.unpackValue(v) for k,v in entityRawMap.items() if v}
+        #Process
+        result = defaultdict(list) #What we will return:
+        for hit, values in indexRes.items():
+            for value in values:
+                entityId, entityPart = value
+                #FAILSAFE if entity is not present in DB
+                if entityId not in entityMap: continue
+                #Shallow-copy dict and add "hitloc"
+                #Reason: We might need different hitlocs for different instances of an entity
+                entityCopy = dict(entityMap[entityId])
+                entityCopy[b"hitloc"] = entityPart
+                #Add to current result
+                result[hit].append(entityCopy)
+        return result
+
     def iterateEntities(self, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
         "Wrapper to initialize a EntityIterator iterating over self"
         return EntityIterator(self, startKey, endKey, limit, keyFilter,
@@ -142,26 +172,6 @@ class EntityInvertedIndex(object):
         "Decorator for InvertedIndex.iterateIndex"
         return self.index.indexTokens(*args, **kwargs)
 
-#Draft for wrapper or InvertedIndex.searchSingleTokenMultiExact()
-#def searchSingleTokenMultiExact(self, tokens, level=b""):
-#    """
-#    Wraps InvertedIndex.searchSingleTokenMultiExact()
-#    Fetches the entities and inserts the "hitloc" member which contains
-#    the hit's document part
-#    """
-#    indexRes = self.index.searchSingleTokenMultiExact(self, tokens, level=b"")
-#    #Build a list of all entities to read
-#    readKeys = (v[0] for v in itertools.chain(*indexRes.values()))
-#    #Perform entity read
-#    entityMap = self.conn.read(self.entityTableNo, readKeys, mapKeys=True)
-#    #Process
-#    result = {}
-#    for hit, values in indexRes.items():
-#        currentResult = [] #Result list for 
-#        for value in values:
-#            entityId, entityPart = value
-#            #Shallow-copy dict and add "hitloc"
-#            #Reason: We might need different hitlocs for different instances of an entity
 
 class EntityIterator(KeyValueIterator):
     """
