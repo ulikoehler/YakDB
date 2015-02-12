@@ -166,15 +166,23 @@ std::string COLD TableOpenHelper::openTable(uint32_t tableId, void* paramSrcSock
     //Just send a message containing the table index to the opener thread
     if(sendTableOperationRequest(reqSocket, TableOperationRequestType::OpenTable, ZMQ_SNDMORE) == -1) {
         logMessageSendError("table open header message", logger);
-        /*
-         * AUTO-FIX
-         * EFSM issues have occured here in the past.
-         * If they occur, fix them
-         */
-        std::string _;
-        zmqRecvString(reqSocket, _);
-        //Return Internal communication error
-        return "\x20";
+        if(errno == EFSM) {
+            /*
+             * AUTO-FIX
+             * EFSM issues have occured here in the past.
+             * If they occur, fix them
+             */
+            std::string _;
+            zmqRecvString(reqSocket, _);
+            logger.warn("Self-repairing state machine issues in table open helper");
+            //Try again
+            if(sendTableOperationRequest(reqSocket, TableOperationRequestType::OpenTable, ZMQ_SNDMORE) == -1) {
+                logMessageSendError("table open header message (retry)", logger);
+
+            }
+            //Failed again - Return Internal communication error
+            return "\x20";
+        }
     }
     //Determine if there are ANY key/value parameters to be sent
     bool haveParameters = paramSrcSock != nullptr && socketHasMoreFrames(paramSrcSock);
@@ -189,6 +197,7 @@ std::string COLD TableOpenHelper::openTable(uint32_t tableId, void* paramSrcSock
     //Wait for the reply and return string
     std::string ret;
     if(zmqRecvString(reqSocket, ret) == -1) {
+        logMessageRecvError("table open response", logger);
         //Internal communication error
         return "\x20";
     }
