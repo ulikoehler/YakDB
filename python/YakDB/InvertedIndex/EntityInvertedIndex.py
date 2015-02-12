@@ -166,6 +166,7 @@ class EntityInvertedIndex(object):
 class EntityIterator(KeyValueIterator):
     """
     Lazy iterator wrapper that directly iterates over documents.
+    Iterates over tuples (key, entity). Entity is automatically unpacked.
     """
     def __init__(self, idx, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
         KeyValueIterator.__init__(self, idx.conn, idx.entityTableNo,
