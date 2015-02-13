@@ -205,6 +205,7 @@ class InvertedIndex(object):
 
         Returns a dictionary with a list of tuples (entityId, entityPart) for each token
         """
+        if not tokens: return {}
         readKeys = [InvertedIndex.getKey(token, level) for token in tokens]
         readResult = self.conn.read(self.tableNo, readKeys)
         return {k: [InvertedIndex.splitEntityIdPart(v) for v in InvertedIndex.splitValues(values)]
