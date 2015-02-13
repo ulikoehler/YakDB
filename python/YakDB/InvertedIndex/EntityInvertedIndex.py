@@ -17,6 +17,8 @@ except ImportError:
 #Only needed for the default key extractor, but it's a thin wrapper
 import hashlib
 import base64
+import itertools
+from collections import defaultdict
 
 
 def hashEntity(entity):
@@ -140,9 +142,10 @@ class EntityInvertedIndex(object):
         Returns map: "hit token" -> list of entities
         Empty result sets for tokens are omitted
         """
-        indexRes = self.index.searchSingleTokenMultiExact(self, tokens, level)
+        indexRes = self.index.searchSingleTokenMultiExact(tokens, level)
         #Build a list of all entities to read
-        readKeys = (v[0] for v in itertools.chain(*indexRes.values()))
+        readKeys = [v[0] for v in itertools.chain(*indexRes.values())]
+        if not readKeys: return {}
         #Perform entity read
         entityRawMap = self.conn.read(self.entityTableNo, readKeys, mapKeys=True)
         entityMap = {k: self.unpackValue(v) for k,v in entityRawMap.items() if v}
