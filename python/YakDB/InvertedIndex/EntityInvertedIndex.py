@@ -8,6 +8,7 @@ from YakDB.Utils import makeUnique
 from YakDB.InvertedIndex import InvertedIndex
 from YakDB.Iterators import KeyValueIterator
 import collections
+import itertools
 #Python3 has no separate cPickle module
 try:
     import cPickle as pickle
@@ -93,12 +94,14 @@ class EntityInvertedIndex(object):
         return dict(zip(entityIds, (self.unpackValue(val) for val in readResults)))
     def findEntity(self, entityId):
         "Retrieve a single entity from the database"
-        return self.conn.read(self.entityTableNo,
+        rawEntity = self.conn.read(self.entityTableNo,
             keys=(EntityInvertedIndex._entityIdsToKey(entityId)))[0]
+        return self.unpackValue(rawEntity)
     def findEntities(self, entityIds):
         "Retrieve multiple entities from the database"
-        return self.conn.read(self.entityTableNo,
+        rawEntities = self.conn.read(self.entityTableNo,
             keys=(EntityInvertedIndex._entityIdsToKey(k) for k in entityIds))
+        return (self.unpackValue(entity) for entity in rawEntities)
     def __execSyncSearch(self, searchFunc, tokenObj, levels, limit):
         """
         Internal search runner for synchronous multi-level search
@@ -150,7 +153,7 @@ class EntityInvertedIndex(object):
         entityRawMap = self.conn.read(self.entityTableNo, readKeys, mapKeys=True)
         entityMap = {k: self.unpackValue(v) for k,v in entityRawMap.items() if v}
         #Process
-        result = defaultdict(list) #What we will return:
+        result = collections.defaultdict(list) #What we will return:
         for hit, values in indexRes.items():
             for value in values:
                 entityId, entityPart = value

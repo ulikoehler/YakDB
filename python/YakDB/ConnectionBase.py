@@ -101,10 +101,8 @@ class YakDBConnectionBase(object):
         """Maps the request keys and response values from a read request to a dictionary"""
         #For mapping we need to ensure 'keys' is array-ish
         if not isinstance(keys, collections.Iterable): keys = [keys]
-        #If this fails, the keys list probably wasn't sent to the server
-        assert len(keys) == len(values)
         #Dict comprehension, requires Python 2.7+
-        return {key: values[i] for i, key in enumerate(keys)}
+        return dict(zip(keys, values))
     @staticmethod
     def _mapScanToTupleList(dataParts):
         """
