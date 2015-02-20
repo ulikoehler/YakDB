@@ -198,10 +198,10 @@ class EntityInvertedIndex(object):
         "Decorator for InvertedIndex.iterateIndex"
         return self.index.indexTokens(*args, **kwargs)
 
-    def newWriteBatch(self):
+    def newWriteBatch(self, *args, **kwargs):
         "Create a write batch to write entities. See EntityWriteBatch class"
-        return EntityWriteBatch(self.packValue, self.extractKey,
-                                self.conn, self.entityTableNo)
+        return EntityWriteBatch(self.packValue, self.extractKey, self.conn,
+                                self.entityTableNo, *args, **kwargs)
 
 
 class EntityIterator(KeyValueIterator):

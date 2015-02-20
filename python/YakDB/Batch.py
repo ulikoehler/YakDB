@@ -9,6 +9,10 @@ class AutoWriteBatch(object):
     When calling flush, a put request is issued to the backend.
     Write request are automatically issued on batch overflow and
     object deletion.
+
+    As an added feature, this class counts the total number of entries written.
+    Entries with duplicate keys are not ignored. Use .numWrites to access.
+    This feature allows reducing the code complexity for statistics
     """
     def __init__(self, conn, tableNo, batchSize=2500, partsync=False, fullsync=False):
         """
@@ -22,6 +26,7 @@ class AutoWriteBatch(object):
         self.partsync = partsync
         self.fullsync = fullsync
         self.batchData = {}
+        self.numWrites = 0
 
     def put(self, valueDict):
         """
@@ -34,6 +39,7 @@ class AutoWriteBatch(object):
         # Merge the dicts
         self.batchData = dict(self.batchData.items() + valueDict.items())
         self.__checkFlush()
+        self.numWrites += len(valueDict)
 
     def putSingle(self, key, value):
         """
@@ -47,6 +53,7 @@ class AutoWriteBatch(object):
         convValue = ZMQBinaryUtil.convertToBinary(value)
         self.batchData[convKey] = convValue
         self.__checkFlush()
+        self.numWrites += 1
 
     def __checkFlush(self):
         """
