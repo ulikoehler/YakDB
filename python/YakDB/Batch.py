@@ -22,6 +22,7 @@ class AutoWriteBatch(object):
         self.partsync = partsync
         self.fullsync = fullsync
         self.batchData = {}
+
     def put(self, valueDict):
         """
         Write a dictionary of values to the current batch.
@@ -30,25 +31,30 @@ class AutoWriteBatch(object):
         """
         if type(valueDict) is not dict:
             raise ParameterException("Batch put valueDict parameter must be a dictionary but it's a %s" % str(type(valueDict)))
-        #Merge the dicts
+        # Merge the dicts
         self.batchData = dict(self.batchData.items() + valueDict.items())
         self.__checkFlush()
+
     def putSingle(self, key, value):
         """
         Write a single key-value pair to the current batch
         """
-        #Convert the key and value to a appropriate binary form (also checks if obj type is supported)
-        #Without this, tracing back what added a key/value with an inappropriate type would not be possible
+        # Convert the key and value to a appropriate binary form
+        #  (also checks if obj type is supported)
+        # Without this, tracing back what added a key/value with
+        #  an inappropriate type would not be possible on flush
         convKey = ZMQBinaryUtil.convertToBinary(key)
         convValue = ZMQBinaryUtil.convertToBinary(value)
         self.batchData[convKey] = convValue
         self.__checkFlush()
+
     def __checkFlush(self):
         """
         Issues a flash if self.batchData overflowed
         """
         if len(self.batchData) >= self.batchSize:
             self.flush()
+
     def flush(self):
         """
         Immediately issue the backend write request and clear the batch write queue.
@@ -57,5 +63,6 @@ class AutoWriteBatch(object):
         if len(self.batchData) != 0:
             self.conn.put(self.tableNo, self.batchData, self.partsync, self.fullsync)
             self.batchData = {}
+
     def __del__(self):
         self.flush()
