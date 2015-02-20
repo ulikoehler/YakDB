@@ -20,6 +20,7 @@ import hashlib
 import base64
 import itertools
 from collections import defaultdict
+from YakDB.Batch import AutoWriteBatch
 
 
 def hashEntity(entity):
@@ -54,12 +55,15 @@ class EntityInvertedIndex(object):
         self.extractKey = keyExtractor
         self.conn = connection
         self.entityTableNo = entityTableNo
+
     def packValue(self, entity):
         """Pack = Serialize an entity"""
         return pickle.dumps(entity)
+
     def unpackValue(self, packedEntity):
         """Unpack = deserialize an entity from the database."""
         return pickle.loads(packedEntity)
+
     @staticmethod
     def _entityIdsToKey(entityId):
         """
@@ -73,15 +77,18 @@ class EntityInvertedIndex(object):
         b''
         """
         return entityId.partition(b"\x1E")[0]
+
     def writeEntity(self, entity):
         """Write an entity to the database"""
         key = self.extractKey(entity)
         value = self.packValue(entity)
         self.conn.put(self.entityTableNo, {key: value})
+
     def writeEntities(self, entities):
         """Write a list of entities at onces"""
         writeDict = {self.extractKey(e): self.packValue(e) for e in entities}
         self.conn.put(self.entityTableNo, writeDict)
+
     def __getEntitiesDict(self, entityIds):
         """Read a list of entities and unpack them. Return the list of objects"""
         #Shortcut for empty resultset
@@ -92,16 +99,19 @@ class EntityInvertedIndex(object):
         )
         #We return the entity ID so that the caller knows which entity part caused the hit
         return dict(zip(entityIds, (self.unpackValue(val) for val in readResults)))
+
     def findEntity(self, entityId):
         "Retrieve a single entity from the database"
         rawEntity = self.conn.read(self.entityTableNo,
             keys=(EntityInvertedIndex._entityIdsToKey(entityId)))[0]
         return self.unpackValue(rawEntity)
+
     def findEntities(self, entityIds):
         "Retrieve multiple entities from the database"
         rawEntities = self.conn.read(self.entityTableNo,
             keys=(EntityInvertedIndex._entityIdsToKey(k) for k in entityIds))
         return (self.unpackValue(entity) for entity in rawEntities)
+
     def __execSyncSearch(self, searchFunc, tokenObj, levels, limit):
         """
         Internal search runner for synchronous multi-level search
@@ -117,7 +127,8 @@ class EntityInvertedIndex(object):
         allResults = allResults[:self.maxEntities]
         # Read the entity objects
         return self.__getEntitiesDict(allResults)
-    def searchSingleTokenPrefix(self, token, levels=[""], limit=10):
+
+    def searchSingleTokenPrefix(self, token, levels=[b""], limit=10):
         """
         Search a single token (or token prefix) in one or multiple levels
         """
@@ -125,17 +136,21 @@ class EntityInvertedIndex(object):
         assert type(levels) != str and type(levels) != bytes
         return self.__execSyncSearch(
             self.index.searchSingleTokenPrefix, token, levels, limit)
-    def searchMultiTokenExact(self, tokens, levels=[""]):
+
+    def searchMultiTokenExact(self, tokens, levels=[b""]):
         """Search multiple tokens in the inverted index (by exact match)"""
         return self.__execSyncSearch(
             self.index.searchMultiTokenExact, tokens, levels)
-    def searchMultiTokenPrefix(self, tokens, levels=[""], limit=25):
+
+    def searchMultiTokenPrefix(self, tokens, levels=[b""], limit=25):
         """Search multiple tokens in the inverted index"""
         return self.__execSyncSearch(
             self.index.searchMultiTokenPrefix, tokens, levels, limit)
+
     def searchSingleTokenMultiExact(self, *args, **kwargs):
         "Currently just a thin wrapper for InvertedIndex.searchSingleTokenMultiExact()"
         return self.index.searchSingleTokenMultiExact(*args, **kwargs)
+
     def searchSingleTokenMultiExact(self, tokens, level=b""):
         """
         Wraps InvertedIndex.searchSingleTokenMultiExact()
@@ -146,37 +161,47 @@ class EntityInvertedIndex(object):
         Empty result sets for tokens are omitted
         """
         indexRes = self.index.searchSingleTokenMultiExact(tokens, level)
-        #Build a list of all entities to read
+        # Build a list of all entities to read
         readKeys = [v[0] for v in itertools.chain(*indexRes.values())]
-        if not readKeys: return {}
-        #Perform entity read
-        entityRawMap = self.conn.read(self.entityTableNo, readKeys, mapKeys=True)
-        entityMap = {k: self.unpackValue(v) for k,v in entityRawMap.items() if v}
-        #Process
-        result = collections.defaultdict(list) #What we will return:
+        if not readKeys:
+            return {}
+        # Perform entity read
+        entityRawMap = self.conn.read(self.entityTableNo, readKeys,
+                                      mapKeys=True)
+        entityMap = {k: self.unpackValue(v)
+                     for k, v in entityRawMap.items() if v}
+        # Process
+        result = collections.defaultdict(list)  # What we will return:
         for hit, values in indexRes.items():
             for value in values:
                 entityId, entityPart = value
-                #FAILSAFE if entity is not present in DB
+                # FAILSAFE if entity is not present in DB
                 if entityId not in entityMap: continue
-                #Shallow-copy dict and add "hitloc"
-                #Reason: We might need different hitlocs for different instances of an entity
+                # Shallow-copy dict and add "hitloc"
+                # Reason: We might need different hitlocs for different instances of an entity
                 entityCopy = dict(entityMap[entityId])
                 entityCopy[b"hitloc"] = entityPart
-                #Add to current result
+                # Add to current result
                 result[hit].append(entityCopy)
         return result
 
     def iterateEntities(self, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
         "Wrapper to initialize a EntityIterator iterating over self"
         return EntityIterator(self, startKey, endKey, limit, keyFilter,
-            valueFilter, skip, invert, chunkSize)
+                              valueFilter, skip, invert, chunkSize)
+
     def iterateIndex(self, *args, **kwargs):
         "Decorator for InvertedIndex.iterateIndex"
         return self.index.iterateIndex(*args, **kwargs)
+
     def indexTokens(self, *args, **kwargs):
         "Decorator for InvertedIndex.iterateIndex"
         return self.index.indexTokens(*args, **kwargs)
+
+    def newWriteBatch(self):
+        "Create a write batch to write entities. See EntityWriteBatch class"
+        return EntityWriteBatch(self.packValue, self.extractKey,
+                                self.conn, self.entityTableNo)
 
 
 class EntityIterator(KeyValueIterator):
@@ -184,15 +209,46 @@ class EntityIterator(KeyValueIterator):
     Lazy iterator wrapper that directly iterates over documents.
     Iterates over tuples (key, entity). Entity is automatically unpacked.
     """
-    def __init__(self, idx, startKey=None, endKey=None, limit=None, keyFilter=None, valueFilter=None, skip=0, invert=False, chunkSize=1000):
-        KeyValueIterator.__init__(self, idx.conn, idx.entityTableNo,
+    def __init__(self, idx, startKey=None, endKey=None, limit=None,
+                 keyFilter=None, valueFilter=None, skip=0,
+                 invert=False, chunkSize=1000):
+        KeyValueIterator.__init__(
+            self, idx.conn, idx.entityTableNo,
             startKey, endKey, limit, keyFilter,
             valueFilter, skip, invert, chunkSize)
         self.idx = idx
+
     def __next__(self):
         k, v = KeyValueIterator.__next__(self)
         return (k, self.idx.unpackValue(v))
 
+
+class EntityWriteBatch(AutoWriteBatch):
+    """
+    AutoWriteBatch wrapper that provides an additional
+    function for writing entities.
+
+    See the AutoWriteBatch documentation for specific
+    properties of this class
+    """
+    def __init__(self, packValue, idExtractor, *args, **kwargs):
+        self.packValue = packValue
+        self.idExtractor = idExtractor
+        AutoWriteBatch.__init__(self, *args, **kwargs)
+
+    def writeEntity(self, entity):
+        "Write a single entity"
+        self.putSingle(self.idExtractor(entity), self.packValue(entity))
+
+    def writeEntities(self, entities):
+        """
+        Write multiple entities at once.
+        This provides only small performance benefits.
+        """
+        self.put({
+            self.idExtractor(entity): self.packValue(entity)
+            for entity in entities
+        })
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 from YakDB.Conversion import ZMQBinaryUtil
 from YakDB.Exceptions import ParameterException
 
-class AutoWriteBatch:
+class AutoWriteBatch(object):
     """
     An utility class that auto-batches write requests to a backend Connection
     When calling flush, a put request is issued to the backend.
