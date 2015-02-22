@@ -107,16 +107,21 @@ class NULAppendOperator : public rocksdb::AssociativeMergeOperator {
     virtual const char* Name() const override;
 };
 
-class NULAppendSetOperator : public rocksdb::AssociativeMergeOperator {
+class NULAppendSetOperator : public rocksdb::MergeOperator {
  public:
-  virtual bool Merge(
-    const rocksdb::Slice& key,
-    const rocksdb::Slice* existing_value,
-    const rocksdb::Slice& value,
-    std::string* new_value,
-    rocksdb::Logger* logger) const override;
 
-    virtual const char* Name() const override;
+    bool FullMerge(const rocksdb::Slice& key,
+                           const rocksdb::Slice* existing_value,
+                           const std::deque<std::string>& operand_list,
+                           std::string* new_value,
+                           rocksdb::Logger* logger) const override;
+  
+    bool PartialMergeMulti(const rocksdb::Slice& key,
+                                   const std::deque<rocksdb::Slice>& operand_list,
+                                   std::string* new_value,
+                                   rocksdb::Logger* logger) const override;
+  
+    const char* Name() const override;
 };
 
 /**

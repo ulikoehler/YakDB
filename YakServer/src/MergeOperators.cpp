@@ -1,6 +1,7 @@
 #include "MergeOperators.hpp"
 #include "Logger.hpp"
 #include "macros.hpp"
+#include "MergeAlgorithms.hpp"
 
 #include <iostream>
 #include <set>
@@ -202,42 +203,51 @@ const char* NULAppendSetOperator::Name() const {
     return "NUL-separated set append";
 }
 
-bool HOT NULAppendSetOperator::Merge(
-    const rocksdb::Slice& key,
-    const rocksdb::Slice* existing_value,
-    const rocksdb::Slice& value,
-    std::string* new_value,
-    rocksdb::Logger* logger) const {
-    // assuming empty if no existing value
-    if (existing_value != nullptr && existing_value->size() != 0) {
-        if(value.size() == 0) {
-            //Trivial: Only existing value is present
-            *new_value = existing_value->ToString();
-            return true;
-        }
-        //Copy strings to lvalues
-        std::string existing = existing_value->ToString();
-        std::string valueStr = value.ToString();
-        //NUL string requires explicit constructor call
-        static const std::string nul = std::string("\0", 1);
-        //Need to split new & existing value into set and join with 0
-        std::set<std::string> existingSplit;
-        std::set<std::string> valueSplit;
-        //Perform splitting
-        auto predicate = boost::is_any_of(nul);
-        boost::algorithm::split(existingSplit, existing, predicate);
-        boost::algorithm::split(valueSplit, valueStr, predicate);
-        //Build union of sets
-        std::vector<std::string> result;
-        std::set_union(existingSplit.begin(), existingSplit.end(),
-                       valueSplit.begin(), valueSplit.end(),
-                       std::back_inserter(result));
-        //Store new value
-        *new_value = boost::algorithm::join(result, nul);
-    } else {
-        //Trivial replace: existing_value == nullptr
-        *new_value = value.ToString();
+#include <iostream>
+using namespace std;
+
+bool NULAppendSetOperator::FullMerge(const rocksdb::Slice& key,
+                       const rocksdb::Slice* existing_value,
+                       const std::deque<std::string>& operand_list,
+                       std::string* new_value,
+                       rocksdb::Logger* logger) const {
+    cout << "Full merging " << operand_list.size() << " operands \n";
+    //If there is a non-empty existing value
+    if(operand_list.empty()) {
+        //Trivial: Only existing value is present
+        *new_value = existing_value->ToString();
+        return true;
     }
+    std::set<std::string> resultSet;
+    //Split existing value (ignore if no existing value)
+    if (existing_value == nullptr || existing_value->size() == 0) {
+        splitByNUL(resultSet, existing_value->data(), existing_value->size());
+    }
+    //Add values to result set for all operand slices
+    for(const std::string& slice : operand_list) {
+        splitByNUL(resultSet, slice.data(), slice.size());
+    }
+    //Serilize & store new value
+    //NOTE: NUL string requires explicit constructor call
+    static const std::string nul = std::string("\0", 1);
+    *new_value = boost::algorithm::join(resultSet, nul);
+    return true;
+}
+
+bool NULAppendSetOperator::PartialMergeMulti(const rocksdb::Slice& key,
+                               const std::deque<rocksdb::Slice>& operand_list,
+                               std::string* new_value, rocksdb::Logger* logger) const {
+    cout << "Merging " << operand_list.size() << " operands \n";
+    //If there is a non-empty existing value
+    std::set<std::string> resultSet;
+    //Add values to result set for all operand slices (implicitly computes set union)
+    for(const rocksdb::Slice& slice : operand_list) {
+        splitByNUL(resultSet, slice.data(), slice.size());
+    }
+    //Serilize & store new value
+    //NOTE: NUL string requires explicit constructor call
+    static const std::string nul = std::string("\0", 1);
+    *new_value = boost::algorithm::join(resultSet, nul);
     return true;
 }
 
