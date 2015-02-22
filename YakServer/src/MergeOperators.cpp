@@ -211,7 +211,6 @@ bool NULAppendSetOperator::FullMerge(const rocksdb::Slice& key,
                        const std::deque<std::string>& operand_list,
                        std::string* new_value,
                        rocksdb::Logger* logger) const {
-    cout << "Full merging " << operand_list.size() << " operands \n";
     //If there is a non-empty existing value
     if(operand_list.empty()) {
         //Trivial: Only existing value is present
@@ -237,7 +236,6 @@ bool NULAppendSetOperator::FullMerge(const rocksdb::Slice& key,
 bool NULAppendSetOperator::PartialMergeMulti(const rocksdb::Slice& key,
                                const std::deque<rocksdb::Slice>& operand_list,
                                std::string* new_value, rocksdb::Logger* logger) const {
-    cout << "Merging " << operand_list.size() << " operands \n";
     //If there is a non-empty existing value
     std::set<std::string> resultSet;
     //Add values to result set for all operand slices (implicitly computes set union)
