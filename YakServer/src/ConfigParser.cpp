@@ -1,6 +1,7 @@
 #include <fstream>
 #include <string>
 #include <regex>
+#include <thread>
 #include <unistd.h>
 #include <vector>
 #include <sstream>
@@ -262,6 +263,11 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     tableSaveFolder = cfg["RocksDB.table-dir"];
     //RocksDB options
     putBatchSize = safeStoull(cfg, "RocksDB.put-batch-size");
+    if(cfg["RocksDB.concurrency"] == "auto") {
+        rocksdbConcurrency = std::thread::hardware_concurrency();
+    } else {
+        rocksdbConcurrency = safeStoi(cfg, "RocksDB.concurrency");
+    }
     //Normalize table save folder to be slash-terminated
     if(tableSaveFolder[tableSaveFolder.size() - 1] != '/') { //if last char is not slash
         tableSaveFolder += "/";

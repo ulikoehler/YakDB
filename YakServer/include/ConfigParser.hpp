@@ -49,6 +49,7 @@ public:
     int internalRCVHWM;
     int internalSNDHWM;
     //RocksDB table options
+    int rocksdbConcurrency;
     bool useMMapReads;
     bool useMMapWrites;
     uint64_t defaultLRUCacheSize;

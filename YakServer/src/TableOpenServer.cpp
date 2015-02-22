@@ -148,6 +148,7 @@ void TableOpenServer::tableOpenWorkerThread() {
                 parameters.parseFromParameterMap(parameterMap);
                 //NOTE: Any option that has not been set up until now is now used from the config default
                 rocksdb::Options options;
+                options.IncreaseParallelism(configParser.rocksdbConcurrency);
                 options.allow_mmap_reads = configParser.useMMapReads;
                 options.allow_mmap_writes = configParser.useMMapWrites;
                 TableOpenParameters::GetOptionsResult res = parameters.getOptions(options);
