@@ -214,12 +214,17 @@ bool NULAppendSetOperator::FullMerge(const rocksdb::Slice& key,
     //If there is a non-empty existing value
     if(operand_list.empty()) {
         //Trivial: Only existing value is present
-        *new_value = existing_value->ToString();
+        if(existing_value == nullptr || existing_value->size() == 0) {
+            //Not even an existing value exists
+            *new_value = "";
+        } else { //We have an existing value
+            *new_value = existing_value->ToString();
+        }
         return true;
     }
     std::set<std::string> resultSet;
     //Split existing value (ignore if no existing value)
-    if (existing_value == nullptr || existing_value->size() == 0) {
+    if (existing_value != nullptr && existing_value->size() != 0) {
         splitByNUL(resultSet, existing_value->data(), existing_value->size());
     }
     //Add values to result set for all operand slices
