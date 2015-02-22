@@ -14,7 +14,7 @@ class AutoWriteBatch(object):
     Entries with duplicate keys are not ignored. Use .numWrites to access.
     This feature allows reducing the code complexity for statistics
     """
-    def __init__(self, conn, tableNo, batchSize=2500, partsync=False, fullsync=False):
+    def __init__(self, conn, tableNo, chunkSize=2500, partsync=False, fullsync=False):
         """
         Create a new AutoWriteBatch.
         @param db The ZeroDB connection backend
@@ -22,7 +22,7 @@ class AutoWriteBatch(object):
         """
         self.conn = conn
         self.tableNo = tableNo
-        self.batchSize = batchSize
+        self.chunkSize = chunkSize
         self.partsync = partsync
         self.fullsync = fullsync
         self.batchData = {}
@@ -59,7 +59,7 @@ class AutoWriteBatch(object):
         """
         Issues a flash if self.batchData overflowed
         """
-        if len(self.batchData) >= self.batchSize:
+        if len(self.batchData) >= self.chunkSize:
             self.flush()
 
     def flush(self):

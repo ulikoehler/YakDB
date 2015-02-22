@@ -8,6 +8,7 @@
 #include "LogServer.hpp"
 #include "macros.hpp"
 #include "protocol.hpp"
+#include "ThreadUtil.hpp"
 #include "zutil.hpp"
 #include <iostream>
 #include <zmq.h>
@@ -100,6 +101,7 @@ static COLD void handleLogServerZMQError() {
 }
 
 void HOT LogServer::start() {
+    setCurrentThreadName("Yak log server");
     //Create a socket to receive log requests
     zmq_msg_t frame;
     zmq_msg_init(&frame);

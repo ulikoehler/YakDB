@@ -4,6 +4,7 @@
 #include <atomic>
 #include "AsyncJobRouter.hpp"
 #include "TableOpenHelper.hpp"
+#include "ThreadUtil.hpp"
 #include "endpoints.hpp"
 #include "protocol.hpp"
 #include "ClientSidePassiveJob.hpp"
@@ -40,6 +41,7 @@ COLD AsyncJobRouterController::AsyncJobRouterController(void* ctxArg, Tablespace
 void COLD AsyncJobRouterController::start() {
     //Lambdas rock
     childThread = new std::thread([](void* ctx, Tablespace& tablespace) {
+        setCurrentThreadName("Yak job router");
         AsyncJobRouter worker(ctx, tablespace);
         while(worker.processNextRequest()) {
             //Loop until stop msg is received (--> processNextRequest() returns false)

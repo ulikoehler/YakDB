@@ -518,7 +518,7 @@ void UpdateWorker::handleTableTruncateRequest(bool generateResponse) {
  * This is what should contain the scheduler client code in the future.
  */
 static void updateWorkerThreadFunction(void* ctx, Tablespace& tablespace, ConfigParser& configParser) {
-    setCurrentThreadName("Yak update worker");
+    setCurrentThreadName("Yak upd worker");
     UpdateWorker updateWorker(ctx, tablespace, configParser);
     while (true) {
         if (!updateWorker.processNextMessage()) {

@@ -313,6 +313,7 @@ asyncJobRouterController(ctx, tables),
 logger(ctx, "Request router"),
 configParser(configParserParam)
  {
+    setCurrentThreadName("Yak server");
     //Start the log server and configure logsinks
     logServer.addLogSink(new StderrLogSink());
     if(!configParser.logFile.empty()) {

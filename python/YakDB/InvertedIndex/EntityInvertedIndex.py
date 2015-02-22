@@ -232,9 +232,9 @@ class EntityWriteBatch(AutoWriteBatch):
     properties of this class
     """
     def __init__(self, packValue, idExtractor, *args, **kwargs):
+        AutoWriteBatch.__init__(self, *args, **kwargs)
         self.packValue = packValue
         self.idExtractor = idExtractor
-        AutoWriteBatch.__init__(self, *args, **kwargs)
 
     def writeEntity(self, entity):
         "Write a single entity"
