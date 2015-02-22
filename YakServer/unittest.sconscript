@@ -1,9 +1,11 @@
-Import(["yakServerSrc","yaklibSrc","env"])
+Import(["yakServerSrc", "yaklibSrc", "env"])
 
 sources = [
     "test/TestMain.cpp",
+    "test/TestAlgorithms.cpp",
 ]
 
+env.MergeFlags({"CXXFLAGS": ["-std=c++11"]})
 env.Program(target="yaktest", source=sources, LIBS=["boost_unit_test_framework"])
 
 

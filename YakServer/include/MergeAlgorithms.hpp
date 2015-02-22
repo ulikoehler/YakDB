@@ -1,6 +1,8 @@
 #ifndef __MERGE_ALGORITHMS_HPP
 #define __MERGE_ALGORITHMS_HPP
 
+#include "macros.hpp"
+
 
 /**
  * Efficiently plit at NUL characters.
@@ -10,9 +12,10 @@
  * Expects traits:
  *   - Container has emplace method
  *   - Container member has (char* data, size_t length) constructor
+ * Usually one would use Container == std::set<std::string>
  */
 template <class Container>
-void splitByNUL(Container& container, const char* data, size_t n) {
+void HOT splitByNUL(Container& container, const char* data, size_t n) {
     if(n == 0) {
         return;
     }
