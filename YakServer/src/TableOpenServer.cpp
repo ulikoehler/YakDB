@@ -149,6 +149,17 @@ void TableOpenServer::tableOpenWorkerThread() {
                 //NOTE: Any option that has not been set up until now is now used from the config default
                 rocksdb::Options options;
                 options.IncreaseParallelism(configParser.rocksdbConcurrency);
+                if(configParser.compactionStyle
+                            == CompactionStyle::LevelStyleCompaction) {
+                    options.OptimizeLevelStyleCompaction(
+                            configParser.compactionMemoryBudget);
+                } else if(configParser.compactionStyle
+                            == CompactionStyle::UniversalStyleCompaction) {
+                    options.OptimizeUniversalStyleCompaction(
+                            configParser.compactionMemoryBudget);
+                } else {
+                    logger.error("Invalid compaction style value (internal error)");
+                }
                 options.allow_mmap_reads = configParser.useMMapReads;
                 options.allow_mmap_writes = configParser.useMMapWrites;
                 TableOpenParameters::GetOptionsResult res = parameters.getOptions(options);

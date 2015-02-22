@@ -262,11 +262,22 @@ COLD ConfigParser::ConfigParser(int argc, char** argv) {
     defaultMergeOperator = cfg["RocksDB.merge-operator"];
     tableSaveFolder = cfg["RocksDB.table-dir"];
     //RocksDB options
+    compactionMemoryBudget = safeStoull(cfg, "RocksDB.compaction-memory-budget");
     putBatchSize = safeStoull(cfg, "RocksDB.put-batch-size");
     if(cfg["RocksDB.concurrency"] == "auto") {
         rocksdbConcurrency = std::thread::hardware_concurrency();
     } else {
         rocksdbConcurrency = safeStoi(cfg, "RocksDB.concurrency");
+    }
+    if(cfg["RocksDB.compaction-style"] == "level") {
+        compactionStyle = CompactionStyle::LevelStyleCompaction;
+    } else if(cfg["RocksDB.compaction-style"] == "universal") {
+        compactionStyle = CompactionStyle::UniversalStyleCompaction;
+        rocksdbConcurrency = safeStoi(cfg, "RocksDB.concurrency");
+    } else {
+        cerr << "\x1B[33m[Warn] Can't parse compaction style configuration '"
+             << cfg["RocksDB.compaction-style"] << "'\x1B[0;30m\n" << endl;
+        exit(1);
     }
     //Normalize table save folder to be slash-terminated
     if(tableSaveFolder[tableSaveFolder.size() - 1] != '/') { //if last char is not slash

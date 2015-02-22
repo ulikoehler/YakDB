@@ -4,6 +4,11 @@
 #include <string>
 #include <vector>
 
+enum class CompactionStyle {
+    LevelStyleCompaction,
+    UniversalStyleCompaction
+};
+
 class ConfigParser {
 public:
     ConfigParser(int argc, char** argv);
@@ -49,7 +54,6 @@ public:
     int internalRCVHWM;
     int internalSNDHWM;
     //RocksDB table options
-    int rocksdbConcurrency;
     bool useMMapReads;
     bool useMMapWrites;
     uint64_t defaultLRUCacheSize;
@@ -59,7 +63,10 @@ public:
     rocksdb::CompressionType defaultCompression;
     std::string defaultMergeOperator;
     //Other RocksDB options
+    int rocksdbConcurrency;
     uint32_t putBatchSize;
+    uint64_t compactionMemoryBudget;
+    CompactionStyle compactionStyle;
     //Save folder, normalized to have a terminal slash.
     std::string tableSaveFolder;
 };
