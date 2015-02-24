@@ -41,7 +41,10 @@ class InvertedIndex(object):
         if type(level) == str: level = level.encode("utf-8")
         if type(token) == str: token = token.encode("utf-8")
         #Assemble the key
-        return level + b"\x1E" + token
+        try:
+            return level + b"\x1E" + token
+        except:
+            print("Error in token: " + str(token))
     @staticmethod
     def extractLevel(dbKey):
         """Given a DB key, extracts the level"""
