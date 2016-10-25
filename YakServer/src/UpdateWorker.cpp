@@ -341,7 +341,10 @@ void UpdateWorker::handleCompactRequest(bool generateResponse) {
     logger.debug("Compacting table " + std::to_string(tableId));
     rocksdb::Slice rangeStart(rangeStartStr);
     rocksdb::Slice rangeEnd(rangeEndStr);
-    db->CompactRange((haveRangeStart ? &rangeStart : nullptr),
+
+    //Perform compaction
+    rocksdb::CompactRangeOptions options;
+    db->CompactRange(options, (haveRangeStart ? &rangeStart : nullptr),
             (haveRangeEnd ? &rangeEnd : nullptr));
     logger.trace("Finished compacting table " + std::to_string(tableId));
     //Create the response if neccessary
@@ -471,10 +474,10 @@ void UpdateWorker::handleTableOpenRequest(bool generateResponse) {
     //Create the response if neccessary
     if (generateResponse) {
         //Assemble & send response header
-        char responseHeader[4] = {0x31, 0x01, 0x01, 0xFF};
+        unsigned char responseHeader[4] = {0x31, 0x01, 0x01, 0xFF};
         responseHeader[3] = ret.data()[0];
         bool isErrorResponse = (responseHeader[3] != 0x00);
-        sendResponseHeader(responseHeader, (isErrorResponse ? ZMQ_SNDMORE : 0));
+        sendResponseHeader((const char*) responseHeader, (isErrorResponse ? ZMQ_SNDMORE : 0));
         //Send error description if response code indicates error
         if(isErrorResponse) {
             std::string errDesc = ret.substr(1);
