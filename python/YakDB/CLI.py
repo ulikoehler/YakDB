@@ -114,12 +114,15 @@ def listKeysInRange(db, args):
     valueFilter = args.valueFilter
     invert = args.invertDirection
     skip = args.skip
+    codec = args.codec
     #Lazily iterate over the key list
     it = KeyIterator(db, tableNo, fromKey, toKey, limit, keyFilter=keyFilter, valueFilter=valueFilter, skip=skip, invert=invert)
-    for key in it:
-        #This won't really work for newline-containing keys,
-        # but we don't recommend them anyway.
-        print(key)
+    if codec == "binary":
+        for key in it:
+            print(key)
+    else:
+        for key in it:
+            print(key.decode(codec))
 
 
 def dump(db, args):
@@ -401,7 +404,7 @@ def yakCLI():
             dest="valueFilter",
             default=None,
             help="The server-side value filter. Ignored KV pairs don't count when calculating the limit.")
-    parserList.add_argument('-l','--limit',
+    parserList.add_argument('-n','--limit',
             action="store",
             dest="scanLimit",
             type=int,
@@ -418,6 +421,11 @@ def yakCLI():
             dest="invertDirection",
             default=False,
             help="Invert the scan direction")
+    parserList.add_argument('-c','--codec',
+            action="store_true",
+            dest="codec",
+            default="utf-8",
+            help="Which codec to use for printing (or 'binary')")
     parserList.add_argument('table',
             type=int,
             nargs='?',
