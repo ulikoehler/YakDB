@@ -51,6 +51,8 @@ class Connection(YakDBConnectionBase):
 
         This request can be used in REQ/REP, PUSH/PULL and PUB/SUB mode.
 
+        If the value dictionary is empty, no operation is performed.
+
         @param tableNo The numeric, unsigned table number to write to
         @param valueDict A dictionary containing the key/value pairs to be written.
                         Must not contain None keys or values.
@@ -67,7 +69,7 @@ class Connection(YakDBConnectionBase):
         #Before sending any frames, check the value dictionary for validity
         #Else, the socket could be left in an inconsistent state
         if len(valueDict) == 0:
-            raise ParameterException("Dictionary to be written did not contain any valid data!")
+            return
         YakDBConnectionBase._checkDictionaryForNone(valueDict)
         #Send header frame
         self.socket.send(YakDBConnectionBase._getWriteHeader(b"\x20", partsync, fullsync, requestId), zmq.SNDMORE)
