@@ -134,7 +134,7 @@ class Connection(YakDBConnectionBase):
 
         @param tableNo The table number to read from
         @param keys A list, tuple or single value.
-                        Must only contain strings, ints or floats.
+                        Must only contain strings/bytes, ints or floats.
                         integral types are automatically mapped to signed 32-bit little-endian binary,
                         floating point types are mapped to signed little-endian 64-bit IEEE754 values.
                         If you'd like to use another binary representation, use a binary string instead.
