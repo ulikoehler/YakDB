@@ -405,7 +405,7 @@ class Connection(YakDBConnectionBase):
         #Receive and etract response code
         msgParts = self.socket.recv_multipart(copy=True)
         YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x01')
-    def truncateTable(self, tableNo):
+    def truncate(self, tableNo):
         """
         Close & truncate a table.
         self._checkSingleConnection()
@@ -453,7 +453,10 @@ class Connection(YakDBConnectionBase):
             responseCode = response[0][3]
             if responseCode != 0:
                 raise YakDBProtocolException("Server stop code was %d instead of 0 (ACK)" % responseCode)
-    def compactRange(self, tableNo, startKey=None, endKey=None):
+    def compactRange(self, *args, **kwargs):
+        """Alias for compact"""
+        return self.compact(*args, **kwargs)
+    def compact(self, tableNo, startKey=None, endKey=None):
         """
         Compact a range in a table.
         This operation might take a long time and might not be useful at all
