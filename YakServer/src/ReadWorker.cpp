@@ -218,7 +218,7 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         return;
     }
     uint8_t scanFlags = ((char*)zmq_msg_data(headerFrame))[3];
-    bool invertScanDirection = (scanFlags & ScanFlagInvertDirection) != 0;
+    bool invertScanDirection = isScanDirectionInverted(scanFlags);
     //Parse table ID
     uint32_t tableId;
     if (!parseUint32Frame(tableId, "Table ID frame in scan request", true)) {
@@ -386,7 +386,7 @@ void ReadWorker::handleListRequest(zmq_msg_t* headerFrame) {
         return;
     }
     uint8_t scanFlags = ((char*)zmq_msg_data(headerFrame))[3];
-    bool invertScanDirection = (scanFlags & ScanFlagInvertDirection) != 0;
+    bool invertScanDirection = isScanDirectionInverted(scanFlags);
     //Parse table ID
     uint32_t tableId;
     if (!parseUint32Frame(tableId, "Table ID frame in list request", true)) {
@@ -652,17 +652,17 @@ bool ReadWorker::processNextRequest() {
     //Get the request type
     RequestType requestType = getRequestType(&headerFrame);
     //Process the rest of the frame
-    if (requestType == ReadRequest) {
+    if (requestType == RequestType::ReadRequest) {
         handleReadRequest(&headerFrame);
-    } else if (requestType == CountRequest) {
+    } else if (requestType == RequestType::CountRequest) {
         handleCountRequest(&headerFrame);
-    } else if (requestType == ExistsRequest) {
+    } else if (requestType == RequestType::ExistsRequest) {
         handleExistsRequest(&headerFrame);
-    } else if (requestType == ScanRequest) {
+    } else if (requestType == RequestType::ScanRequest) {
         handleScanRequest(&headerFrame);
-    } else if (requestType == ListRequest) {
+    } else if (requestType == RequestType::ListRequest) {
         handleListRequest(&headerFrame);
-    } else if (requestType == TableInfoRequest) {
+    } else if (requestType == RequestType::TableInfoRequest) {
         handleTableInfoRequest(&headerFrame);
     } else {
         std::string errstr = "Internal routing error: request type " + std::to_string((int) requestType) + " routed to read worker thread!";

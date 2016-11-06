@@ -46,7 +46,7 @@ inline static bool COLD checkProtocolVersion(const char* data, size_t size, std:
     return true;
 }
 
-enum RequestType : uint8_t {
+enum class RequestType : uint8_t {
     ServerInfoRequest = 0x00,
     OpenTableRequest = 0x01,
     CloseTableRequest = 0x02,
@@ -70,7 +70,7 @@ enum RequestType : uint8_t {
     ClientDataRequest = 0x50
 };
 
-enum ResponseType : uint8_t {
+enum class ResponseType : uint8_t {
     ServerInfoResponse = 0x00,
     OpenTableResponse = 0x01,
     CloseTableResponse = 0x02,
@@ -81,19 +81,24 @@ enum ResponseType : uint8_t {
     PutDeleteResponse = 0x20
 };
 
-enum ServerFeatureFlag : uint64_t {
+enum class ServerFeatureFlag : uint64_t {
     SupportOnTheFlyTableOpen = 0x01,
-    SupportPARTSYNC = 0x02,
-    SupportFULLSYNC = 0x04
+    SupportPartiallySynchronous = 0x02,
+    SupportFullySynchronous = 0x04
 };
 
-enum WriteFlag : uint8_t {
-    WriteFlagPARTSYNC = 0x01,
-    WriteFlagFULLSYNC = 0x02
+enum class WriteFlag : uint8_t {
+    PartiallySynchronous = 0x01,
+    FullySynchronous = 0x02
 };
 
-enum ScanFlag : uint8_t {
-    ScanFlagInvertDirection = 0x01
+enum class CopyFlag : uint8_t {
+    SynchronousDelete = 0x01,
+};
+
+
+enum class ScanFlag : uint8_t {
+    InvertDirection = 0x01
 };
 
 /**
@@ -140,12 +145,26 @@ static inline uint8_t getWriteFlags(zmq_msg_t* frame) {
     return (zmq_msg_size(frame) >= 4 ? ((uint8_t*)zmq_msg_data(frame))[3] : 0x00);
 }
 
+static inline uint8_t getCopyFlags(zmq_msg_t* frame) {
+    //Write flags are optional and default to 0x00
+    return (zmq_msg_size(frame) >= 5 ? ((uint8_t*)zmq_msg_data(frame))[4] : 0x00);
+}
+
 static inline bool isPartsync(uint8_t writeFlags) {
-    return (writeFlags & WriteFlagPARTSYNC);
+    return (writeFlags & (uint8_t)WriteFlag::PartiallySynchronous);
 }
 
 static inline bool isFullsync(uint8_t writeFlags) {
-    return (writeFlags & WriteFlagFULLSYNC);
+    return (writeFlags & (uint8_t)WriteFlag::FullySynchronous);
 }
+
+static inline bool isSynchronousDelete(uint8_t writeFlags) {
+    return (writeFlags & (uint8_t)CopyFlag::SynchronousDelete);
+}
+
+static inline bool isScanDirectionInverted(uint8_t scanFlags) {
+    return (scanFlags & (uint8_t)ScanFlag::InvertDirection);
+}
+
 
 #endif	/* PROTOCOL_HPP */

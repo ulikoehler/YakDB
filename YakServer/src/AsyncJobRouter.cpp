@@ -1,4 +1,4 @@
-#include <rocksdb/db.h>
+    #include <rocksdb/db.h>
 #include <zmq.h>
 #include <limits>
 #include <atomic>
@@ -139,7 +139,7 @@ bool AsyncJobRouter::processNextRequest() {
     //Get the request type
     RequestType requestType = getRequestType(&headerFrame);
     //Process the rest of the framex
-    if (requestType == ClientDataRequest) {
+    if (requestType == RequestType::ClientDataRequest) {
         //Parse the APID frame
         uint64_t apid;
         errorResponse = "\x31\01\x50\x01";
@@ -173,7 +173,7 @@ bool AsyncJobRouter::processNextRequest() {
         }
         //Do some cleanup
         zmq_msg_close(&headerFrame);
-    } else if (requestType == ForwardRangeToSocketRequest) {
+    } else if (requestType == RequestType::ForwardRangeToSocketRequest) {
         //TODO implement
         zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
         zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE);
@@ -181,7 +181,7 @@ bool AsyncJobRouter::processNextRequest() {
         std::string errstr = "Forward range to socket request not yet implemented";
         sendFrame(errstr, processorOutputSocket, logger, "Errmsg (= yet to be implemented)");
         logger.error(errstr);
-    } else if (requestType == ServerSideTableSinkedMapInitializationRequest) {
+    } else if (requestType == RequestType::ServerSideTableSinkedMapInitializationRequest) {
         //TODO implement
         zmq_msg_send(&routingFrame, processorOutputSocket, ZMQ_SNDMORE);
         zmq_msg_send(&delimiterFrame, processorOutputSocket, ZMQ_SNDMORE);
@@ -189,7 +189,7 @@ bool AsyncJobRouter::processNextRequest() {
         std::string errstr = "SSTSMIR not yet implemented";
         sendFrame(errstr, processorOutputSocket, logger, "Errmsg (= yet to be implemented)");
         logger.error(errstr);
-    } else if (requestType == ClientSidePassiveTableMapInitializationRequest) {
+    } else if (requestType == RequestType::ClientSidePassiveTableMapInitializationRequest) {
         zmq_msg_close(&headerFrame);
         //Parse all parameters
         uint32_t tableId;

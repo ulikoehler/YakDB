@@ -171,7 +171,7 @@ void HOT KeyValueServer::handleRequestResponse() {
             zmq_msg_send(&delimiterFrame, sock, ZMQ_SNDMORE);
             //Response type shall be the same as request type
             char data[] = "\x31\x01\x20\x00";
-            data[2] = requestType;
+            data[2] = (uint8_t)requestType;
             //This method automatically handles
             AbstractFrameProcessor::sendResponseHeader(sock,
                 logger,
@@ -185,12 +185,14 @@ void HOT KeyValueServer::handleRequestResponse() {
         }
     } else if (requestType == RequestType::ServerInfoRequest) {
         //Server info requests are answered in the main thread
-        const uint64_t serverFlags = SupportOnTheFlyTableOpen | SupportPARTSYNC | SupportFULLSYNC;
+        const uint64_t serverFlags = (uint8_t)ServerFeatureFlag::SupportOnTheFlyTableOpen
+            | (uint8_t)ServerFeatureFlag::SupportPartiallySynchronous
+            | (uint8_t)ServerFeatureFlag::SupportFullySynchronous;
         const size_t responseSize = 3/*Metadata*/ + sizeof (uint64_t)/*Flags*/;
         char serverInfoData[responseSize]; //Allocate on stack
         serverInfoData[0] = magicByte;
         serverInfoData[1] = protocolVersion;
-        serverInfoData[2] = ServerInfoResponse;
+        serverInfoData[2] = (uint8_t)ResponseType::ServerInfoResponse;
         memcpy(serverInfoData + 3, &serverFlags, sizeof (uint64_t));
         //Send the routing information
         zmq_msg_send(&addrFrame, sock, ZMQ_SNDMORE);
@@ -203,7 +205,7 @@ void HOT KeyValueServer::handleRequestResponse() {
             logger, "Server info response version info");
         //Dispose non-reused messages
         zmq_msg_close(&headerFrame);
-    } else if(requestType & 0x40) { //Any data processing request
+    } else if((uint8_t)requestType & 0x40) { //Any data processing request
         /**
          * Data processing requests are simply redirected to the async job router
          * controller, as processing them in the main router might stall message
@@ -233,7 +235,7 @@ void HOT KeyValueServer::handleRequestResponse() {
         //Stop the poll loop by simulating sigint
         yak_interrupted = true;
     } else {
-        logger.warn("Unknown message type " + std::to_string(requestType) + " from client");
+        logger.warn("Unknown message type " + std::to_string((uint8_t)requestType) + " from client");
         //Send a protocol error back to the client
         //TODO detailed error message frame (see protocol specs)
         sendProtocolError(&addrFrame, &delimiterFrame, &headerFrame, sock, "Unknown message type", logger);

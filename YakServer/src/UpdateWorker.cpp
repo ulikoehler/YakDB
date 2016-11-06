@@ -118,23 +118,23 @@ bool UpdateWorker::processNextMessage() {
      * All functions must send at least one frame (without SNDMORE) if the last
      * argument is true.
      */
-    if (likely(requestType == PutRequest)) {
+    if (likely(requestType == RequestType::PutRequest)) {
         handlePutRequest(haveReplyAddr);
-    } else if (requestType == DeleteRequest) {
+    } else if (requestType == RequestType::DeleteRequest) {
         handleDeleteRequest(haveReplyAddr);
-    } else if (requestType == OpenTableRequest) {
+    } else if (requestType == RequestType::OpenTableRequest) {
         handleTableOpenRequest(haveReplyAddr);
-    } else if (requestType == CloseTableRequest) {
+    } else if (requestType == RequestType::CloseTableRequest) {
         handleTableCloseRequest(haveReplyAddr);
-    } else if (requestType == CompactTableRequest) {
+    } else if (requestType == RequestType::CompactTableRequest) {
         handleCompactRequest(haveReplyAddr);
-    } else if (requestType == TruncateTableRequest) {
+    } else if (requestType == RequestType::TruncateTableRequest) {
         handleTableTruncateRequest(haveReplyAddr);
-    } else if (requestType == DeleteRangeRequest) {
+    } else if (requestType == RequestType::DeleteRangeRequest) {
         handleDeleteRangeRequest(haveReplyAddr);
     } else {
         logger.error(std::string("Internal routing error: request type ")
-                + std::to_string(requestType) + " routed to update worker thread!");
+                + std::to_string((uint8_t)requestType) + " routed to update worker thread!");
     }
     //General cleanup
     zmq_msg_close(&headerFrame);
