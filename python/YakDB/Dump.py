@@ -8,6 +8,8 @@ from __future__ import with_statement
 import struct
 import gzip
 import lzma
+import tempfile
+import os.path
 from YakDB.Batch import AutoWriteBatch
 
 __keyValueMagicByte = 0x6DE0
@@ -37,7 +39,7 @@ def __verifyYDFFileHeader(f):
 def __writeYDFKeyValue(f, key, value):
     """
     Append a single key-value record to a file-like object
-    
+
     Keyword arguments:
         f -- The file-like object to write to
         key -- The key to write, in any binary writable form (not unicode)
@@ -49,7 +51,7 @@ def __writeYDFKeyValue(f, key, value):
 def __readYDFKeyValue(f):
     """
     Read a YDF-formatted key-value block.
-    
+
     Return value: A tuple (key, value) or None if there is no record left
     """
     kvHdr = f.read(18) #2 magic word + 8 key size + 8 value size
@@ -62,7 +64,7 @@ def __readYDFKeyValue(f):
     key = f.read(keySize)
     value = f.read(valueSize)
     return (key, value)
-    
+
 
 def dumpYDF(conn, outputFilename, tableNo, startKey=None, endKey=None, limit=None, chunkSize=1000):
     """
@@ -96,3 +98,41 @@ def importYDFDump(conn, inputFilename, tableNo):
             if ret is None: break
             key, value = ret
             batch.putSingle(key, value)
+
+
+def copyTable(conn, srcTable, targetTable, truncate=False, extension=None, startKey=None, endKey=None, limit=None, **kwargs):
+    """
+    Copies an entire table to another, deleting all values in the first table.
+    Unless truncate is True, this function uses deleteRange, making the operation fully safe
+    This minimizes downtime of the target by deleting the target table as late as possible
+
+    This operation first exports a snapshotted YDF dump of 
+
+    @param srcTable The table to read from. This table is not modified and read using a snapshot
+    @param targetTable The table to write to. This table is deleted entirely before updating its values,
+        making this operation feasible with arbitrary merge operators
+    @param extension The extension of the generated YDF file. Using ".xz" or ".gz" here
+        saves disk space in /tmp, but the operation is usually slower.
+    @param startKey: This start key is used for both dumping and deletion. Useful to update only part of a table
+    @param endKey: This end key is used for both dumping and deletion. Useful to update only part of a table
+    @param limit: This limit is used for both dumping and deletion. Rarely useful
+    @param kwargs Passed onto dumpYDF()
+    @return A dictionary of the returned key/value pairs
+    """
+    # Create temporary directory to store dump in
+    tempdir = tempfile.TemporaryDirectory(prefix="YakPythonClient")
+    filename = "t{}-t{}-copy.ydf{}".format(srcTable, targetTable, extension or "")
+    dumpfile = os.path.join(tempdir, filename)
+    try:
+        print("Dumping to " + dumpfile)
+        # Generate dump
+        dumpYDF(conn, dumpfile, srcTable, startKey=startKey, endKey=endKey, limit=limit, **kwargs)
+        # Delete target table
+        if truncate:
+            conn.truncate(targetTable)
+        else:
+            conn.deleteRange(targetTable, startKey=startKey, endKey=endKey, limit=limit)
+        # Import table
+        importYDFDump(conn, dumpfile, targetTable)
+    finally:
+        tempdir.cleanup()
