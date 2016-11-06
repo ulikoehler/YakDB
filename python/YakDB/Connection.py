@@ -278,6 +278,33 @@ class Connection(YakDBConnectionBase):
         #Wait for reply
         msgParts = self.socket.recv_multipart(copy=True)
         YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x22')
+    def copyRange(self, srcTable, dstTable, startKey, endKey, limit=None, synchronousDelete=False):
+        """
+        Server-side copy from one table subrange to another.
+
+        @param tableNo The table number to read from
+        @param dstTable, The table number to write to
+        @param startKey The first key to scan, inclusive, or None or "" (both equivalent) to start at the beginning
+        @param endKey The last key to scan, exclusive, or None or "" (both equivalent) to end at the end of table
+        @param limit The maximum number of keys to delete, or None, if no limit shall be imposed
+        @param synchronousDelete Whether to delete the previous talbes
+        @return A dictionary of the returned key/value pairs
+        """
+        #Check parameters and create binary-string only key list
+        YakDBConnectionBase._checkParameterType(tableNo, int, "tableNo")
+        #Check if this connection instance is setup correctly
+        self._checkSingleConnection()
+        self._checkRequestReply()
+        #Send header frame
+        self.socket.send(b"\x31\x01\x24\x00" + b"\x01" if synchronousDelete else b"\x00", zmq.SNDMORE)
+        #Send the table number frame
+        self._sendBinary32(srcTable, more=True)
+        self._sendBinary32(dstTable, more=True)
+        #Send range. "" --> empty frame --> start/end of tabe
+        self._sendRange(startKey,  endKey)
+        #Wait for reply
+        msgParts = self.socket.recv_multipart(copy=True)
+        YakDBConnectionBase._checkHeaderFrame(msgParts, b'\x24')
     def count(self, tableNo, startKey, endKey):
         """
         self._checkSingleConnection()

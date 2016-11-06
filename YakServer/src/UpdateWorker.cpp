@@ -509,7 +509,6 @@ void UpdateWorker::handleCopyRangeRequest(bool generateResponse) {
     //Create the response object
     rocksdb::ReadOptions readOptions;
     rocksdb::Status status;
-    //Create the iterator
     /**
      * Perform synchronous deletion if required
      */
