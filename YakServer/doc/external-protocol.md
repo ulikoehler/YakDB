@@ -1,3 +1,4 @@
+
 # YakDB external protocol specification
 
 ## Low-Level protocol
@@ -447,9 +448,9 @@ Deletes data until one of these events occurs:
 
 * Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x22 Request type (Delete range request)] [1 byte Write flags]
 * Frame 1: 4-byte unsigned table number
-* Frame 1: 8-byte unsigned limit (or zero-length frame --> no limit)
-* Frame 2: Start key (inclusive). If this has zero length, the count starts at the first key
-* Frame 3: End key (exclusive). If this has zero length, the count ends at the last key
+* Frame 2: 8-byte unsigned limit (or zero-length frame --> no limit)
+* Frame 3: Start key (inclusive). If this has zero length, the count starts at the first key
+* Frame 4: End key (exclusive). If this has zero length, the count ends at the last key
 
 ##### Multi-table write request:
 
@@ -477,6 +478,32 @@ Request type:
     0x00: Put - number of valuesets is (total number of frames - 1)/2
     0x01: Delete - number of valuesets is (total number of frames - 1)
 
+##### Copy range request request:
+
+Copies a table or part of a table from one table to another.
+
+Support synchronous deletion:
+    Deletes the range in the target table at the latest possible
+    This allows usage with arbitrary merge operators and minimizes downtime compared to when dumping and exporting using the CLI tool
+
+Copies and possibly deletes data until one of these events occurs:
+    - The end of the table is reached
+    - The end key is reached (if any)
+    - The limit is reached (if any)
+
+The limit parameter is applied independently to the copying and deletion step (if any). It is rarely useful when ac
+
+* Frame 0: [0x31 Magic Byte][0x01 Protocol Version][0x24 Request type (Copy range request)] [1 byte Write flags] [1 byte copy flags]
+* Frame 1: 4-byte unsigned source table number
+* Frame 2: 4-byte unsigned target table number
+* Frame 3: 8-byte unsigned limit (or zero-length frame --> no limit)
+* Frame 4: Start key (inclusive). If this has zero length, the count starts at the first key
+* Frame 5: End key (exclusive). If this has zero length, the count ends at the last key
+
+Copy flags (ORed):
+    - 0x01: Synchronous delete
+
+
 ##### Write response
 
 The response format is identical for all write-type requests
@@ -497,6 +524,8 @@ of an automatic batch rollback.
 
 Note: If not using PARTSYNC flag, the server will always send a non-error acknowledge code,
 because processing has not started when the reply is sent.
+
+
 
 -------------------------------
 
