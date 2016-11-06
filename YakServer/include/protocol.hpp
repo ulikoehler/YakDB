@@ -62,6 +62,8 @@ enum RequestType : uint8_t {
     PutRequest = 0x20,
     DeleteRequest = 0x21,
     DeleteRangeRequest = 0x22,
+    MultiTableWriteRequest = 0x23,
+    CopyRangeRequest = 0x24,
     ForwardRangeToSocketRequest = 0x40,
     ServerSideTableSinkedMapInitializationRequest = 0x41,
     ClientSidePassiveTableMapInitializationRequest = 0x42,
