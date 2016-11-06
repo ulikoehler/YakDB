@@ -137,7 +137,7 @@ bool AbstractFrameProcessor::expectNextFrame(const char* errString,
     return true;
 }
 
-bool AbstractFrameProcessor::checkLevelDBStatus(const rocksdb::Status& status,
+bool AbstractFrameProcessor::checkRocksDBStatus(const rocksdb::Status& status,
     const char* errMsg,
     bool generateResponse) {
     if (unlikely(!status.ok() && !status.IsNotFound())) {

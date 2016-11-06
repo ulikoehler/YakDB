@@ -482,7 +482,7 @@ Request type:
 
 Copies a table or part of a table from one table to another.
 
-Support synchronous deletion:
+Supports synchronous deletion:
     Deletes the range in the target table at the latest possible
     This allows usage with arbitrary merge operators and minimizes downtime compared to when dumping and exporting using the CLI tool
 

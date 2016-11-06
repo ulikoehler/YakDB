@@ -119,7 +119,7 @@ void ReadWorker::handleExistsRequest(zmq_msg_t* headerFrame) {
         rocksdb::Slice key((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
 
         rocksdb::Status status = db->Get(readOptions, key, &value);
-        if (unlikely(!checkLevelDBStatus(status, "LevelDB error while checking key for existence", true))) {
+        if (unlikely(!checkRocksDBStatus(status, "RocksDB error while checking key for existence", true))) {
             logger.trace("The key that caused the previous error was " + std::string((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame)));
             zmq_msg_close(&keyFrame);
             return;
@@ -177,7 +177,7 @@ void ReadWorker::handleReadRequest(zmq_msg_t* headerFrame) {
         rocksdb::Slice key((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
         status = db->Get(readOptions, key, &value);
         zmq_msg_close(&keyFrame);
-        if (unlikely(!checkLevelDBStatus(status, "LevelDB error while reading key", true))) {
+        if (unlikely(!checkRocksDBStatus(status, "RocksDB error while reading key", true))) {
             logger.trace("The key that caused the error was " + key.ToString());
             zmq_msg_close(&keyFrame);
             return;
@@ -364,8 +364,8 @@ void ReadWorker::handleScanRequest(zmq_msg_t* headerFrame) {
         sendResponseHeader(ackResponse, 0);
     }
     //Check if any error occured during iteration
-    if (!checkLevelDBStatus(it->status(),
-            "LevelDB error while scanning",
+    if (!checkRocksDBStatus(it->status(),
+            "RocksDB error while scanning",
             true)) {
         delete it;
         return;
@@ -525,8 +525,8 @@ void ReadWorker::handleListRequest(zmq_msg_t* headerFrame) {
         sendResponseHeader(ackResponse, 0);
     }
     //Check if any error occured during iteration
-    if (!checkLevelDBStatus(it->status(),
-            "LevelDB error while scanning",
+    if (!checkRocksDBStatus(it->status(),
+            "RocksDB error while scanning",
             true)) {
         delete it;
         return;
@@ -577,7 +577,7 @@ void ReadWorker::handleCountRequest(zmq_msg_t* headerFrame) {
         count++;
     }
     //Check if any error occured during iteration
-    if (!checkLevelDBStatus(it->status(), "LevelDB error while counting", true)) {
+    if (!checkRocksDBStatus(it->status(), "RocksDB error while counting", true)) {
         delete it;
         return;
     }

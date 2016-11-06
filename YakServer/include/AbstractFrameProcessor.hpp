@@ -122,12 +122,12 @@ protected:
     bool expectNextFrame(const char* errString,
             bool generateResponse);
     /**
-     * Ensure the given LevelDB status code indicates success
+     * Ensure the given RocksDB status code indicates success
      * @param errString A descriptive error string logged and sent to the client. status error string will be appended.
      * @param generateResponse Set this to true if an error message shall be sent on error
      * @return True on success, false if an error has been handled and the caller shall stop processing.
      */
-    bool checkLevelDBStatus(const rocksdb::Status& status,
+    bool checkRocksDBStatus(const rocksdb::Status& status,
             const char* errString,
             bool generateResponse);
 

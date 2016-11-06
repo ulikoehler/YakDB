@@ -61,6 +61,7 @@ private:
     void handlePutRequest(bool generateResponse);
     void handleDeleteRequest(bool generateResponse);
     void handleDeleteRangeRequest(bool generateResponse);
+    void handleCopyRangeRequest(bool generateResponse);
     void handleLimitedDeleteRangeRequest(bool generateResponse);
     void handleCompactRequest(bool generateResponse);
     void handleTableOpenRequest(bool generateResponse);

@@ -132,6 +132,8 @@ bool UpdateWorker::processNextMessage() {
         handleTableTruncateRequest(haveReplyAddr);
     } else if (requestType == RequestType::DeleteRangeRequest) {
         handleDeleteRangeRequest(haveReplyAddr);
+    } else if (requestType == RequestType::CopyRangeRequest) {
+        handleCopyRangeRequest(haveReplyAddr);
     } else {
         logger.error(std::string("Internal routing error: request type ")
                 + std::to_string((uint8_t)requestType) + " routed to update worker thread!");
@@ -167,7 +169,7 @@ void UpdateWorker::handlePutRequest(bool generateResponse) {
     //Process the flags
     uint8_t flags = getWriteFlags(&headerFrame);
     bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
-    //Convert options to LevelDB
+    //Convert options to RocksDB
     rocksdb::WriteOptions writeOptions;
     writeOptions.sync = fullsync;
     //Parse table ID
@@ -222,7 +224,7 @@ void UpdateWorker::handlePutRequest(bool generateResponse) {
         //If batch is full, write to db
         if(currentBatchSize >= maxBatchSize) {
             rocksdb::Status status = db->Write(writeOptions, &batch);
-            if (!checkLevelDBStatus(status,
+            if (!checkRocksDBStatus(status,
                     "Database error while processing update request: ",
                     generateResponse)) {
                 return;
@@ -238,7 +240,7 @@ void UpdateWorker::handlePutRequest(bool generateResponse) {
     }
     //Write last batch part
     rocksdb::Status status = db->Write(writeOptions, &batch);
-    if (!checkLevelDBStatus(status, "Database error while processing update request: ", generateResponse)) {
+    if (!checkRocksDBStatus(status, "Database error while processing update request: ", generateResponse)) {
         return;
     }
     //Send success code
@@ -260,7 +262,7 @@ void UpdateWorker::handleDeleteRequest(bool generateResponse) {
     //Process the flags
     uint8_t flags = getWriteFlags(&headerFrame);
     bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
-    //Convert options to LevelDB
+    //Convert options to RocksDB
     rocksdb::WriteOptions writeOptions;
     writeOptions.sync = fullsync;
     //Parse table ID
@@ -281,7 +283,7 @@ void UpdateWorker::handleDeleteRequest(bool generateResponse) {
         if (unlikely(!receiveMsgHandleError(&keyFrame, "Receive deletion key frame", generateResponse))) {
             return;
         }
-        //Convert to LevelDB
+        //Convert to RocksDB
         rocksdb::Slice keySlice((char*) zmq_msg_data(&keyFrame), zmq_msg_size(&keyFrame));
         batch.Delete(keySlice);
         //Check if we have more frames
@@ -292,7 +294,7 @@ void UpdateWorker::handleDeleteRequest(bool generateResponse) {
     //Commit the batch
     rocksdb::Status status = db->Write(writeOptions, &batch);
     //If something went wrong, send an error response
-    if (!checkLevelDBStatus(status, "Database error while processing delete request: ", generateResponse)) {
+    if (!checkRocksDBStatus(status, "Database error while processing delete request: ", generateResponse)) {
         return;
     }
     //Send success code
@@ -364,7 +366,7 @@ void UpdateWorker::handleDeleteRangeRequest(bool generateResponse) {
     //Process the flags
     uint8_t flags = getWriteFlags(&headerFrame);
     bool fullsync = isFullsync(flags); //= Send reply after flushed to disk
-    //Convert options to LevelDB
+    //Convert options to RocksDB
     rocksdb::WriteOptions writeOptions;
     writeOptions.sync = fullsync;
     //Parse table ID
@@ -373,7 +375,7 @@ void UpdateWorker::handleDeleteRangeRequest(bool generateResponse) {
         return;
     }
     //Check if there is a range frames
-    if (!expectNextFrame("Only table ID frame found in delete rangee request, ĺimit frame missing", generateResponse)) {
+    if (!expectNextFrame("Only table ID frame found in delete range request, ĺimit frame missing", generateResponse)) {
         return;
     }
     //Parse limit frame. For now we just assume UINT64_MAX is close enough to infinite
@@ -400,7 +402,6 @@ void UpdateWorker::handleDeleteRangeRequest(bool generateResponse) {
     bool haveRangeEnd = !(rangeEndStr.empty());
     //Convert the str to a slice, to compare the iterator slice in-place
     rocksdb::Slice rangeEndSlice(rangeEndStr);
-    //Do the compaction (takes LONG)
     //Create the response object
     rocksdb::ReadOptions readOptions;
     rocksdb::Status status;
@@ -432,7 +433,7 @@ void UpdateWorker::handleDeleteRangeRequest(bool generateResponse) {
         batch.Delete(key);
     }
     //Check if any error occured during iteration
-    if (!checkLevelDBStatus(it->status(), "LevelDB error while processing delete request", true)) {
+    if (!checkRocksDBStatus(it->status(), "RocksDB error while processing delete request", true)) {
         delete it;
         return;
     }
@@ -440,7 +441,159 @@ void UpdateWorker::handleDeleteRangeRequest(bool generateResponse) {
     //Apply the batch
     status = db->Write(writeOptions, &batch);
     //If something went wrong, send an error response
-    if (!checkLevelDBStatus(status,
+    if (!checkRocksDBStatus(status,
+            "Database error while processing delete request: ", generateResponse)) {
+        return;
+    }
+    //Create the response if neccessary
+    if (generateResponse) {
+        sendResponseHeader(ackResponse);
+    }
+}
+
+void UpdateWorker::handleCopyRangeRequest(bool generateResponse) {
+    /*
+    * NOTE regarding request IDs: The request has 4 bytes, instead of the default 3.
+    * This needs to be passed to functions generating the response
+    * header.
+    */
+    errorResponse = "\x31\x01\x24\x01";
+    static const char* ackResponse = "\x31\x01\x24\x00";
+    //Process the flags
+    uint8_t writeFlags = getWriteFlags(&headerFrame);
+    uint8_t copyFlags = getCopyFlags(&headerFrame);
+    bool fullsync = isFullsync(writeFlags); //= Send reply after flushed to disk
+    bool synchronousDelete = isSynchronousDelete(copyFlags); //= Send reply after flushed to disk
+    //Convert options to RocksDB
+    rocksdb::WriteOptions writeOptions;
+    writeOptions.sync = fullsync;
+    //Parse table IDs
+    uint32_t sourceTableId;
+    if (!parseUint32Frame(sourceTableId, "Source table ID frame", generateResponse)) {
+        return;
+    }
+    uint32_t targetTableId;
+    if (!parseUint32Frame(targetTableId, "Target table ID frame", generateResponse)) {
+        return;
+    }
+    //Check if the limit frame is present at all
+    if (!expectNextFrame("Only table ID frame found in copy range request, ĺimit frame missing", generateResponse)) {
+        return;
+    }
+    //Parse limit frame. For now we just assume UINT64_MAX is close enough to infinite
+    uint64_t scanLimit;
+    if (!parseUint64FrameOrAssumeDefault(scanLimit,
+                std::numeric_limits<uint64_t>::max(),
+                "Receive scan limit frame",
+                true)) {
+        return;
+    }
+    //Check if there are range frames
+    if (!expectNextFrame("Only table ID frame found in delete range request, range missing",
+            generateResponse)) {
+        return;
+    }
+    //Get the table
+    rocksdb::DB* sourceTable = tablespace.getTable(sourceTableId, tableOpenHelper);
+    rocksdb::DB* targetTable = tablespace.getTable(targetTableId, tableOpenHelper);
+    bool mergeRequired = tablespace.isMergeRequired(targetTableId);
+    //Parse the from-to range
+    std::string rangeStartStr;
+    std::string rangeEndStr;
+    parseRangeFrames(rangeStartStr,
+            rangeEndStr, "Parsing delete range request key range frames");
+    bool haveRangeStart = !(rangeStartStr.empty());
+    bool haveRangeEnd = !(rangeEndStr.empty());
+    //Convert the str to a slice, to compare the iterator slice in-place
+    rocksdb::Slice rangeEndSlice(rangeEndStr);
+    //Create the response object
+    rocksdb::ReadOptions readOptions;
+    rocksdb::Status status;
+    //Create the iterator
+    /**
+     * Perform synchronous deletion if required
+     */
+    if(synchronousDelete) {
+        rocksdb::Iterator* it = targetTable->NewIterator(readOptions);
+        // This also avoids construct like deleting while iterating
+        rocksdb::WriteBatch batch;
+        if (haveRangeStart) {
+            it->Seek(rangeStartStr);
+        } else {
+            it->SeekToFirst();
+        }
+        uint64_t count = 0;
+        //Iterate over all key-values in the range
+        for (; it->Valid(); it->Next()) {
+            count++;
+            //Check limit
+            if (scanLimit <= 0) {
+                break;
+            }
+            scanLimit--;
+            //Check range end
+            rocksdb::Slice key = it->key();
+            if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
+                break;
+            }
+            //Both checks passed, delete it
+            batch.Delete(key);
+        }
+        //Check if any error occured during iteration
+        if (!checkRocksDBStatus(it->status(), "RocksDB error while processing delete request", true)) {
+            delete it;
+            return;
+        }
+        delete it;
+        //Apply the batch
+        status = targetTable->Write(writeOptions, &batch);
+    }
+    /**
+     * Perform copying of data
+     */
+    rocksdb::Iterator* srcIterator = targetTable->NewIterator(readOptions);
+    rocksdb::WriteBatch batch;
+    const uint32_t maxBatchSize = cfg.putBatchSize;
+    uint32_t currentBatchSize = 0;
+    //The entire update is processed in one batch. Empty batches are allowed.
+    bool haveMoreData = socketHasMoreFrames(processorInputSocket);
+    uint64_t elementCounter = 0;
+    for (; srcIterator->Valid(); srcIterator->Next()) {
+        //Check limit
+        if (scanLimit <= 0) {
+            break;
+        }
+        scanLimit--;
+        //Check range end
+        rocksdb::Slice key = srcIterator->key();
+        if (haveRangeEnd && key.compare(rangeEndSlice) >= 0) {
+            break;
+        }
+        //Write into batch
+        if(mergeRequired) {
+            batch.Merge(srcIterator->key(), srcIterator->value());
+        } else { //A simple put is enough (REPLACE merge operator)
+            batch.Put(srcIterator->key(), srcIterator->value());
+        }
+        currentBatchSize++;
+        //If batch is full, write to db
+        if(currentBatchSize >= maxBatchSize) {
+            rocksdb::Status status = targetTable->Write(writeOptions, &batch);
+            if (!checkRocksDBStatus(status,
+                    "Database error while processing copy table request (put batch subrequest): ",
+                    generateResponse)) {
+                return;
+            }
+            batch.Clear();
+            currentBatchSize = 0;
+        }
+        //Statistics
+        elementCounter++;
+    }
+    //Perform last write
+    status = targetTable->Write(writeOptions, &batch);
+    //If something went wrong, send an error response
+    if (!checkRocksDBStatus(status,
             "Database error while processing delete request: ", generateResponse)) {
         return;
     }
