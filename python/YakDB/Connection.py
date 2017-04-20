@@ -273,6 +273,8 @@ class Connection(YakDBConnectionBase):
         self.socket.send(b"\x31\x01\x22", zmq.SNDMORE)
         #Send the table number frame
         self._sendBinary32(tableNo, more=True)
+        # Send maximum number of records to delete
+        self._sendBinary64(limit, more=True)
         #Send range. "" --> empty frame --> start/end of tabe
         self._sendRange(startKey,  endKey)
         #Wait for reply
