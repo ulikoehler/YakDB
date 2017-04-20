@@ -195,10 +195,10 @@ def closeTable(db, args):
 
 def truncateTable(db, args):
     tables = [args.tableNo]
-    if len(args.tables) > 0:
+    if args.tables:
         tables = args.tables
     for table in tables:
-        db.truncateTable(table)
+        db.truncate(table)
         if not args.quiet:
             print("Truncating table #%d finished" % table)
 
@@ -591,5 +591,6 @@ def yakCLI():
     #For some reason, the default=info setting only works with Python2
     try:
         args.func(db, args)
-    except AttributeError:
+    except AttributeError as e:
+        print(e)
         info(db, args)
